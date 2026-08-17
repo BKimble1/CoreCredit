@@ -119,13 +119,20 @@ workflows:
 
     environment:
       xcode: 26.4
-      # Codemagic fetches profiles for this bundle identifier and for bundle identifiers that
-      # extend it, which covers the widget extension `com.blakekimble.corecredit.widget`.
-      # If the widget ever fails to sign, delete the `bundle_identifier` line: with it omitted
-      # Codemagic provisions every target found in the project.
+      # `bundle_identifier` is deliberately omitted.
+      #
+      # Naming it scopes the profile fetch to that one identifier, so the archive failed with
+      # "CoreCreditQuickScanWidget requires a provisioning profile" — the app had a profile and
+      # the extension had none, and `use-profiles` switches the project to manual signing, which
+      # removes Xcode's ability to paper over the gap. With no identifier given, Codemagic
+      # provisions every bundle identifier it finds in the project, which is the app and the
+      # widget extension.
+      #
+      # This needs the App ID `com.blakekimble.corecredit.widget` to exist in the Developer
+      # portal. The App Store Connect integration registers a missing one; if it cannot, add it
+      # by hand before re-running.
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.blakekimble.corecredit
       vars:
         APP_STORE_APPLE_ID: "6802336957"
 
