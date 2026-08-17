@@ -29,18 +29,26 @@ struct ScanDeduplicationTests {
     func theSameStationaryBarcodeDoesNotFireTwice() throws {
         var deduplicator = ScanSessionDeduplicator()
 
-        #expect(deduplicator.accept(payload: "03-1887", symbology: code128, now: start))
+        // Each `accept` is bound to a `let` before it is asserted on, and must stay that way.
+        // `accept` is `mutating`, and `#expect` expands its argument into a closure that captures
+        // the expression immutably — calling a mutating member inside it does not compile
+        // ("cannot use mutating member on immutable value"). Hoisting also keeps the mutation
+        // order explicit, which matters here because every call changes what the next one returns.
+        let firstRead = deduplicator.accept(payload: "03-1887", symbology: code128, now: start)
+        #expect(firstRead)
 
         // The camera reports the same symbol again a fraction of a second later. It is one part,
         // held still, not a second scan.
-        #expect(deduplicator.accept(payload: "03-1887",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(0.1)) == false)
+        let immediateRepeat = deduplicator.accept(payload: "03-1887",
+                                                  symbology: code128,
+                                                  now: start.addingTimeInterval(0.1))
+        #expect(immediateRepeat == false)
 
         // And it is still the same part a minute later, after the cooldown is long past.
-        #expect(deduplicator.accept(payload: "03-1887",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(60)) == false)
+        let repeatAfterCooldown = deduplicator.accept(payload: "03-1887",
+                                                      symbology: code128,
+                                                      now: start.addingTimeInterval(60))
+        #expect(repeatAfterCooldown == false)
 
         let acceptance = try #require(deduplicator.lastAcceptance)
         #expect(acceptance.payload == "03-1887")
@@ -53,7 +61,8 @@ struct ScanDeduplicationTests {
     func anEmptyPayloadIsNotAScan() {
         var deduplicator = ScanSessionDeduplicator()
 
-        #expect(deduplicator.accept(payload: "", symbology: code128, now: start) == false)
+        let emptyRead = deduplicator.accept(payload: "", symbology: code128, now: start)
+        #expect(emptyRead == false)
         #expect(deduplicator.lastAcceptance == nil)
         #expect(deduplicator.acceptedPayloads.isEmpty)
     }
@@ -67,23 +76,27 @@ struct ScanDeduplicationTests {
         #expect(ScanSessionDeduplicator.defaultCooldown == 1.25)
 
         // The first read of the session is always accepted.
-        #expect(deduplicator.accept(payload: "03-1887", symbology: code128, now: start))
+        let firstRead = deduplicator.accept(payload: "03-1887", symbology: code128, now: start)
+        #expect(firstRead)
 
         // A *different* code half a second later is a fumble across a shelf of labelled bins.
-        #expect(deduplicator.accept(payload: "17-4420",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(0.5)) == false)
+        let fumbleInsideWindow = deduplicator.accept(payload: "17-4420",
+                                                     symbology: code128,
+                                                     now: start.addingTimeInterval(0.5))
+        #expect(fumbleInsideWindow == false)
 
         // The same code after the window is still refused — it was already dealt with.
-        #expect(deduplicator.accept(payload: "03-1887",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(1.25)) == false)
+        let sameCodeAfterWindow = deduplicator.accept(payload: "03-1887",
+                                                      symbology: code128,
+                                                      now: start.addingTimeInterval(1.25))
+        #expect(sameCodeAfterWindow == false)
 
         // A different code after the window is a deliberate second scan, and is accepted. The
         // boundary is inclusive: exactly `cooldown` seconds after the last acceptance counts.
-        #expect(deduplicator.accept(payload: "17-4420",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(1.25)))
+        let newCodeAtBoundary = deduplicator.accept(payload: "17-4420",
+                                                    symbology: code128,
+                                                    now: start.addingTimeInterval(1.25))
+        #expect(newCodeAtBoundary)
 
         #expect(deduplicator.acceptedPayloads == ["03-1887", "17-4420"])
         #expect(deduplicator.lastAcceptance?.payload == "17-4420")
@@ -95,18 +108,24 @@ struct ScanDeduplicationTests {
         var deduplicator = ScanSessionDeduplicator(cooldown: 5)
         #expect(deduplicator.cooldown == 5)
 
-        #expect(deduplicator.accept(payload: "03-1887", symbology: code128, now: start))
-        #expect(deduplicator.accept(payload: "17-4420",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(4.9)) == false)
-        #expect(deduplicator.accept(payload: "17-4420",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(5)))
+        let firstRead = deduplicator.accept(payload: "03-1887", symbology: code128, now: start)
+        #expect(firstRead)
+
+        let insideCustomWindow = deduplicator.accept(payload: "17-4420",
+                                                     symbology: code128,
+                                                     now: start.addingTimeInterval(4.9))
+        #expect(insideCustomWindow == false)
+
+        let atCustomBoundary = deduplicator.accept(payload: "17-4420",
+                                                   symbology: code128,
+                                                   now: start.addingTimeInterval(5))
+        #expect(atCustomBoundary)
 
         // A clock that jumped backwards should make the scanner conservative, not trigger-happy.
-        #expect(deduplicator.accept(payload: "CAL-118",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(-3_600)) == false)
+        let backwardsClock = deduplicator.accept(payload: "CAL-118",
+                                                 symbology: code128,
+                                                 now: start.addingTimeInterval(-3_600))
+        #expect(backwardsClock == false)
     }
 
     // MARK: - Resetting
@@ -115,10 +134,13 @@ struct ScanDeduplicationTests {
     func resettingForgetsTheSession() {
         var deduplicator = ScanSessionDeduplicator()
 
-        #expect(deduplicator.accept(payload: "03-1887", symbology: code128, now: start))
-        #expect(deduplicator.accept(payload: "03-1887",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(10)) == false)
+        let firstRead = deduplicator.accept(payload: "03-1887", symbology: code128, now: start)
+        #expect(firstRead)
+
+        let repeatBeforeReset = deduplicator.accept(payload: "03-1887",
+                                                    symbology: code128,
+                                                    now: start.addingTimeInterval(10))
+        #expect(repeatBeforeReset == false)
 
         deduplicator.reset()
 
@@ -128,8 +150,9 @@ struct ScanDeduplicationTests {
         #expect(deduplicator.cooldown == ScanSessionDeduplicator.defaultCooldown)
 
         // With nothing remembered, the same code is a new scan again — immediately.
-        #expect(deduplicator.accept(payload: "03-1887",
-                                    symbology: code128,
-                                    now: start.addingTimeInterval(10)))
+        let afterReset = deduplicator.accept(payload: "03-1887",
+                                             symbology: code128,
+                                             now: start.addingTimeInterval(10))
+        #expect(afterReset)
     }
 }
