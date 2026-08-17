@@ -19,7 +19,11 @@
 import Foundation
 
 /// Why a money-shaped token was refused. Each case has a sentence written for a technician.
-enum ScanMoneyRejection: String, Equatable, Sendable {
+/// `Error` conformance is required, not decorative: this type is the `Failure` half of
+/// `Result<Money, ScanMoneyRejection>`, and the standard library constrains `Result.Failure` to
+/// `Error`. Without it the generic cannot be formed at all, and every `.failure(.someCase)` in
+/// this file fails with the misleading "cannot infer contextual base in reference to member".
+enum ScanMoneyRejection: String, Error, Equatable, Sendable {
 
     /// Not money at all: empty, letters, a code like `12-34`, or stray punctuation.
     case notMoney
@@ -302,14 +306,7 @@ enum ScanMoneyParser {
         }
         // `canonical` carries no sign, so `parsed.cents` is never negative here; the sign is
         // re-applied below, which keeps the range check on a single, positive magnitude.
-        // The failure case is spelled out in full here. In this one guard the two `Int64`
-        // comparisons and the `else` branch are solved in a single constraint system, and the
-        // leading-dot `.failure(.outOfRange)` needs *two* levels of inference at once — Xcode 26.4
-        // gives up with "cannot infer contextual base in reference to member 'outOfRange'".
-        // Naming the Result type removes the ambiguity without changing behaviour.
-        guard parsed.cents >= 0, parsed.cents <= maximumCents else {
-            return Result<Money, ScanMoneyRejection>.failure(.outOfRange)
-        }
+        guard parsed.cents >= 0, parsed.cents <= maximumCents else { return .failure(.outOfRange) }
 
         if isNegative { return .success(Money(cents: -parsed.cents)) }
         return .success(parsed)

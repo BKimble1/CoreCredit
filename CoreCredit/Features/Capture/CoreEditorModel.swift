@@ -602,7 +602,12 @@ final class CoreEditorModel {
     /// length or in their first bytes essentially always, and the identifier only has to
     /// distinguish two routes inside one run: it is never stored, and never compared across
     /// launches.
-    private static func identityKey(for data: Data) -> String {
+    ///
+    /// `nonisolated` because `Route.id` satisfies `Identifiable` on a nested enum that carries no
+    /// actor isolation, so it is read from a synchronous nonisolated context. This function is
+    /// pure — it hashes bytes and touches no model state — so stepping outside the main actor is
+    /// safe rather than merely convenient.
+    nonisolated private static func identityKey(for data: Data) -> String {
         var hasher = Hasher()
         hasher.combine(data.count)
         for byte in data.prefix(identitySampleLength) {
@@ -617,7 +622,8 @@ final class CoreEditorModel {
     }
 
     /// How many bytes are sampled from each end of an image for `identityKey(for:)`.
-    private static let identitySampleLength = 64
+    /// `nonisolated` for the same reason as `identityKey(for:)`, which is its only reader.
+    nonisolated private static let identitySampleLength = 64
 
     /// Prefers an error's own sentence — and its recovery suggestion — over a Cocoa domain and code.
     private static func presentable(_ error: any Error) -> String {

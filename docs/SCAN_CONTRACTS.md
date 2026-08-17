@@ -161,7 +161,10 @@ enum BarcodePayloadClassifier {
 ## 4. `CoreCredit/Domain/ScanMoneyParser.swift` (pure Foundation)
 
 ```swift
-enum ScanMoneyRejection: String, Equatable, Sendable {
+// `Error` is mandatory: this is the `Failure` half of `Result<Money, ScanMoneyRejection>`, and
+// the standard library constrains `Result.Failure` to `Error`. Omitting it makes the generic
+// unformable and yields the misleading "cannot infer contextual base in reference to member".
+enum ScanMoneyRejection: String, Error, Equatable, Sendable {
     case notMoney, ambiguousSeparator, tooManyFractionDigits, outOfRange
     var explanation: String { get }
 }

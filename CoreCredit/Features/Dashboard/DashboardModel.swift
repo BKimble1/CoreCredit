@@ -19,7 +19,12 @@ final class DashboardModel {
 
     /// How many urgent cores are listed inline before the "See all" row takes over. Kept small on
     /// purpose: the dashboard is a summary, and a long list here would bury the total above it.
-    static let urgentItemLimit = 5
+    ///
+    /// `nonisolated` because it is used as a default argument of `urgentItems(from:dateProvider:limit:)`,
+    /// and default arguments are evaluated in the caller's context rather than the callee's. Under
+    /// the Swift 6 language mode reading a main-actor-isolated static from there is an error, not a
+    /// warning. An immutable `Int` is safe to read from anywhere.
+    nonisolated static let urgentItemLimit = 5
 
     /// The modal the dashboard currently has open. `nil` means the dashboard itself is in front.
     ///

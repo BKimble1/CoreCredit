@@ -138,7 +138,7 @@ struct AttachmentPickerSheet: View {
                 }
 
                 PhotosPicker(selection: $pickedItem, matching: .images) {
-                    photoLibraryLabel
+                    PhotoLibraryLabel()
                 }
                 .disabled(isProcessing)
                 .accessibilityLabel(Text("Choose from photos"))
@@ -155,28 +155,38 @@ struct AttachmentPickerSheet: View {
         }
     }
 
-    private var photoLibraryLabel: some View {
-        HStack(spacing: Spacing.s) {
-            Image(systemName: "photo.on.rectangle")
-                .imageScale(.medium)
-            Text("Choose from photos")
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+    // MARK: - Photo picker label
+
+    /// A standalone view rather than a computed property on the sheet.
+    ///
+    /// `PhotosPicker`'s label builder is `@Sendable` in the iOS 26 SDK, so referencing a
+    /// main-actor-isolated member of `AttachmentPickerSheet` from inside it captures `self` across
+    /// an isolation boundary. This type captures nothing — it reads only the design tokens, which
+    /// are nonisolated — so the closure has nothing to smuggle.
+    private struct PhotoLibraryLabel: View {
+        var body: some View {
+            HStack(spacing: Spacing.s) {
+                Image(systemName: "photo.on.rectangle")
+                    .imageScale(.medium)
+                Text("Choose from photos")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(Palette.textPrimary)
+            .padding(.horizontal, Spacing.l)
+            .padding(.vertical, Spacing.m)
+            .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget)
+            .background(
+                RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                    .fill(Palette.surfaceElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                    .strokeBorder(Palette.hairline, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(Palette.textPrimary)
-        .padding(.horizontal, Spacing.l)
-        .padding(.vertical, Spacing.m)
-        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget)
-        .background(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .fill(Palette.surfaceElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
     }
 
     // MARK: - Reviewing the result
