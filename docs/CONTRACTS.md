@@ -53,8 +53,8 @@ enum AppConfiguration {
     static let bundleIdentifier = "com.example.corecredit"
 
     // MARK: StoreKit — must match StoreKit/CoreCredit.storekit and App Store Connect
-    static let monthlyProductID = "com.example.corecredit.pro.monthly"
-    static let annualProductID  = "com.example.corecredit.pro.annual"
+    static let monthlyProductID = "com.blakekimble.corecredit.pro.monthly"
+    static let annualProductID  = "com.blakekimble.corecredit.pro.annual"
     static let subscriptionGroupIdentifier = "21500000"
     static var subscriptionProductIDs: [String] { [monthlyProductID, annualProductID] }
 

@@ -96,13 +96,14 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
 2. **Bundle identifier — set.** `com.blakekimble.corecredit` (plus `.tests` / `.uitests`),
    matching `AppConfiguration.bundleIdentifier` and the Codemagic `ios_signing` block.
    App Store Connect Apple ID `6802336957`.
-3. **Subscription product IDs — STILL PLACEHOLDERS.** `com.example.corecredit.pro.monthly` and
-   `com.example.corecredit.pro.annual`, subscription group `21500000`. Change in
-   `AppConfiguration` **and** in `StoreKit/CoreCredit.storekit`, then create the matching
-   auto-renewable subscriptions in App Store Connect in a single group.
-   Intended prices: **US $14.99/month** and **US $119.99/year**. These prices live only in the
-   `.storekit` file and App Store Connect — there is no price string in any Swift source, by
-   design.
+3. **Subscription product IDs — SET.** `com.blakekimble.corecredit.pro.monthly` and
+   `com.blakekimble.corecredit.pro.annual`, matching in `AppConfiguration` and
+   `StoreKit/CoreCredit.storekit`. The matching auto-renewable subscriptions must exist in App
+   Store Connect in one group and reach **Ready to Submit**, or StoreKit returns nothing and the
+   paywall shows its retry state — a missing product is silent, never an error.
+   Prices: **US $14.99/month** and **US $119.99/year**, held only in the `.storekit` file and App
+   Store Connect. There is no price string in any Swift source, by design.
+   `subscriptionGroupIdentifier` is still the local `.storekit` number; nothing reads it.
 4. **Support / privacy / terms URLs.** All three point at `example.com`. The About screen
    visibly marks them as placeholders; replace them with live pages.
 5. **App icon — supplied.** `AppIcon.appiconset/AppIcon.png` is real 1024×1024 artwork

@@ -88,7 +88,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.example.corecredit.pro.monthly",
+          "productID" : "com.blakekimble.corecredit.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "CoreCredit Pro Monthly",
           "subscriptionGroupID" : "21500000",
@@ -113,7 +113,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.example.corecredit.pro.annual",
+          "productID" : "com.blakekimble.corecredit.pro.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "CoreCredit Pro Annual",
           "subscriptionGroupID" : "21500000",

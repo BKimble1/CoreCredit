@@ -14,11 +14,12 @@ import UIKit
 ///    `INFOPLIST_KEY_CFBundleDisplayName` build setting and in `CoreCredit.storekit`.
 /// 2. `bundleIdentifier` — must match `PRODUCT_BUNDLE_IDENTIFIER` in the Xcode target and the
 ///    App ID registered in the Apple Developer portal.
-/// 3. `monthlyProductID` / `annualProductID` — must match, character for character, the product
-///    identifiers in `StoreKit/CoreCredit.storekit` **and** in App Store Connect. A mismatch is
-///    silent: StoreKit simply returns no products and the paywall shows its load-failure state.
-/// 4. `subscriptionGroupIdentifier` — the numeric group ID App Store Connect assigns to the
-///    subscription group. The placeholder here is the local `.storekit` file's value.
+/// 3. `monthlyProductID` / `annualProductID` — SET. These are the final App Store Connect
+///    identifiers and must stay in step with `StoreKit/CoreCredit.storekit`, character for
+///    character. A mismatch is silent: StoreKit returns no products and the paywall falls back
+///    to its retry state rather than reporting anything wrong.
+/// 4. `subscriptionGroupIdentifier` — the local `.storekit` group number. Nothing reads it today,
+///    so it is metadata; replace it if any code starts querying the group directly.
 /// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — all four are
 ///    `example.com` placeholders. App Review rejects builds whose support and privacy URLs do
 ///    not resolve to real, reachable pages.
@@ -39,8 +40,18 @@ enum AppConfiguration {
 
     // MARK: StoreKit — must match StoreKit/CoreCredit.storekit and App Store Connect
 
-    static let monthlyProductID = "com.example.corecredit.pro.monthly"
-    static let annualProductID  = "com.example.corecredit.pro.annual"
+    /// The final App Store Connect product identifiers.
+    ///
+    /// These are the single source of truth in Swift — nothing else in the app target spells a
+    /// product identifier. They must match `StoreKit/CoreCredit.storekit` and App Store Connect
+    /// character for character; a mismatch is silent, because StoreKit simply returns no products
+    /// and the paywall falls back to its retry state rather than reporting anything wrong.
+    static let monthlyProductID = "com.blakekimble.corecredit.pro.monthly"
+    static let annualProductID  = "com.blakekimble.corecredit.pro.annual"
+
+    /// The local `.storekit` group number. Nothing in the app reads this today — subscription
+    /// status is resolved per product — so it is metadata rather than behaviour. Replace it with
+    /// the real App Store Connect group ID if anything ever starts querying the group directly.
     static let subscriptionGroupIdentifier = "21500000"
 
     /// The full set of identifiers requested from StoreKit on launch.
@@ -119,12 +130,15 @@ enum AppConfiguration {
         return false
     }
 
-    /// Whether the StoreKit product identifiers are still the sample ones.
+    /// Whether the StoreKit product identifiers are real rather than the sample ones.
     ///
-    /// Deliberately a separate check. `isPlaceholder(_:)` looks for a reserved *host*, and
-    /// `com.example.corecredit.pro.monthly` is a reverse-DNS identifier, not a URL — the substring
-    /// there is `example.cor`, so a host test can never catch it. Shipping these unchanged fails
-    /// quietly: StoreKit simply returns no products and the paywall shows its load-failure state.
+    /// Deliberately separate from `isPlaceholder(_:)`, which looks for a reserved *host*. A
+    /// product identifier is reverse-DNS, not a URL: the substring in
+    /// `com.example.corecredit.pro.monthly` is `example.cor`, so a host test can never catch it.
+    ///
+    /// This matters because shipping the samples fails *quietly* — StoreKit returns no products
+    /// and the paywall shows its retry state, which looks like a network problem rather than a
+    /// configuration one. True for the identifiers above.
     static var areSubscriptionProductIDsConfigured: Bool {
         subscriptionProductIDs.allSatisfy { $0.hasPrefix("com.example.") == false }
     }

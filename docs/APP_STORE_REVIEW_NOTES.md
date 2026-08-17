@@ -7,10 +7,12 @@ Everything above it is context for the owner and should not be submitted.
 
 ## Owner checklist before submitting
 
-- [ ] Replace the placeholder bundle identifier and both product identifiers
-      (`CoreCredit/App/AppConfiguration.swift`).
+- [x] Bundle identifier and both product identifiers are set
+      (`CoreCredit/App/AppConfiguration.swift`, matching `StoreKit/CoreCredit.storekit`).
 - [ ] Create the two auto-renewable subscriptions in App Store Connect in one subscription
       group, with the identifiers and prices below, and get them to **Ready to Submit**.
+      Until they exist there, StoreKit returns no products and the paywall shows its retry
+      state — a missing product is silent, never an error.
 - [ ] Replace the placeholder support and privacy URLs with live pages.
 - [ ] Add the 1024×1024 app icon.
 - [ ] Confirm the privacy answers in `docs/PRIVACY.md` still match the shipped build.
@@ -76,8 +78,8 @@ Two auto-renewable subscriptions, in one subscription group:
 
 | Product identifier | Intended price |
 |---|---|
-| `com.example.corecredit.pro.monthly` | US $14.99 / month |
-| `com.example.corecredit.pro.annual`  | US $119.99 / year |
+| `com.blakekimble.corecredit.pro.monthly` | US $14.99 / month |
+| `com.blakekimble.corecredit.pro.annual`  | US $119.99 / year |
 
 Prices shown in the app are read from StoreKit and are never hard-coded.
 **Restore Purchases** and **Manage Subscription** are both in Settings → Subscription and on the
