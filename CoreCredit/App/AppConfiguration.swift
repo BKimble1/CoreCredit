@@ -35,7 +35,7 @@ enum AppConfiguration {
     // MARK: Identity
 
     static let displayName = "CoreCredit"
-    static let bundleIdentifier = "com.example.corecredit"
+    static let bundleIdentifier = "com.blakekimble.corecredit"
 
     // MARK: StoreKit — must match StoreKit/CoreCredit.storekit and App Store Connect
 

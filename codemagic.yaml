@@ -29,3 +29,66 @@ workflows:
     artifacts:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/CoreCredit.app
       - $CM_BUILD_DIR/xcodebuild.log
+
+  # Signed build for internal TestFlight testing. No credentials are stored here:
+  # App Store Connect auth comes from the Codemagic "CoreCredit App Store"
+  # integration, whose signing key lives in Codemagic and never in this repository.
+  corecredit-testflight:
+    name: CoreCredit TestFlight
+    max_build_duration: 60
+
+    integrations:
+      app_store_connect: "CoreCredit App Store"
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: true
+
+    environment:
+      xcode: 26.4
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.blakekimble.corecredit
+      vars:
+        APP_STORE_APPLE_ID: "6802336957"
+
+    scripts:
+      - name: Verify Xcode project
+        script: |
+          set -e
+          xcodebuild -version
+          xcodebuild -list \
+            -project "$CM_BUILD_DIR/CoreCredit.xcodeproj"
+
+      - name: Apply App Store signing
+        script: |
+          set -e
+          xcode-project use-profiles \
+            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+
+      - name: Set unique build number
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          agvtool new-version -all "$PROJECT_BUILD_NUMBER"
+
+      - name: Build signed IPA
+        script: |
+          set -e
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/CoreCredit.xcodeproj" \
+            --scheme CoreCredit
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      app_store_connect:
+        auth: integration
