@@ -145,6 +145,26 @@ workflows:
           xcodebuild -list \
             -project "$CM_BUILD_DIR/CoreCredit.xcodeproj"
 
+      # `ios_signing` above fetches the profile for the one identifier it names, and nothing else,
+      # so the embedded widget extension's profile never reaches the runner even once it exists in
+      # the portal. Fetch that one here.
+      #
+      # This runs *after* managed signing, which matters. Run first, against an empty keychain, it
+      # fails with "Cannot save Signing Certificates without certificate private key" — that key
+      # belongs to Codemagic and is only placed in the keychain by managed signing. By this point
+      # it is already there.
+      #
+      # Deliberately non-fatal: if it cannot fetch, the profile listing in the next step is the
+      # evidence that says so, and a hard failure here would hide it.
+      - name: Fetch the widget extension's provisioning profile
+        script: |
+          set +e
+          app-store-connect fetch-signing-files "com.blakekimble.corecredit.widget" \
+            --type IOS_APP_STORE \
+            --create
+          echo "fetch-signing-files exit status: $?"
+          exit 0
+
       - name: Apply App Store signing
         script: |
           set -e
