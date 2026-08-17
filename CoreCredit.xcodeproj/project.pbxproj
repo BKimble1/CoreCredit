@@ -40,6 +40,7 @@
 		CC0000000000000000000022 /* CoreCreditUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CoreCreditUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CC0000000000000000000033 /* CoreCredit.storekit */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = CoreCredit.storekit; sourceTree = "<group>"; };
 		CC0000000000000000000023 /* CoreCreditQuickScanWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CoreCreditQuickScanWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC0000000000000000000038 /* CoreCreditQuickScanWidget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CoreCreditQuickScanWidget-Info.plist"; sourceTree = "<group>"; };
 		CC0000000000000000000036 /* CoreCredit-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CoreCredit-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -132,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				CC0000000000000000000036 /* CoreCredit-Info.plist */,
+				CC0000000000000000000038 /* CoreCreditQuickScanWidget-Info.plist */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -622,8 +624,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7GNFT94A9L;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/CoreCreditQuickScanWidget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Quick Scan";
-				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -646,8 +648,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7GNFT94A9L;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/CoreCreditQuickScanWidget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Quick Scan";
-				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
