@@ -37,10 +37,24 @@ struct PlaceholderAuditTests {
         #expect(AppConfiguration.isPlaceholder("   "))
         #expect(AppConfiguration.isPlaceholder("\n\t"))
 
+        // Every domain RFC 2606 reserves for documentation counts, not only the one this build
+        // happens to ship. `example.org` and `example.net` can never be registered by anyone, so
+        // an address at either is a stand-in copied from a template — printing it would hand a
+        // shop a support link that cannot ever resolve.
+        #expect(AppConfiguration.isPlaceholder("https://example.org/support"))
+        #expect(AppConfiguration.isPlaceholder("support@example.net"))
+
         // A real address is left alone.
         #expect(AppConfiguration.isPlaceholder("https://corecredit.app/support") == false)
         #expect(AppConfiguration.isPlaceholder("support@corecredit.app") == false)
-        #expect(AppConfiguration.isPlaceholder("https://example.org/support") == false)
+
+        // Matching is on the whole host label, not a bare substring: `myexample.company` is a
+        // registrable domain that merely contains the reserved one.
+        #expect(AppConfiguration.isPlaceholder("https://myexample.company/support") == false)
+
+        // The reserved `.example` top-level domain is deliberately NOT treated as a stand-in.
+        // `isPlaceholder` matches reserved second-level hosts, and widening it to a TLD rule is a
+        // separate decision — recorded here so the gap is a choice rather than an oversight.
         #expect(AppConfiguration.isPlaceholder("https://corecredit.example/support") == false)
     }
 
