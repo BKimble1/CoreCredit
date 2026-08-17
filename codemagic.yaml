@@ -1,0 +1,31 @@
+workflows:
+  corecredit-simulator-build:
+    name: CoreCredit Simulator Build
+    max_build_duration: 60
+
+    environment:
+      xcode: 26.4
+
+    scripts:
+      - name: Verify Xcode project
+        script: |
+          xcodebuild -version
+          xcodebuild -list \
+            -project CoreCredit.xcodeproj
+
+      - name: Build CoreCredit for iOS Simulator
+        script: |
+          set -o pipefail
+
+          xcodebuild clean build \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$CM_BUILD_DIR/xcodebuild.log"
+
+    artifacts:
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/CoreCredit.app
+      - $CM_BUILD_DIR/xcodebuild.log
