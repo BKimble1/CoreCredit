@@ -26,7 +26,10 @@ struct PersistenceTests {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let storeURL = directory.appending(path: "CoreCredit.store", directoryHint: .notDirectory)
-        let schema = Schema(versionedSchema: CoreCreditSchemaV2.self)
+        // The schema the app actually ships — `ModelContainerFactory` builds V3. Opening at an
+        // older version than the migration plan's newest is not a supported combination, and it
+        // silently drifts every time a schema is added, so this must track the shipping version.
+        let schema = Schema(versionedSchema: CoreCreditSchemaV3.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
 
         // First launch: write the ledger, then let the container go out of scope.
@@ -114,9 +117,11 @@ struct PersistenceTests {
 
         try firstLaunch()
 
-        // Second launch: the shipping schema, opened through the lightweight V1 -> V2 stage. The
-        // existing row must survive untouched, with the two new attributes reading back as nil.
-        let currentSchema = Schema(versionedSchema: CoreCreditSchemaV2.self)
+        // Second launch: the shipping schema, reached through the lightweight V1 -> V2 -> V3
+        // stages. The existing row must survive untouched, with the two new attributes reading
+        // back as nil. This is the TestFlight-compatibility guarantee, so it opens at whatever
+        // version ships today, not at whatever was newest when the test was written.
+        let currentSchema = Schema(versionedSchema: CoreCreditSchemaV3.self)
         let currentConfiguration = ModelConfiguration(schema: currentSchema, url: storeURL)
         let reopened = try ModelContainer(for: currentSchema,
                                           migrationPlan: CoreCreditMigrationPlan.self,
@@ -134,9 +139,21 @@ struct PersistenceTests {
         #expect(restored.scannedBarcodeValue == nil)
         #expect(restored.scannedBarcodeSymbology == nil)
 
-        // The plan itself: two versions, one additive stage between them.
-        #expect(CoreCreditMigrationPlan.schemas.count == 2)
-        #expect(CoreCreditMigrationPlan.stages.count == 1)
+        // The plan itself. Asserted as invariants rather than as literal counts: a hard-coded
+        // "two schemas, one stage" silently rots the moment a version is added, which is exactly
+        // what happened when V3 arrived. These hold for any number of versions.
+        //
+        // Every adjacent pair of versions needs its own bridging stage, so there is always
+        // exactly one more schema than there are stages. A missing stage is an unopenable store.
+        #expect(CoreCreditMigrationPlan.schemas.count == CoreCreditMigrationPlan.stages.count + 1)
+
+        // The chain has to start at the version TestFlight shipped and end at the version the app
+        // builds today, or an existing store is migrated to the wrong shape. `ModelContainerFactory`
+        // builds the latter, so these two must be kept in step deliberately, not by accident.
+        #expect(CoreCreditMigrationPlan.schemas.first?.versionIdentifier
+                == CoreCreditSchemaV1.versionIdentifier)
+        #expect(CoreCreditMigrationPlan.schemas.last?.versionIdentifier
+                == CoreCreditSchemaV3.versionIdentifier)
     }
 
     // MARK: - Creating items
