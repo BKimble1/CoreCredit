@@ -28,19 +28,36 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             | tee "$CM_BUILD_DIR/xcodebuild.log"
 
-      # A concrete simulator is required here. `generic/platform=iOS Simulator` is a build-only
-      # destination and cannot run a test bundle. Unit tests only: the UI tests drive a full
-      # simulator session and belong in a longer job.
+      # A concrete simulator is required here: `generic/platform=iOS Simulator` is a build-only
+      # destination and cannot run a test bundle. The device is *discovered* rather than named,
+      # because the runner's simulator set changes with every Xcode image — hard-coding a model
+      # fails the day that model is dropped. Any iPhone will do; these are unit tests with no
+      # device-specific behaviour. Unit tests only: the UI tests drive a full simulator session
+      # and belong in a longer job.
       - name: Run the unit test suite
         script: |
           set -o pipefail
+
+          # Last available iPhone in the list, which is the newest installed runtime.
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -E "^ +iPhone" \
+            | tail -n 1 \
+            | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")
+
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No available iPhone simulator was found on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Running unit tests on simulator $DEVICE_ID"
+          xcrun simctl list devices available | grep -E "^ +iPhone" | tail -n 1
 
           xcodebuild test \
             -project CoreCredit.xcodeproj \
             -scheme CoreCredit \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=iPhone 16,OS=latest" \
+            -destination "id=$DEVICE_ID" \
             -only-testing:CoreCreditTests \
             -resultBundlePath "$CM_BUILD_DIR/CoreCreditTests.xcresult" \
             CODE_SIGNING_ALLOWED=NO \

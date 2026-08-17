@@ -2,14 +2,24 @@
 
 ## 1. The one thing to know first
 
-**This repository has never been compiled.** It was authored end-to-end on a Windows machine
-with no Swift toolchain — `swift`, `swiftc`, `xcodebuild`, and `xcrun` are all absent on the
-build host. Every claim below distinguishes what was *verified* from what was *reasoned about*.
+This repository is authored on a Windows machine with **no Swift toolchain** — `swift`,
+`swiftc`, `xcodebuild`, and `xcrun` are all absent on the build host. Codemagic performs every
+authoritative build. Every claim below distinguishes what was *verified* from what was
+*reasoned about*.
 
-Expect a first build on a Mac to surface some compile errors. They should be small and local —
-a wrong argument label, a renamed SwiftUI modifier, an `iOS 18` API spelled the way it was in a
-beta. What should *not* be wrong is the architecture, the data model, the money arithmetic, or
-the business rules; those were specified up front in `docs/CONTRACTS.md` and cross-checked.
+### Build status, precisely
+
+| Thing | State |
+|---|---|
+| App target, Debug, iOS Simulator | **compiles** (Codemagic `corecredit-simulator-build`) |
+| `CoreCreditQuickScanWidget` extension | **compiles** — the app target depends on it and embeds the `.appex`, so a widget error fails that step |
+| `CoreCreditTests` / `CoreCreditUITests` targets | **not yet compiled** — the test step has not reached its build phase |
+| Any test result | **none** — no assertion has ever been evaluated |
+| Release archive / device build / signing | **not yet verified** |
+
+So the architecture, the data model, the money arithmetic, and the business rules now have a
+compiler behind them for the app and the widget. The test targets do not yet. Do not read
+"compiles" as "works": nothing has been *run*.
 
 ### What was actually verified
 
