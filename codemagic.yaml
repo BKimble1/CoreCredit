@@ -74,13 +74,20 @@ workflows:
           # with "error:", so both are collected.
           echo ""
           echo "================= TEST FAILURE SUMMARY ================="
-          if grep -qE $'✘|recorded an issue|error:' "$LOG"; then
-            grep -nE $'✘|recorded an issue|error:|Fatal error' "$LOG" \
-              | grep -vE 'passed after' \
-              | head -n 100
-          else
-            echo "No recorded issues found in the log."
-          fi
+          # Match on ASCII markers, not on the U+2718 glyph: macOS ships bash 3.2, which does
+          # not understand $'\uXXXX' escapes. Swift Testing always writes "recorded an issue"
+          # alongside the glyph, so that string is both portable and precise.
+          #
+          # A bare "error:" is NOT usable here. CoreData logs hundreds of "CoreData: error:"
+          # filesystem diagnostics on a perfectly healthy run, and they crowd out the results.
+          echo "--- Recorded test issues ---"
+          grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
+
+          echo "--- Build errors ---"
+          grep -aE '\.swift:[0-9]+(:[0-9]+)?: error:' "$LOG" | head -n 40 || echo "(none)"
+
+          echo "--- Run summary ---"
+          grep -a "Test run with" "$LOG" | tail -n 5 || echo "(none)"
           echo "==============================================="
           echo "xcodebuild exit status: $STATUS"
           exit $STATUS
