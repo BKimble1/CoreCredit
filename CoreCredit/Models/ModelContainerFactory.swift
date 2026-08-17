@@ -30,12 +30,13 @@ enum ModelContainerFactory {
 
     // MARK: - Container construction
 
-    /// The full current schema (V2), migrated through `CoreCreditMigrationPlan`.
+    /// The full current schema (V3), migrated through `CoreCreditMigrationPlan`.
     ///
-    /// A store written by an earlier build opens through the plan's lightweight V1 -> V2 stage,
-    /// which only adds optional attributes and rewrites no data.
+    /// A store written by an earlier build opens through the plan's lightweight V1 -> V2 and
+    /// V2 -> V3 stages, which only add optional attributes and attributes carrying a default, and
+    /// rewrite no data.
     static func makeContainer(inMemory: Bool) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: CoreCreditSchemaV2.self)
+        let schema = Schema(versionedSchema: CoreCreditSchemaV3.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         return try ModelContainer(for: schema,
                                   migrationPlan: CoreCreditMigrationPlan.self,
@@ -155,7 +156,11 @@ enum ModelContainerFactory {
 
         let profile = ShopProfile(name: "Sample Auto Service", now: now)
         profile.phone = "555-0142"
-        profile.email = "sample@example.com"
+        // Deliberately not an `example.com` address. This sample profile is rendered on screen
+        // under `-uiTestSeed fiveUnresolved`, and a UI test asserts that no placeholder address
+        // ever reaches the interface. `.invalid` is the reserved-by-RFC-2606 way to spell an
+        // address that is obviously fake and can never resolve.
+        profile.email = "counter@sample-auto-service.invalid"
         profile.addressLine1 = "18 Shop Lane"
         profile.city = "Columbus"
         profile.region = "OH"

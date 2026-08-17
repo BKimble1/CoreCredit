@@ -1,0 +1,122 @@
+{
+  "identifier": "privacy-policy",
+  "title": "Privacy Policy",
+  "version": "1.0",
+  "effectiveDate": "2026-08-17",
+  "summary": "Everything you enter in CoreCredit stays on this device: there is no account, no CoreCredit server, and no analytics, tracking, or advertising of any kind.",
+  "sections": [
+    {
+      "heading": "The short version",
+      "paragraphs": [
+        "CoreCredit keeps your shop's records on the device you are reading this on. There is no CoreCredit account to create, no CoreCredit server behind the app, and nothing you type, photograph, or scan is sent to the developer.",
+        "The app contains no analytics, no crash reporting, no advertising, and no third-party software kits of any kind.",
+        "The only network activity involved in using CoreCredit is Apple's own handling of your App Store subscription, which happens between your device and Apple."
+      ]
+    },
+    {
+      "heading": "No account, no sign-in, no server",
+      "paragraphs": [
+        "There is nothing to sign up for. The app has no login screen because there is no developer-operated system behind it to log in to.",
+        "Because no such system exists, the developer holds no copy of your cores, vendors, invoice or repair-order references, photos, notes, or totals, and cannot look them up, recover them, restore them, or hand them to anyone else."
+      ]
+    },
+    {
+      "heading": "What is stored on this device",
+      "paragraphs": [
+        "The app stores what you put into it: your shop profile, your vendors and their return windows, your storage bins, each core charge with its amounts, part details, invoice and repair-order references, dates, status and notes, your return batches, the event history for each core, your reminder settings, and any photos or scanned receipts you attach.",
+        "It also stores text read from a photo by the device's own text recognition, and the contents of any barcode you scan, when you keep them.",
+        "All of this lives in the app's own storage in its container on this device. It is not uploaded anywhere by the app."
+      ]
+    },
+    {
+      "heading": "Camera, photos, scanning, and text recognition",
+      "paragraphs": [
+        "The camera is used only at the moment you open a scanning or photo control, and only to capture the image you asked for. The app does not use the camera in the background.",
+        "Reading text from an invoice or receipt, and reading a barcode, are done on this device using the frameworks built into iOS. Images and recognised text are not sent anywhere for processing.",
+        "Text recognition and barcode reading are imperfect. Always check a recognised amount, part number, reference, or date against the paperwork before relying on it."
+      ]
+    },
+    {
+      "heading": "Scanner diagnostics",
+      "paragraphs": [
+        "The Scanner diagnostics screen shows what the most recent scan actually read, so a scan that went wrong can be understood rather than guessed at.",
+        "Those notes are held in memory only, cover only the most recent scanning session, and never include the image itself. They are not uploaded. They disappear when the session is replaced or cleared.",
+        "If you choose to copy or share those notes yourself, they go only where you send them."
+      ]
+    },
+    {
+      "heading": "Exports and the share sheet",
+      "paragraphs": [
+        "Dispute packets (PDF), ledger exports (CSV), backup files (JSON), and printable bin tags are written into the app's own caches folder on this device when you ask for them, and older generated files are cleared out automatically.",
+        "A generated file leaves the app only through the system share sheet, and only when you choose where to send it - mail, Files, a messaging app, a printer, or anything else you pick.",
+        "Once you have sent a file, it is outside CoreCredit's control. It stays wherever you sent it, under the terms of whatever service or app received it."
+      ]
+    },
+    {
+      "heading": "Notifications",
+      "paragraphs": [
+        "Deadline reminders are scheduled by this device and delivered by this device. They are local notifications; there is no push server involved and no message is sent to the developer.",
+        "A reminder contains only information already in your own ledger.",
+        "Notifications are requested only when you turn reminders on. If you decline or turn them off later, the rest of the app is unaffected."
+      ]
+    },
+    {
+      "heading": "Subscriptions and Apple",
+      "paragraphs": [
+        "The optional subscription is sold by Apple through the App Store. Apple handles the purchase, the payment method, renewals, and cancellations. The app never sees your payment details.",
+        "The app checks with Apple whether a subscription is currently active, and that check is verified on this device. There is no receipt-validation server.",
+        "The only thing the app keeps from that check is a note of the last known subscription state, stored on this device, so a paying shop is not locked out while offline.",
+        "Apple's own privacy policy and terms cover what Apple does with purchase information."
+      ]
+    },
+    {
+      "heading": "What CoreCredit does not do",
+      "paragraphs": [
+        "It does not collect analytics or usage statistics, and nobody is told which screens you open or how often you use the app.",
+        "It does not track you across other apps or websites, and it contains no advertising or attribution software.",
+        "It does not include any third-party software kit, crash reporter, or dependency.",
+        "It does not ask for your location, contacts, calendar, health data, or microphone.",
+        "It does not sell, rent, or share your information, because it never receives any.",
+        "It does not sync. There is no cloud sync built into the app, no shared workspace, and no way for two devices or two employees to see the same ledger through CoreCredit."
+      ]
+    },
+    {
+      "heading": "Device backups",
+      "paragraphs": [
+        "If you have iCloud Backup or an encrypted computer backup switched on, this app's data is included in that backup the same way any other app's data is. That backup is between you and Apple; it is not a transmission to the developer.",
+        "Erasing everything inside the app clears the copy on this device. It does not reach into a backup you have already made."
+      ]
+    },
+    {
+      "heading": "Deleting your information",
+      "paragraphs": [
+        "Settings, then Data and export, has an Erase control that removes the shop's records from this device.",
+        "Deleting the app removes its container, and everything in it, from the device.",
+        "Files you have already exported and sent elsewhere are not affected by either action; those copies are wherever you put them.",
+        "The developer cannot delete or recover records it has never had a copy of."
+      ]
+    },
+    {
+      "heading": "Children",
+      "paragraphs": [
+        "CoreCredit is a tool for running a repair shop. It is not designed for or directed to children, and it should not be used by them.",
+        "The app collects nothing from anyone, of any age, because it has no server to collect anything to."
+      ]
+    },
+    {
+      "heading": "Changes to this policy",
+      "paragraphs": [
+        "This policy carries a version number and an effective date at the top of the screen. The copy you are reading ships inside the app, so it always matches the version of the app you have installed.",
+        "If a future version of the app changes what is stored or where it goes, this document and the app's privacy declarations must change in the same release."
+      ]
+    },
+    {
+      "heading": "Who is responsible, and how to get in touch",
+      "paragraphs": [
+        "The person or company responsible for CoreCredit must be named here before the app is offered publicly: [TO BE SUPPLIED BY OWNER - legal name of the developer or company, and a postal address if one is required].",
+        "A support contact must be published before public release: [TO BE SUPPLIED BY OWNER - support email address and support page address].",
+        "Until those are supplied, the app does not display a support address, because it would not reach anyone."
+      ]
+    }
+  ]
+}

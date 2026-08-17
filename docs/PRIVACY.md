@@ -78,7 +78,10 @@ and are purpose-specific.
 - `NSPrivacyAccessedAPITypes` — the required-reason APIs the app genuinely uses:
   - File timestamp — reason `C617.1` (managing files the app itself created: exports)
   - User defaults — reason `CA92.1` (access limited to the app itself: cached entitlement)
-  - Disk space — reason `E174.1` (writing an export and reporting a failure to the user)
+
+  A disk-space declaration (`E174.1`) was removed: an audit found the app never calls a
+  disk-space API, so declaring it would have over-stated what CoreCredit does. Declare only
+  what the code actually uses.
 
 ---
 

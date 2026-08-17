@@ -1208,30 +1208,88 @@ enum NotificationAuthorizationStatus: Equatable, Sendable {
     var explanation: String { get }
 }
 
+/// Why an alert exists. Raw values appear inside identifiers that outlive a relaunch — never rename.
+enum ReminderKind: String, CaseIterable, Codable, Sendable {
+    case dueSoon, dueToday, overdue, awaitingCredit, disputeFollowUp, weeklySummary
+    var priority: Int { get }          // lower wins when the queue is trimmed; overdue = 0
+    var isAboutOneItem: Bool { get }   // false for .weeklySummary only
+}
+
 struct CoreReminderRequest: Equatable, Sendable {
-    var itemID: UUID
+    var itemID: UUID?                  // nil for .weeklySummary
+    var kind: ReminderKind
+    var leadDays: Int?                 // .dueSoon only
     var title: String
     var body: String
     var fireDate: Date
-    var identifier: String { get }          // "core-reminder-<uuid>"
-    init(itemID: UUID, title: String, body: String, fireDate: Date)
+    var route: String?                 // "corecredit://item/<uuid>" or "corecredit://scan"
+    /// "core-reminder-<kind>-<uuid>", or "core-reminder-dueSoon7-<uuid>" for a lead. The UUID is
+    /// always the suffix, which is what lets one item's alerts be found without knowing its leads.
+    var identifier: String { get }
+    init(itemID: UUID?, kind: ReminderKind, leadDays: Int? = nil, title: String, body: String,
+         fireDate: Date, route: String? = nil)
+    static func identifier(for itemID: UUID?, kind: ReminderKind, leadDays: Int? = nil) -> String
+    static let identifierPrefix = "core-reminder-"
+    static let testIdentifier = "core-reminder-test"
+    static func identifier(_ identifier: String, belongsTo itemID: UUID) -> Bool
+    static func identifiers(_ identifiers: [String], belongingTo itemIDs: [UUID]) -> [String]
+}
+
+/// Category / action / userInfo vocabulary. Registered by NotificationResponder, stamped on by
+/// UserNotificationScheduler. No action ever writes to the ledger.
+enum ReminderNotificationCategory {
+    static let itemReminder = "corecredit.reminder.item"      // View / Scan / Snooze actions
+    static let summary = "corecredit.reminder.summary"        // weekly digest + test alert
+}
+enum ReminderNotificationAction {
+    static let viewItem = "corecredit.action.viewItem"
+    static let scanCore = "corecredit.action.scanCore"
+    static let snoozeOneDay = "corecredit.action.snoozeOneDay"
+}
+/// The ONLY two keys a CoreCredit notification's userInfo ever carries.
+enum ReminderUserInfoKey {
+    static let itemID = "coreItemID"
+    static let route = "route"
+}
+enum ReminderRoute {
+    static func item(_ itemID: UUID) -> String    // "corecredit://item/<uuid>"
+    static let scan: String                       // "corecredit://scan"
 }
 
 protocol NotificationScheduling: AnyObject, Sendable {
     func authorizationStatus() async -> NotificationAuthorizationStatus
     @discardableResult func requestAuthorization() async -> NotificationAuthorizationStatus
+    /// Replaces any pending request sharing the new request's identifier.
     func schedule(_ request: CoreReminderRequest) async throws
     func cancel(itemIDs: [UUID]) async
     func cancelAll() async
     func pendingIdentifiers() async -> [String]
+    func scheduleTestNotification(after seconds: TimeInterval) async throws
 }
 
 final class UserNotificationScheduler: NotificationScheduling { init() }
-/// Records calls, performs nothing. Used by UI tests and unit tests.
+/// Records calls, performs nothing. Used by UI tests (`-uiTesting`) and unit tests.
 final class RecordingNotificationScheduler: NotificationScheduling {
     init(status: NotificationAuthorizationStatus = .authorized)
     var scheduledRequests: [CoreReminderRequest] { get }
     var cancelledIDs: [UUID] { get }
+    var cancelAllCount: Int { get }
+    var testNotificationDelays: [TimeInterval] { get }
+    func scheduledRequest(for itemID: UUID, kind: ReminderKind) -> CoreReminderRequest?
+    func setAuthorizationStatus(_ status: NotificationAuthorizationStatus)
+    func reset()
+}
+
+/// The UNUserNotificationCenter delegate. Held by AppEnvironment, because the centre's reference
+/// to its delegate is weak. Requests no permission; routes a tapped alert as a URL.
+final class NotificationResponder: NSObject, UNUserNotificationCenterDelegate {
+    @MainActor @discardableResult
+    static func installed(isEnabled: Bool, onOpenURL: ((URL) -> Void)? = nil) -> NotificationResponder
+    static func categories() -> Set<UNNotificationCategory>
+    static let snoozeInterval: TimeInterval        // 24 hours
+    var onOpenURL: ((URL) -> Void)?                // setting it drains a buffered URL
+    func takePendingURL() -> URL?
+    var lastSnoozeFailure: String? { get }
 }
 
 enum NotificationSchedulingError: LocalizedError, Equatable {
@@ -1239,23 +1297,84 @@ enum NotificationSchedulingError: LocalizedError, Equatable {
     var errorDescription: String? { get }
 }
 
+/// The shop's stored reminder settings, in the shape the pure planner wants.
+struct ReminderPlanningOptions: Equatable, Sendable {
+    var dueSoonLeadDays: [Int], hour: Int, minute: Int
+    var awaitingCreditDelayDays: Int, disputeFollowUpDelayDays: Int
+    var includesWeeklySummary: Bool, weeklySummaryWeekday: Int
+    var showsDetail: Bool, currencyCode: String
+}
+
+/// What fits in the queue, and what did not.
+struct ReminderQueuePlan: Equatable, Sendable {
+    var scheduled: [CoreReminderRequest]
+    var dropped: [CoreReminderRequest]
+    var scheduledCount: Int { get }
+    var droppedCount: Int { get }
+}
+
 /// Pure: decides *whether* and *when* to fire. Unit-tested with FixedDateProvider.
 enum ReminderPlanner {
-    /// nil when: item is closed, has no due date, or the computed fire date is already past.
+    static let defaultDueSoonLeadDays = [7, 3, 1]
+    static let defaultAwaitingCreditDelayDays = 7
+    static let defaultDisputeFollowUpDelayDays = 3
+    static let defaultWeeklySummaryWeekday = 2        // Monday
+    /// iOS keeps 64 pending local notifications per app; this leaves room for the test alert
+    /// and for a snoozed reminder the responder re-adds.
+    static let maximumScheduledReminders = 56
+
+    /// Whole ledger: plans every kind for every item, sorts soonest-first then by
+    /// `ReminderKind.priority`, keeps the first `limit`, and reports the rest as `dropped`.
+    static func queuePlan<Item: CoreItemRepresenting>(
+        for items: [Item], options: ReminderPlanningOptions, now: Date, calendar: Calendar,
+        limit: Int = ReminderPlanner.maximumScheduledReminders) -> ReminderQueuePlan
+    /// One item: empty when it is closed, when nothing is due or outstanding, or when every
+    /// computed fire date is already past.
+    static func requests(for item: some CoreItemRepresenting, options: ReminderPlanningOptions,
+                         now: Date, calendar: Calendar) -> [CoreReminderRequest]
+    /// Single due-soon request. nil when: item is closed, has no due date, or the fire date is past.
     static func plan(for item: some CoreItemRepresenting, leadDays: Int, hour: Int, minute: Int,
                      now: Date, calendar: Calendar, currencyCode: String) -> CoreReminderRequest?
+    static func weeklySummaryRequest(openItemCount: Int, options: ReminderPlanningOptions,
+                                     now: Date, calendar: Calendar) -> CoreReminderRequest?
+}
+
+/// What the last rebuild did. `droppedCount` is never hidden from the settings screen.
+struct ReminderRefreshReport: Equatable, Sendable {
+    var scheduledCount: Int, droppedCount: Int, failedCount: Int, refreshedAt: Date
+    var summary: String { get }        // one plain sentence for the notifications screen
 }
 
 @MainActor @Observable final class ReminderCoordinator {
-    init(scheduler: any NotificationScheduling, dateProvider: any DateProvider)
+    /// `observesItemChanges: true` makes this the listener on `CoreItemChangeRelay.shared`, which
+    /// is what wires reminders into the write path. The app builds exactly one coordinator.
+    init(scheduler: any NotificationScheduling, dateProvider: any DateProvider,
+         observesItemChanges: Bool = true)
     private(set) var authorization: NotificationAuthorizationStatus
     private(set) var lastError: String?
-    func refreshAuthorization() async
+    private(set) var lastRefresh: ReminderRefreshReport?
+    static let testNotificationDelay: TimeInterval = 5
+
+    func refreshAuthorization() async                 // reads only; never prompts
+    /// The ONLY place that may prompt, and only from the notifications settings screen.
     @discardableResult func requestAuthorizationIfNeeded() async -> NotificationAuthorizationStatus
-    func reschedule(for item: CoreItem, profile: ShopProfile) async
-    func rescheduleAll(items: [CoreItem], profile: ShopProfile) async
-    func cancel(for item: CoreItem) async
+
+    /// Rebuilds the WHOLE queue: cancel everything, re-plan, schedule what fits. There is no
+    /// per-item scheduling path — which reminders deserve a slot is a whole-ledger decision.
+    func refreshAll(items: [CoreItem], profile: ShopProfile) async
+    /// Same, reading the profile and every core out of `context`. No profile yet -> no-op.
+    /// Called by the app shell (`MainTabView`) on `.task` and on `scenePhase == .active`.
+    func refreshFromStore(_ context: ModelContext) async
+    /// Fire-and-forget, coalescing: a burst of saves collapses into one rebuild. This is what the
+    /// write-path hook and the notification settings screen use.
+    func requestRefresh(context: ModelContext)
+
     func cancelAll() async
+    @discardableResult func sendTestNotification() async -> Bool
+    func clearError()
+    func startObservingItemChanges()
+    func stopObservingItemChanges()
+    func planningOptions(for profile: ShopProfile) -> ReminderPlanningOptions
 }
 
 // Snapshots.swift  (mapping lives in SnapshotBuilder, @MainActor)
@@ -1401,6 +1520,68 @@ enum JSONBackupExporter {
 }
 ```
 
+**Reminder rules (normative, in the manner of `docs/SCAN_CONTRACTS.md`).** The reminder layer has
+no per-item scheduling path and never will: iOS caps pending local notifications, so which alerts
+deserve a slot is a decision about the whole ledger, and every path — a save announced through
+`CoreItemChangeRelay`, a settings change, app launch, and the scene becoming active — ends in
+`ReminderCoordinator.refreshAll(items:profile:)` cancelling everything and re-planning from scratch.
+Permission is requested in exactly one place, `NotificationSettingsView`, never at launch and never
+as a side effect of scheduling; `ReminderPlanner` stays pure, taking `now` and `calendar` as
+parameters so the decision is unit-testable and identical in any time zone; notification content
+names no part, vendor, or amount unless `ShopProfile.showsDetailInNotifications` is on, and
+`userInfo` never carries more than an item identifier and a `corecredit://` route; and no
+notification action writes to the ledger — View and Scan open a screen, Snooze moves a local alert.
+Failures are surfaced through `lastError` and omissions through `lastRefresh.droppedCount`, never
+swallowed. `docs/SCAN_CONTRACTS.md` is the model for this kind of addendum: where it names a type,
+it wins over this file; everything else here still applies.
+
+### 5.4 Legal documents — `Domain/LegalDocument.swift`, `Services/LegalDocumentStore.swift`
+
+```swift
+/// One bundled document, decoded from JSON compiled into the app. Offline by contract: nothing in
+/// this layer opens a connection, and the text renders as SwiftUI Text (no web view).
+struct LegalDocument: Codable, Equatable, Sendable, Identifiable {
+    var identifier: String            // == LegalDocumentID.rawValue == the JSON file name
+    var title: String
+    var version: String               // the document's own version, not the app's
+    var effectiveDate: String         // "yyyy-MM-dd", kept as text so decoding cannot fail on it
+    var summary: String
+    var sections: [LegalSection]
+    var id: String { get }
+    var plainText: String { get }                          // whole document, for ShareLink
+    /// Case- and diacritic-insensitive. Blank query returns every section.
+    func sections(matching query: String) -> [LegalSection]
+}
+
+struct LegalSection: Codable, Equatable, Sendable, Identifiable {
+    var heading: String               // doubles as `id`; headings are unique per document
+    var paragraphs: [String]
+}
+
+enum LegalDocumentID: String, CaseIterable, Sendable {
+    case privacyPolicy = "privacy-policy"
+    case termsOfUse = "terms-of-use"
+    case localDataAndBackup = "local-data-and-backup"
+    var resourceName: String { get }  // == rawValue, without ".json"
+    var displayName: String { get }   // shown before the resource has been read
+}
+
+enum LegalDocumentLoadError: LocalizedError, Equatable {
+    case resourceMissing(String), decodingFailed(String)
+    var errorDescription: String? { get }
+}
+
+/// No cache, no networking. `bundle` is injectable so the missing-resource path is testable.
+enum LegalDocumentStore {
+    static func load(_ id: LegalDocumentID, from bundle: Bundle = .main) throws -> LegalDocument
+    /// Non-throwing: a hub listing three documents still lists the two that are fine.
+    static func loadAll(from bundle: Bundle = .main) -> [LegalDocument]
+}
+```
+
+Rendered by `LegalDocumentView(documentID:)`, listed by `LegalSectionView`, and presented as a sheet
+by `PaywallView` — one reader for all three routes, identified by `A11y.Legal.documentRoot`.
+
 ---
 
 ## 6. Components + design tokens — `CoreCredit/Components/` (Phase 1 agent C)
@@ -1473,6 +1654,12 @@ struct ErrorBanner: View {
          onDismiss: (() -> Void)? = nil)
 }
 
+/// The success counterpart, built exactly like ErrorBanner but tinted `Palette.positive`. An
+/// ordinary action is confirmed in the app, never by a notification. No auto-dismiss timer.
+struct ConfirmationBanner: View {
+    init(message: String, systemImage: String = "checkmark.circle", onDismiss: (() -> Void)? = nil)
+}
+
 struct SectionCard<Content: View>: View {
     init(title: String? = nil, systemImage: String? = nil, @ViewBuilder content: () -> Content)
 }
@@ -1501,6 +1688,10 @@ struct DestructiveConfirmButton: View {
 struct LoadingOverlay: View { init(message: String) }
 
 // AccessibilityIdentifiers.swift — shared by app + UI tests. UI tests import these strings verbatim.
+// EXCERPT: the source file is authoritative and also carries `Root`, `Scan`, `ScanReview`,
+// `Diagnostics`, `Legal` (root / privacyPolicy / termsOfUse / localData / support / documentRoot),
+// and `Notifications` (root / enable / test / openSettings / details). `CoreCreditUITests/
+// UITestSupport.swift` mirrors it character for character; add to both in the same change.
 enum A11y {
     enum Tab { static let dashboard = "tab.dashboard"; static let cores = "tab.cores"
                static let returns = "tab.returns"; static let settings = "tab.settings" }
@@ -1581,8 +1772,13 @@ enum SeedScenario: String, Sendable {
     let container: ModelContainer?
     let subscriptions: SubscriptionController
     let reminders: ReminderCoordinator
+    /// The notification centre's delegate. Held here because that reference is weak.
+    let notifications: NotificationResponder
     let exports: ExportCoordinator
     let textRecognizer: any TextRecognizing
+    let scanDiagnostics: ScanDiagnosticsRecorder
+    /// Where an incoming URL / Shortcut / widget tap leaves its request. `MainTabView` acts on it.
+    let deepLinks: DeepLinkRouter
     var storeLoadWarning: String?
     var pendingPaywallTrigger: PaywallTrigger?
 
@@ -1600,10 +1796,46 @@ enum AppTab: String, CaseIterable, Identifiable, Sendable {
     var accessibilityIdentifier: String { get }
 }
 
+/// What something outside the app may ask for: a bin-tag QR code, the Quick Scan widget, a
+/// Shortcut, the Action Button, a tapped reminder. Pure Foundation — no SwiftUI, no SwiftData.
+enum DeepLink: Equatable, Sendable {
+    case scan                 // corecredit://scan
+    case item(UUID)           // corecredit://item/<uuid>
+    static let scanHost = "scan"
+    /// Scheme and host compared case-insensitively; a trailing slash and a query on `scan` are
+    /// tolerated. nil for a foreign scheme, an unknown host, or a bad UUID — the ordinary answer
+    /// when a scanner hands over a vendor barcode. Item URLs go through
+    /// `BinTagPayload.itemID(fromEncodedString:)`, the one item-URL parser in the app.
+    static func parse(_ url: URL) -> DeepLink?
+}
+
+/// Records where a link wants to go; it does NOT navigate. On a cold start the URL arrives before
+/// there is a tab bar, so the link waits here until `MainTabView` consumes it.
+@MainActor @Observable final class DeepLinkRouter {
+    private(set) var pending: DeepLink?
+    init()
+    func handle(_ url: URL) -> Bool                      // false leaves any pending link untouched
+    func handle(_ link: DeepLink)                        // the AppIntent path
+    func consume() -> DeepLink?                          // acted on exactly once
+    func clear()
+}
+
+/// How code with no SwiftUI environment — an AppIntent, the notification responder — reaches the
+/// running router. Weak reference plus one held link, so a link that beats `AppEnvironment.init`
+/// is delivered the instant a router registers. Nothing is shared between processes.
+@MainActor enum DeepLinkRouterRegistry {
+    private(set) static weak var current: DeepLinkRouter?
+    static func register(_ router: DeepLinkRouter)
+    static func deliver(_ link: DeepLink)
+}
+
 @main struct CoreCreditApp: App { }
 
 struct RootView: View { }              // decides StoreUnavailable vs Onboarding vs MainTabView
-struct MainTabView: View { }           // TabView on compact, NavigationSplitView on regular
+/// TabView on compact, NavigationSplitView on regular. Also the only consumer of `DeepLinkRouter`,
+/// and the only caller of `ReminderCoordinator.refreshFromStore(_:)` — on `.task` and whenever
+/// `scenePhase` becomes `.active`. Reminder logic never leaks into a feature view.
+struct MainTabView: View { }
 
 /// Shown only when `AppEnvironment.container == nil`.
 struct StoreUnavailableView: View {

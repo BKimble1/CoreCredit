@@ -8,9 +8,10 @@ import SwiftUI
 
 /// The app entry point.
 ///
-/// It does three things and nothing else: build the `AppEnvironment` from the launch arguments,
-/// put it in the SwiftUI environment, and attach the SwiftData container when there is one.
-/// Every decision about *what to show* belongs to `RootView`.
+/// It does four things and nothing else: build the `AppEnvironment` from the launch arguments,
+/// put it in the SwiftUI environment, attach the SwiftData container when there is one, and hand
+/// any incoming `corecredit://` URL to the deep-link router. Every decision about *what to show*
+/// belongs to `RootView`, and every decision about what a link *means* belongs to `MainTabView`.
 @main
 struct CoreCreditApp: App {
 
@@ -22,6 +23,14 @@ struct CoreCreditApp: App {
             RootView()
                 .environment(appEnvironment)
                 .modelContainerIfAvailable(appEnvironment.container)
+                // Recorded, never acted on here. On a cold start this fires while `RootView` is
+                // still choosing between the store-failure screen, onboarding, and the shell, so
+                // the router holds the link and `MainTabView` consumes it once there is somewhere
+                // to go. A URL this app does not understand is ignored, which is what the
+                // discarded `Bool` says.
+                .onOpenURL { url in
+                    _ = appEnvironment.deepLinks.handle(url)
+                }
         }
     }
 }

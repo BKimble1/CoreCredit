@@ -13,7 +13,9 @@ workflows:
           xcodebuild -list \
             -project CoreCredit.xcodeproj
 
-      - name: Build CoreCredit for iOS Simulator
+      # Building the CoreCredit scheme also builds CoreCreditQuickScanWidget: the app target
+      # depends on the widget and embeds the .appex, so a widget compile error fails this step.
+      - name: Build CoreCredit and the widget extension for iOS Simulator
         script: |
           set -o pipefail
 
@@ -26,9 +28,29 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             | tee "$CM_BUILD_DIR/xcodebuild.log"
 
+      # A concrete simulator is required here. `generic/platform=iOS Simulator` is a build-only
+      # destination and cannot run a test bundle. Unit tests only: the UI tests drive a full
+      # simulator session and belong in a longer job.
+      - name: Run the unit test suite
+        script: |
+          set -o pipefail
+
+          xcodebuild test \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=latest" \
+            -only-testing:CoreCreditTests \
+            -resultBundlePath "$CM_BUILD_DIR/CoreCreditTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$CM_BUILD_DIR/xcodebuild-tests.log"
+
     artifacts:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/CoreCredit.app
       - $CM_BUILD_DIR/xcodebuild.log
+      - $CM_BUILD_DIR/xcodebuild-tests.log
+      - $CM_BUILD_DIR/CoreCreditTests.xcresult
 
   # Signed build for internal TestFlight testing. No credentials are stored here:
   # App Store Connect auth comes from the Codemagic "CoreCredit App Store"
@@ -51,6 +73,10 @@ workflows:
 
     environment:
       xcode: 26.4
+      # Codemagic fetches profiles for this bundle identifier and for bundle identifiers that
+      # extend it, which covers the widget extension `com.blakekimble.corecredit.widget`.
+      # If the widget ever fails to sign, delete the `bundle_identifier` line: with it omitted
+      # Codemagic provisions every target found in the project.
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.blakekimble.corecredit

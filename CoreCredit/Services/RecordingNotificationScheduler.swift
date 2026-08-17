@@ -21,6 +21,7 @@ private final class RecorderState: @unchecked Sendable {
     private var cancelledIDs: [UUID] = []
     private var cancelAllCount = 0
     private var authorizationRequestCount = 0
+    private var testNotificationDelays: [TimeInterval] = []
 
     init(status: NotificationAuthorizationStatus) {
         self.status = status
@@ -52,6 +53,10 @@ private final class RecorderState: @unchecked Sendable {
         synchronized { authorizationRequestCount }
     }
 
+    var currentTestNotificationDelays: [TimeInterval] {
+        synchronized { testNotificationDelays }
+    }
+
     func setStatus(_ newStatus: NotificationAuthorizationStatus) {
         synchronized { status = newStatus }
     }
@@ -76,11 +81,20 @@ private final class RecorderState: @unchecked Sendable {
         }
     }
 
+    func recordTestNotification(after seconds: TimeInterval) {
+        synchronized { testNotificationDelays.append(seconds) }
+    }
+
+    /// Removes every stored request belonging to these items, whatever kind produced it. The
+    /// weekly digest carries no item and is therefore never removed by an item-scoped cancel.
     func remove(itemIDs: [UUID]) {
         synchronized {
             cancelledIDs.append(contentsOf: itemIDs)
             let targets = Set(itemIDs)
-            requests.removeAll { targets.contains($0.itemID) }
+            requests.removeAll { request in
+                guard let itemID = request.itemID else { return false }
+                return targets.contains(itemID)
+            }
         }
     }
 
@@ -97,6 +111,7 @@ private final class RecorderState: @unchecked Sendable {
             cancelledIDs.removeAll()
             cancelAllCount = 0
             authorizationRequestCount = 0
+            testNotificationDelays.removeAll()
         }
     }
 }
@@ -146,9 +161,24 @@ final class RecordingNotificationScheduler: NotificationScheduling {
         state.currentAuthorizationRequestCount
     }
 
-    /// The reminder currently pending for an item, if any.
+    /// The delay of every test notification asked for, in call order.
+    var testNotificationDelays: [TimeInterval] {
+        state.currentTestNotificationDelays
+    }
+
+    /// The reminders currently pending for an item, one per kind.
+    func scheduledRequests(for itemID: UUID) -> [CoreReminderRequest] {
+        state.currentRequests.filter { $0.itemID == itemID }
+    }
+
+    /// The first reminder currently pending for an item, if any.
     func scheduledRequest(for itemID: UUID) -> CoreReminderRequest? {
-        state.currentRequests.first { $0.itemID == itemID }
+        scheduledRequests(for: itemID).first
+    }
+
+    /// The pending reminder of one specific kind for an item, if any.
+    func scheduledRequest(for itemID: UUID, kind: ReminderKind) -> CoreReminderRequest? {
+        state.currentRequests.first { $0.itemID == itemID && $0.kind == kind }
     }
 
     /// Changes the reported permission, so a test can walk denied -> authorized.
@@ -177,6 +207,13 @@ final class RecordingNotificationScheduler: NotificationScheduling {
             throw NotificationSchedulingError.notAuthorized
         }
         state.store(request)
+    }
+
+    func scheduleTestNotification(after seconds: TimeInterval) async throws {
+        guard state.currentStatus.allowsScheduling else {
+            throw NotificationSchedulingError.notAuthorized
+        }
+        state.recordTestNotification(after: seconds)
     }
 
     func cancel(itemIDs: [UUID]) async {

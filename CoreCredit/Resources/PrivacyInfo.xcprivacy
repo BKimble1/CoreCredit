@@ -15,12 +15,17 @@
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array/>
 
-	<!-- Required-reason APIs actually reached by this app and its frameworks. -->
+	<!-- Required-reason APIs actually reached by this app.
+	     Each entry below is backed by a specific call in the shipped code. An entry that cannot be
+	     pointed at real code is removed rather than left in "just in case": an unjustified
+	     declaration is as much a misstatement as a missing one. -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
-			<!-- File timestamps: SwiftData's store, exported PDF/CSV/JSON files in the caches
-			     directory, and the retention sweep that removes exports older than 24 hours. -->
+			<!-- File timestamps: ExportFileStore.cleanUpOldExports(olderThan:) reads
+			     .contentModificationDateKey on files in the app's own caches directory to sweep
+			     generated PDF/CSV/JSON exports older than 24 hours. C617.1 - timestamps of files
+			     inside the app container, created by the app itself. -->
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
@@ -29,8 +34,9 @@
 			</array>
 		</dict>
 		<dict>
-			<!-- User defaults: the cached last-known subscription entitlement, so a paying shop
-			     is not locked out while offline. Read and written only by this app. -->
+			<!-- User defaults: EntitlementCache stores the last-known subscription entitlement so a
+			     paying shop is not locked out while offline. CA92.1 - access limited to the app
+			     itself; there is no app group and no other reader. -->
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
@@ -38,16 +44,11 @@
 				<string>CA92.1</string>
 			</array>
 		</dict>
-		<dict>
-			<!-- Disk space: checked before writing downsampled evidence photos and generated
-			     export documents, so a full device fails with a message instead of silently. -->
-			<key>NSPrivacyAccessedAPIType</key>
-			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
-			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array>
-				<string>E174.1</string>
-			</array>
-		</dict>
+		<!-- Deliberately absent: NSPrivacyAccessedAPICategoryDiskSpace (E174.1). A repository-wide
+		     search finds no disk-space API anywhere in the app target - no volumeAvailableCapacity
+		     key, no systemFreeSize, no free-space check before writing a photo or an export. The
+		     entry described behaviour the code does not have, so it has been removed. If a
+		     free-space check is ever added, this entry must come back in the same commit. -->
 	</array>
 </dict>
 </plist>

@@ -1,0 +1,142 @@
+{
+  "identifier": "terms-of-use",
+  "title": "Terms of Use",
+  "version": "1.0",
+  "effectiveDate": "2026-08-17",
+  "summary": "CoreCredit is an organisational ledger for core returns and vendor credits - it is not accounting, tax, legal, warranty, or financial advice, and every figure in it is the one you entered.",
+  "sections": [
+    {
+      "heading": "What these terms cover",
+      "paragraphs": [
+        "These terms describe what CoreCredit does, what it does not do, and what you are responsible for when you use it. They apply to the app as installed on your device.",
+        "If you do not agree with them, do not use the app."
+      ]
+    },
+    {
+      "heading": "What CoreCredit is",
+      "paragraphs": [
+        "CoreCredit is a place to write down core charges and keep track of them: what you were billed, which old unit has to go back, which vendor it belongs to, when their return window closes, and whether the credit ever arrived.",
+        "It works entirely from the figures and details you enter. It does not read your invoices for you, does not connect to any vendor's system, and knows nothing about your account with a supplier."
+      ]
+    },
+    {
+      "heading": "What CoreCredit is not",
+      "paragraphs": [
+        "It is not accounting software, and nothing in it is accounting, tax, legal, warranty, or financial advice.",
+        "The totals it shows are not books of account and are not a substitute for your own bookkeeping or for professional advice.",
+        "It is not a claim system. It sends nothing to any vendor and cannot make a credit happen."
+      ]
+    },
+    {
+      "heading": "You are responsible for what you enter and what you rely on",
+      "paragraphs": [
+        "Every amount, part number, invoice reference, repair-order reference, vendor, date, and note in the app is the one you or a member of your staff put there.",
+        "Text read from a photo, and codes read by the barcode scanner, are convenience features and can be wrong. Check every recognised amount, number, and date against the original paperwork before you rely on it.",
+        "Check deadlines, credit amounts, and vendor balances against your invoices and credit memos. If the app and the paperwork disagree, the paperwork wins."
+      ]
+    },
+    {
+      "heading": "Deadlines and reminders are your own working notes",
+      "paragraphs": [
+        "Return windows and due dates are calculated from the numbers you enter, including the return window you recorded for each vendor.",
+        "A vendor can change its policy without telling the app, and a deadline in CoreCredit is your own note of what you believe the policy to be - not the vendor's word.",
+        "Reminders are local notifications. They can be late or missed if notifications are turned off for CoreCredit, if the device is off, out of battery, or in a mode that suppresses them. Do not treat a reminder as a guarantee that you will be warned in time."
+      ]
+    },
+    {
+      "heading": "Vendors and credits",
+      "paragraphs": [
+        "Whether an old core is accepted, and whether a credit is issued and for how much, is entirely between your shop and that supplier, under whatever terms you agreed with them.",
+        "CoreCredit has no relationship with your vendors and is not a party to your agreements with them."
+      ]
+    },
+    {
+      "heading": "Your records stay on your device",
+      "paragraphs": [
+        "The app stores your records on the device, in the app's own storage. There is no account and no developer-operated server, so the developer never receives a copy and cannot recover your records if the device is lost, damaged, replaced, or erased.",
+        "Keeping your own copies of anything you cannot afford to lose is your responsibility. The backup file on the Data and export screen exists for exactly that."
+      ]
+    },
+    {
+      "heading": "Exports and sharing",
+      "paragraphs": [
+        "Dispute packets, ledger exports, backups, and bin tags are generated on your device and leave the app only through the system share sheet, when you choose to send them.",
+        "Anything you send stays wherever you sent it and is governed by the terms of the app or service that received it. Deciding who should receive a file that contains your shop's information is your decision."
+      ]
+    },
+    {
+      "heading": "Subscription, renewal, and cancellation",
+      "paragraphs": [
+        "CoreCredit is usable without a subscription. The optional subscription removes the limit on how many cores can be open at once; records you have already entered are never locked away.",
+        "Subscriptions are sold by Apple through the App Store. Payment is charged to your Apple Account when you confirm the purchase.",
+        "A subscription renews automatically unless auto-renew is turned off at least 24 hours before the end of the current period. Your account is charged for renewal within 24 hours of the end of the current period.",
+        "Prices shown in the app come from the App Store for your region and can change with notice from Apple.",
+        "You can manage or cancel a subscription in the Settings app under your Apple Account, then Subscriptions, or through the Manage subscription control in this app. Deleting the app does not cancel a subscription."
+      ]
+    },
+    {
+      "heading": "Restoring a purchase",
+      "paragraphs": [
+        "Restore purchases asks Apple whether the Apple Account signed in on this device already has a subscription, and switches the app back on if it does.",
+        "A subscription follows the Apple Account that bought it, not the device."
+      ]
+    },
+    {
+      "heading": "Refunds",
+      "paragraphs": [
+        "Because the purchase is made from Apple, refund requests are made to Apple through the App Store, under Apple's own refund process.",
+        "The developer cannot issue, promise, or reverse a refund for an App Store purchase."
+      ]
+    },
+    {
+      "heading": "Using the app properly",
+      "paragraphs": [
+        "Use CoreCredit for lawful purposes and for records you are entitled to keep.",
+        "Do not attempt to break, bypass, or interfere with the subscription checks or with the app's own storage, and do not try to reverse-engineer the app except to the extent the law expressly allows."
+      ]
+    },
+    {
+      "heading": "No warranty",
+      "paragraphs": [
+        "The app is provided as it is, without any warranty of any kind, to the fullest extent the law allows. It is not warranted to be uninterrupted, error-free, or fit for any particular purpose.",
+        "Nothing in these terms removes or limits any right you have under laws that cannot be set aside by agreement."
+      ]
+    },
+    {
+      "heading": "Limits on responsibility",
+      "paragraphs": [
+        "To the fullest extent the law allows, the developer is not responsible for a missed vendor deadline, a credit that was never issued, a figure entered or recognised incorrectly, lost records, or any business loss arising from your use of the app.",
+        "The app is a record of what you entered. Decisions about money, deadlines, disputes, and vendors remain yours.",
+        "The governing law and the place where disputes are handled must be stated here before public release: [TO BE SUPPLIED BY OWNER - governing law and venue]."
+      ]
+    },
+    {
+      "heading": "Not for children",
+      "paragraphs": [
+        "CoreCredit is intended for people running or working in a repair shop. It is not designed for or directed to children and should not be used by them."
+      ]
+    },
+    {
+      "heading": "Apple's terms also apply",
+      "paragraphs": [
+        "The app is distributed through the App Store, so Apple's Media Services terms and Apple's standard Licensed Application End User Licence Agreement apply to your download and to any purchase, alongside these terms.",
+        "Apple is not responsible for the app or its content, and Apple provides no support for it."
+      ]
+    },
+    {
+      "heading": "Changes to the app and to these terms",
+      "paragraphs": [
+        "Features can change between versions. These terms carry a version number and an effective date, and the copy you are reading ships inside the app, so it always matches the version you have installed.",
+        "Continuing to use a new version of the app means accepting the terms that shipped with it."
+      ]
+    },
+    {
+      "heading": "Who provides CoreCredit, and how to get in touch",
+      "paragraphs": [
+        "The person or company that provides CoreCredit must be named here before the app is offered publicly: [TO BE SUPPLIED BY OWNER - legal name of the developer or company, and a postal address if one is required].",
+        "A support contact must be published before public release: [TO BE SUPPLIED BY OWNER - support email address and support page address].",
+        "Until those are supplied, the app does not display a support address, because it would not reach anyone."
+      ]
+    }
+  ]
+}

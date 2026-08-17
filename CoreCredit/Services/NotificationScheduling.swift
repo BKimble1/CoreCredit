@@ -3,8 +3,9 @@
 //  CoreCredit
 //
 //  The abstraction the rest of the app schedules reminders through. Foundation only — the
-//  UserNotifications framework is confined to `UserNotificationScheduler`, so every caller
-//  (and every test) can work against a recorder instead of the real notification centre.
+//  UserNotifications framework is confined to `UserNotificationScheduler` and
+//  `NotificationResponder`, so every caller (and every test) can work against a recorder instead
+//  of the real notification centre.
 //
 
 import Foundation
@@ -57,49 +58,218 @@ enum NotificationAuthorizationStatus: Equatable, Sendable {
     }
 }
 
+// MARK: - Reminder kinds
+
+/// The distinct reasons CoreCredit has for interrupting somebody.
+///
+/// One core can legitimately be the subject of several of these at once — a core that went back to
+/// the vendor three weeks ago and was never credited is both "awaiting credit" and, if its return
+/// window has closed, "overdue". Each kind therefore gets its own scheduled request and its own
+/// identifier, which is why the identifier format carries the kind (see
+/// `CoreReminderRequest.identifier(for:kind:leadDays:)`).
+///
+/// The raw values appear inside notification identifiers that survive an app relaunch, so they must
+/// not be renamed: a renamed case would orphan every reminder already queued on the device.
+enum ReminderKind: String, CaseIterable, Codable, Sendable {
+
+    /// A configurable number of days before the return window closes. Default leads are 7, 3, 1.
+    case dueSoon
+
+    /// The morning of the deadline itself.
+    case dueToday
+
+    /// The window has already closed and the core is still open.
+    case overdue
+
+    /// Returned to the vendor, no credit recorded, and the agreed grace period has elapsed.
+    case awaitingCredit
+
+    /// The credit came up short and nobody has chased it since.
+    case disputeFollowUp
+
+    /// A single weekly digest of everything still open. Opt-in, off by default.
+    case weeklySummary
+
+    /// Ranking used when the queue has to be trimmed: **lower wins**.
+    ///
+    /// Money already late outranks money about to be late, which outranks a courtesy heads-up.
+    /// The weekly digest is last because losing it costs the least — every core it mentions still
+    /// has its own reminders.
+    var priority: Int {
+        switch self {
+        case .overdue: return 0
+        case .dueToday: return 1
+        case .dueSoon: return 2
+        case .awaitingCredit: return 3
+        case .disputeFollowUp: return 4
+        case .weeklySummary: return 5
+        }
+    }
+
+    /// True when the reminder is about one specific core, and therefore carries an item identifier
+    /// and an item deep link.
+    var isAboutOneItem: Bool {
+        switch self {
+        case .dueSoon, .dueToday, .overdue, .awaitingCredit, .disputeFollowUp:
+            return true
+        case .weeklySummary:
+            return false
+        }
+    }
+}
+
+// MARK: - Categories, actions, and routes
+
+/// `UNNotificationCategory` identifiers. Registered by `NotificationResponder`, stamped onto
+/// content by `UserNotificationScheduler`.
+enum ReminderNotificationCategory {
+
+    /// Carries View Item, Scan Core, and Snooze 1 Day.
+    static let itemReminder = "corecredit.reminder.item"
+
+    /// The weekly digest and the test notification: no custom actions, because there is no single
+    /// core for them to act on.
+    static let summary = "corecredit.reminder.summary"
+}
+
+/// `UNNotificationAction` identifiers.
+///
+/// **None of these change a financial value or a custody status.** View and Scan only open a
+/// screen; Snooze only moves a local alert. A vendor credit, a write-off, or a status change is
+/// never one tap away from the Lock Screen.
+enum ReminderNotificationAction {
+    static let viewItem = "corecredit.action.viewItem"
+    static let scanCore = "corecredit.action.scanCore"
+    static let snoozeOneDay = "corecredit.action.snoozeOneDay"
+}
+
+/// The only two keys a CoreCredit notification's `userInfo` ever carries.
+///
+/// Deliberately minimal: an item identifier and a deep link. No amount, no vendor, no part
+/// description. `userInfo` is readable by anything that can read the notification, and a shop's
+/// vendor relationships are its own business.
+enum ReminderUserInfoKey {
+    static let itemID = "coreItemID"
+    static let route = "route"
+}
+
+/// The deep links a reminder can point at.
+///
+/// These are the app's **existing** links — the same `corecredit://item/<uuid>` a printed bin tag
+/// QR code carries (`BinTagPayload.encodedString`). Nothing here parses or dispatches a URL; that
+/// belongs to the app shell's router.
+enum ReminderRoute {
+
+    /// `"corecredit://item/<uuid>"`
+    static func item(_ itemID: UUID) -> String {
+        AppConfiguration.urlScheme + "://item/" + itemID.uuidString
+    }
+
+    /// `"corecredit://scan"`
+    static let scan = AppConfiguration.urlScheme + "://scan"
+}
+
 // MARK: - Request
 
-/// One scheduled "this core is due back soon" alert.
+/// One scheduled alert.
 ///
-/// The identifier is derived from the item, not generated fresh, so re-scheduling a reminder for
-/// an item that already has one **replaces** it instead of stacking a duplicate. That is the whole
-/// reason the identifier is deterministic: an item can be edited any number of times and the user
-/// still only ever gets one alert per core.
+/// The identifier is derived from the item **and the kind**, not generated fresh, so re-scheduling
+/// an item's reminders replaces them instead of stacking duplicates. That is the whole reason the
+/// identifier is deterministic: an item can be edited any number of times and the shop still only
+/// ever gets one alert per reason.
 struct CoreReminderRequest: Equatable, Sendable {
 
-    /// The core item this reminder is about.
-    var itemID: UUID
+    /// The core item this reminder is about. `nil` for `.weeklySummary`, which is about the whole
+    /// ledger rather than any one core.
+    var itemID: UUID?
 
-    /// Notification title, e.g. `"Core return due Friday"`.
+    /// Why this alert exists.
+    var kind: ReminderKind
+
+    /// For `.dueSoon`, how many days before the deadline this particular request fires. `nil` for
+    /// every other kind. It is part of the identifier, so a shop configured for 7/3/1 gets three
+    /// separate alerts rather than three collisions on one.
+    var leadDays: Int?
+
+    /// Notification title, e.g. `"Core return due soon"`.
     var title: String
 
-    /// Notification body, e.g. `"Alternator (03-1887) — $86.50 to NAPA. Bin A3."`
+    /// Notification body. Generic by default; detailed only when the shop has switched
+    /// `ShopProfile.showsDetailInNotifications` on.
     var body: String
 
     /// The absolute instant the alert should fire.
     var fireDate: Date
 
-    init(itemID: UUID, title: String, body: String, fireDate: Date) {
+    /// Deep link opened when the notification (or its View Item action) is tapped. `nil` means
+    /// "just bring the app forward".
+    var route: String?
+
+    init(itemID: UUID?,
+         kind: ReminderKind,
+         leadDays: Int? = nil,
+         title: String,
+         body: String,
+         fireDate: Date,
+         route: String? = nil) {
         self.itemID = itemID
+        self.kind = kind
+        self.leadDays = leadDays
         self.title = title
         self.body = body
         self.fireDate = fireDate
+        self.route = route
     }
 
-    /// `"core-reminder-<uuid>"` — stable for the lifetime of the item.
+    /// `"core-reminder-<kind>-<uuid>"`, or `"core-reminder-dueSoon7-<uuid>"` for a due-soon lead.
+    /// Stable for the lifetime of the item and the setting.
     var identifier: String {
-        CoreReminderRequest.identifier(for: itemID)
+        CoreReminderRequest.identifier(for: itemID, kind: kind, leadDays: leadDays)
     }
 
-    /// The identifier a reminder for `itemID` would use, without needing a full request.
+    /// The identifier a reminder would use, without needing a full request.
     ///
-    /// Cancellation paths need this: they know the item but have no title, body, or fire date.
-    static func identifier(for itemID: UUID) -> String {
-        identifierPrefix + itemID.uuidString
+    /// The item's UUID is always the **suffix**, which is what makes
+    /// `identifier(_:belongsTo:)` able to find every reminder for one core without having to know
+    /// which leads that shop has configured.
+    static func identifier(for itemID: UUID?, kind: ReminderKind, leadDays: Int? = nil) -> String {
+        var text = identifierPrefix + kind.rawValue
+
+        // Only due-soon carries a lead. A lead is what distinguishes "7 days out" from "1 day out"
+        // for the same core, so leaving it off would collapse the two into one alert.
+        if kind == .dueSoon, let leadDays = leadDays, leadDays >= 0 {
+            text += String(leadDays)
+        }
+
+        if let itemID = itemID {
+            text += "-" + itemID.uuidString
+        }
+        return text
     }
 
     /// Only requests carrying this prefix belong to CoreCredit's reminder system.
     static let identifierPrefix = "core-reminder-"
+
+    /// The identifier used by the settings screen's "send me one now" button.
+    static let testIdentifier = identifierPrefix + "test"
+
+    /// True when `identifier` is one of CoreCredit's reminders **for this exact item**, whatever
+    /// kind or lead produced it. This is how cancellation stays exact.
+    static func identifier(_ identifier: String, belongsTo itemID: UUID) -> Bool {
+        identifier.hasPrefix(identifierPrefix) && identifier.hasSuffix("-" + itemID.uuidString)
+    }
+
+    /// Narrows a list of pending identifiers down to the ones belonging to `itemIDs`.
+    ///
+    /// Used by the real scheduler's cancellation path: it reads what is actually queued rather
+    /// than guessing at which kinds and leads were used when the alerts were created, so a setting
+    /// that changed in between cannot leave an orphan behind.
+    static func identifiers(_ identifiers: [String], belongingTo itemIDs: [UUID]) -> [String] {
+        guard !itemIDs.isEmpty else { return [] }
+        return identifiers.filter { candidate in
+            itemIDs.contains { CoreReminderRequest.identifier(candidate, belongsTo: $0) }
+        }
+    }
 }
 
 // MARK: - Protocol
@@ -110,8 +280,8 @@ struct CoreReminderRequest: Equatable, Sendable {
 /// callers can re-schedule freely whenever an item changes without first cancelling.
 ///
 /// Nothing in this protocol asks for permission implicitly. Authorization is requested only by
-/// `requestAuthorization()`, which is called in context — from the notification settings screen or
-/// the first time the user opts into reminders — and never at app startup.
+/// `requestAuthorization()`, which is called in context — from the notification settings screen —
+/// and never at app startup.
 protocol NotificationScheduling: AnyObject, Sendable {
 
     /// The current permission, read fresh from the system each time.
@@ -129,7 +299,8 @@ protocol NotificationScheduling: AnyObject, Sendable {
     ///   `.systemError` for anything the notification centre itself reports.
     func schedule(_ request: CoreReminderRequest) async throws
 
-    /// Removes the pending reminders belonging to these items. Unknown items are ignored.
+    /// Removes the pending reminders belonging to these items, of every kind. Unknown items are
+    /// ignored.
     func cancel(itemIDs: [UUID]) async
 
     /// Removes every pending CoreCredit reminder.
@@ -138,6 +309,12 @@ protocol NotificationScheduling: AnyObject, Sendable {
     /// Identifiers of the reminders the system currently has queued. Used by tests and by the
     /// notification settings screen's "scheduled reminders" count.
     func pendingIdentifiers() async -> [String]
+
+    /// Fires one throwaway alert a few seconds from now, so the owner can see what a reminder
+    /// looks like on this device without waiting for a real deadline.
+    ///
+    /// Carries no item, no route, and no ledger detail — it exists to prove delivery works.
+    func scheduleTestNotification(after seconds: TimeInterval) async throws
 }
 
 // MARK: - Errors

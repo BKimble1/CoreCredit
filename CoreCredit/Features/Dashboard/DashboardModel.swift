@@ -132,6 +132,25 @@ final class DashboardModel {
         route = blockingRoute(items: items, tier: tier) ?? .scanCore
     }
 
+    /// Quick scan from a widget, a Shortcut, or the Action Button.
+    ///
+    /// Deliberately does **not** pre-gate on the paywall: a technician who taps "Scan a Core"
+    /// should get a viewfinder, not a purchase screen. `CoreEditorModel.save` still runs the
+    /// free-limit check before anything is written, so the limit is enforced where it matters.
+    ///
+    /// The difference from `requestScanCore(items:tier:)` above is the difference between the two
+    /// journeys, not a hole in the rule. Tapping "Scan core" *inside* the app is a decision already
+    /// made in front of the ledger, and answering it with the paywall costs nothing. Raising a
+    /// phone at a parts counter is a reflex; answering *that* with a purchase screen loses the
+    /// scan, the counter, and the customer's patience. Either way the record cannot be saved past
+    /// the free limit, because `save` asks the same `EntitlementPolicy` question again.
+    ///
+    /// Idempotent: `.scanCore` carries a fixed `Route.id`, so a second quick scan while the editor
+    /// is already open re-presents nothing and leaves the unsaved draft exactly as it was.
+    func beginQuickScan() {
+        route = .scanCore
+    }
+
     /// The paywall route when the free limit blocks another open core, `nil` when it does not.
     private func blockingRoute(items: [CoreItem], tier: SubscriptionTier) -> Route? {
         let unresolved = RiskCalculator.unresolvedCount(items)

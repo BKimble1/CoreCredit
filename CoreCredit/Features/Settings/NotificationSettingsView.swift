@@ -25,11 +25,13 @@ import UIKit
 /// will arrive and offers the one thing that can fix it — a jump to the app's page in the Settings
 /// app. It never implies reminders are working when they are not.
 ///
-/// # Every change reschedules, and failures are visible
+/// # Every change reschedules, and both failures and omissions are visible
 ///
 /// Any edit here saves the profile and then rebuilds the whole queue through
-/// `rescheduleAll(items:profile:)`. If the notification centre refuses, `lastError` is shown in an
-/// `ErrorBanner` — a reminder that silently failed to schedule is worse than no reminder at all.
+/// `ReminderCoordinator.requestRefresh(context:)`. If the notification centre refuses, `lastError`
+/// is shown in an `ErrorBanner`. If the device's pending-notification limit meant some reminders
+/// could not be queued, `lastRefresh` says how many — a reminder that silently failed to schedule
+/// is worse than no reminder at all.
 struct NotificationSettingsView: View {
 
     @Environment(AppEnvironment.self) private var appEnvironment
@@ -39,6 +41,7 @@ struct NotificationSettingsView: View {
     @Query private var items: [CoreItem]
 
     @State private var errorMessage: String?
+    @State private var testMessage: String?
 
     init() { }
 
@@ -56,7 +59,7 @@ struct NotificationSettingsView: View {
                     ErrorBanner(
                         message: schedulingError,
                         retryTitle: "Try again",
-                        onRetry: { rescheduleNow() },
+                        onRetry: { refreshNow() },
                         onDismiss: { appEnvironment.reminders.clearError() }
                     )
                     .listRowBackground(Color.clear)
@@ -69,7 +72,11 @@ struct NotificationSettingsView: View {
                 if profile.remindersEnabled {
                     permissionSection()
                     timingSection(profile)
-                    previewSection(profile)
+                    dueSoonSection(profile)
+                    followUpSection(profile)
+                    weeklySummarySection(profile)
+                    privacySection(profile)
+                    testSection()
                 }
 
                 coverageSection(profile)
@@ -88,6 +95,7 @@ struct NotificationSettingsView: View {
         .background(Palette.background.ignoresSafeArea())
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier(A11y.Notifications.root)
         .task {
             // Reading the status never prompts — see `ReminderCoordinator.refreshAuthorization()`.
             await appEnvironment.reminders.refreshAuthorization()
@@ -105,7 +113,8 @@ struct NotificationSettingsView: View {
                         .foregroundStyle(Palette.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("One alert per core, before its return window closes.")
+                    Text("Alerts before a return window closes, and follow-ups on credits that "
+                         + "have not arrived.")
                         .font(Typography.caption)
                         .foregroundStyle(Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -113,6 +122,7 @@ struct NotificationSettingsView: View {
             }
             .tint(Palette.accent)
             .frame(minHeight: Spacing.minimumTapTarget)
+            .accessibilityIdentifier(A11y.Notifications.enable)
             .accessibilityLabel(Text("Remind me about core deadlines"))
             .accessibilityHint(Text("Turning this on asks this device for permission to send "
                                     + "notifications."))
@@ -191,6 +201,7 @@ struct NotificationSettingsView: View {
                     .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
                     .contentShape(Rectangle())
                 }
+                .accessibilityIdentifier(A11y.Notifications.openSettings)
                 .accessibilityLabel(Text("Open the Settings app"))
                 .accessibilityHint(Text("Opens CoreCredit's page in the Settings app, where "
                                         + "notifications can be turned back on."))
@@ -203,26 +214,10 @@ struct NotificationSettingsView: View {
         .listRowBackground(Palette.surface)
     }
 
-    // MARK: - Timing
+    // MARK: - Time of day
 
     private func timingSection(_ profile: ShopProfile) -> some View {
         Section {
-            Stepper(value: leadDaysBinding(profile),
-                    in: NotificationSettingsView.minimumLeadDays...NotificationSettingsView.maximumLeadDays) {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("How early")
-                        .font(Typography.caption)
-                        .foregroundStyle(Palette.textSecondary)
-                    Text(leadPhrase(profile.reminderLeadDays).capitalizedFirstLetter)
-                        .font(Typography.rowTitle)
-                        .foregroundStyle(Palette.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(minHeight: Spacing.minimumTapTarget)
-            .accessibilityLabel(Text("How early to be reminded"))
-            .accessibilityValue(Text(leadPhrase(profile.reminderLeadDays)))
-
             DatePicker(selection: reminderTimeBinding(profile), displayedComponents: .hourAndMinute) {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text("Time of day")
@@ -240,40 +235,236 @@ struct NotificationSettingsView: View {
         } header: {
             Text("When")
         } footer: {
-            Text("Pick a time the shop is open and someone is at the counter. A reminder whose "
-                 + "moment has already passed is skipped rather than fired late.")
+            Text("Every reminder fires at this time. Pick a time the shop is open and someone is "
+                 + "at the counter — a reminder whose moment has already passed is skipped rather "
+                 + "than fired late.")
         }
         .listRowBackground(Palette.surface)
     }
 
-    private func previewSection(_ profile: ShopProfile) -> some View {
+    // MARK: - Due soon
+
+    private func dueSoonSection(_ profile: ShopProfile) -> some View {
         Section {
+            ForEach(ShopProfile.dueSoonLeadDayChoices, id: \.self) { day in
+                Toggle(isOn: leadDayBinding(profile, day: day)) {
+                    Text(NotificationSettingsView.leadPhrase(day).capitalizedFirstLetter)
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .tint(Palette.accent)
+                .frame(minHeight: Spacing.minimumTapTarget)
+                .accessibilityLabel(Text(NotificationSettingsView.leadPhrase(day)))
+            }
+        } header: {
+            Text("Before the deadline")
+        } footer: {
+            Text("Pick as many as you want — each one is its own alert. You always get one on the "
+                 + "morning a core is due, and a nudge each day it stays overdue, whatever is "
+                 + "chosen here.")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    // MARK: - Follow-ups
+
+    private func followUpSection(_ profile: ShopProfile) -> some View {
+        Section {
+            Stepper(value: awaitingCreditBinding(profile),
+                    in: ShopProfile.minimumDelayDays...ShopProfile.maximumDelayDays) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Chase a missing credit after")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                    Text(NotificationSettingsView.dayPhrase(profile.awaitingCreditReminderDelayDays))
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                }
+            }
+            .frame(minHeight: Spacing.minimumTapTarget)
+            .accessibilityLabel(Text("Chase a missing credit after"))
+            .accessibilityValue(
+                Text(NotificationSettingsView.dayPhrase(profile.awaitingCreditReminderDelayDays))
+            )
+
+            Stepper(value: disputeFollowUpBinding(profile),
+                    in: ShopProfile.minimumDelayDays...ShopProfile.maximumDelayDays) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Follow up a dispute after")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                    Text(NotificationSettingsView.dayPhrase(profile.disputeFollowUpReminderDelayDays))
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                }
+            }
+            .frame(minHeight: Spacing.minimumTapTarget)
+            .accessibilityLabel(Text("Follow up a dispute after"))
+            .accessibilityValue(
+                Text(NotificationSettingsView.dayPhrase(profile.disputeFollowUpReminderDelayDays))
+            )
+        } header: {
+            Text("After a return")
+        } footer: {
+            Text("Counted from the day a core went back to the vendor, and from the day a short "
+                 + "credit was recorded. Recording the credit cancels the chase straight away.")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    // MARK: - Weekly summary
+
+    private func weeklySummarySection(_ profile: ShopProfile) -> some View {
+        Section {
+            Toggle(isOn: weeklySummaryBinding(profile)) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Weekly summary")
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                    Text("One Monday morning alert counting the cores still open.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .tint(Palette.accent)
+            .frame(minHeight: Spacing.minimumTapTarget)
+            .accessibilityLabel(Text("Weekly summary"))
+        } header: {
+            Text("Weekly")
+        } footer: {
+            Text("Off unless you ask for it. It names no core, no vendor, and no amount — only how "
+                 + "many are still outstanding.")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    // MARK: - Privacy
+
+    private func privacySection(_ profile: ShopProfile) -> some View {
+        Section {
+            Toggle(isOn: showsDetailBinding(profile)) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Show item details in notifications")
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Adds the part, the amount, the vendor, and the bin to the alert text.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .tint(Palette.accent)
+            .frame(minHeight: Spacing.minimumTapTarget)
+            .accessibilityIdentifier(A11y.Notifications.details)
+            .accessibilityLabel(Text("Show item details in notifications"))
+
             HStack(alignment: .top, spacing: Spacing.m) {
                 Image(systemName: "bell")
                     .imageScale(.medium)
                     .foregroundStyle(Palette.textSecondary)
                     .accessibilityHidden(true)
 
-                Text(previewSentence(profile))
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(NotificationSettingsView.previewTitle(profile))
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(NotificationSettingsView.previewBody(profile))
+                        .font(.subheadline)
+                        .foregroundStyle(Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
             .padding(.vertical, Spacing.xs)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(previewSentence(profile)))
+            .accessibilityLabel(Text("Example alert"))
+            .accessibilityValue(
+                Text(NotificationSettingsView.previewTitle(profile) + ". "
+                     + NotificationSettingsView.previewBody(profile))
+            )
         } header: {
-            Text("What you'll get")
+            Text("What the alert says")
+        } footer: {
+            Text("Off by default. A banner can be read by anyone standing near the phone, and an "
+                 + "unlocked screen is not the place for a vendor's name or a dollar figure. "
+                 + "Whether this is on or off, a notification never carries anything beyond the "
+                 + "core's identifier and a link back into the app.")
         }
         .listRowBackground(Palette.surface)
     }
 
-    /// How many cores this setting can actually apply to right now. Closed cores and cores with no
-    /// deadline are counted out, so the number is not quietly optimistic.
+    // MARK: - Test
+
+    private func testSection() -> some View {
+        Section {
+            Button {
+                sendTestNotification()
+            } label: {
+                PrimaryButtonLabel("Send a test notification", systemImage: "bell.and.waves.left.and.right")
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Color.clear)
+            .listRowInsets(
+                EdgeInsets(top: Spacing.s, leading: Spacing.l, bottom: Spacing.s, trailing: Spacing.l)
+            )
+            .accessibilityIdentifier(A11y.Notifications.test)
+            .accessibilityHint(Text("Delivers one example alert about five seconds from now."))
+
+            // The confirmation for an action the owner just took belongs in the app, not in a
+            // second notification — see `ConfirmationBanner`. It sits directly under the button
+            // that caused it and stays until it is dismissed.
+            if let testMessage = testMessage {
+                ConfirmationBanner(
+                    message: testMessage,
+                    systemImage: "bell.badge",
+                    onDismiss: { self.testMessage = nil }
+                )
+                .listRowBackground(Color.clear)
+                .listRowInsets(
+                    EdgeInsets(top: Spacing.s, leading: Spacing.l, bottom: Spacing.s, trailing: Spacing.l)
+                )
+            }
+        } header: {
+            Text("Check it works")
+        } footer: {
+            Text("The test alert names no core and changes nothing. Lock the screen after tapping "
+                 + "to see it the way it will really arrive.")
+        }
+        .listRowBackground(Palette.surface)
+    }
+
+    // MARK: - Coverage
+
+    /// How many cores this setting can actually apply to, how many alerts are queued, and the one
+    /// thing this app genuinely cannot do.
     private func coverageSection(_ profile: ShopProfile) -> some View {
         Section {
-            LabeledValueRow("Cores with a deadline", value: String(remindableCount), symbol: "calendar")
+            LabeledValueRow("Open cores", value: String(remindableCount), symbol: "shippingbox")
+
+            if let report = appEnvironment.reminders.lastRefresh {
+                LabeledValueRow("Reminders queued",
+                                value: String(report.scheduledCount),
+                                symbol: "bell.badge")
+
+                if report.droppedCount > 0 {
+                    LabeledValueRow("Not queued",
+                                    value: String(report.droppedCount),
+                                    symbol: "exclamationmark.circle")
+                }
+
+                Text(report.summary)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, Spacing.xs)
+            }
+        } header: {
+            Text("What is queued")
         } footer: {
             Text(coverageFooter(profile))
         }
@@ -289,12 +480,60 @@ struct NotificationSettingsView: View {
         )
     }
 
-    private func leadDaysBinding(_ profile: ShopProfile) -> Binding<Int> {
+    /// One switch per offered lead. Turning them all off is a legitimate answer: it means "only
+    /// tell me on the day", which is what the due-today reminder already does.
+    private func leadDayBinding(_ profile: ShopProfile, day: Int) -> Binding<Bool> {
         Binding(
-            get: { profile.reminderLeadDays },
+            get: { profile.reminderDueSoonLeadDays.contains(day) },
+            set: { isOn in
+                var days = profile.reminderDueSoonLeadDays
+                if isOn {
+                    if !days.contains(day) { days.append(day) }
+                } else {
+                    days.removeAll { $0 == day }
+                }
+                profile.reminderDueSoonLeadDays = days
+                saveAndRefresh(profile)
+            }
+        )
+    }
+
+    private func awaitingCreditBinding(_ profile: ShopProfile) -> Binding<Int> {
+        Binding(
+            get: { profile.awaitingCreditReminderDelayDays },
             set: { newValue in
-                profile.reminderLeadDays = NotificationSettingsView.clampLeadDays(newValue)
-                saveAndReschedule(profile)
+                profile.awaitingCreditReminderDelayDays = NotificationSettingsView.clampDelay(newValue)
+                saveAndRefresh(profile)
+            }
+        )
+    }
+
+    private func disputeFollowUpBinding(_ profile: ShopProfile) -> Binding<Int> {
+        Binding(
+            get: { profile.disputeFollowUpReminderDelayDays },
+            set: { newValue in
+                profile.disputeFollowUpReminderDelayDays = NotificationSettingsView.clampDelay(newValue)
+                saveAndRefresh(profile)
+            }
+        )
+    }
+
+    private func weeklySummaryBinding(_ profile: ShopProfile) -> Binding<Bool> {
+        Binding(
+            get: { profile.weeklySummaryEnabled },
+            set: { newValue in
+                profile.weeklySummaryEnabled = newValue
+                saveAndRefresh(profile)
+            }
+        )
+    }
+
+    private func showsDetailBinding(_ profile: ShopProfile) -> Binding<Bool> {
+        Binding(
+            get: { profile.showsDetailInNotifications },
+            set: { newValue in
+                profile.showsDetailInNotifications = newValue
+                saveAndRefresh(profile)
             }
         )
     }
@@ -308,7 +547,7 @@ struct NotificationSettingsView: View {
                 let components = calendar.dateComponents([.hour, .minute], from: newValue)
                 profile.reminderHour = components.hour ?? profile.reminderHour
                 profile.reminderMinute = components.minute ?? profile.reminderMinute
-                saveAndReschedule(profile)
+                saveAndRefresh(profile)
             }
         )
     }
@@ -322,37 +561,54 @@ struct NotificationSettingsView: View {
         guard persist(profile) else { return }
 
         let reminders = appEnvironment.reminders
-        let scheduled = items
+        let context = modelContext
         Task {
             if newValue, reminders.authorization == .notDetermined {
                 await reminders.requestAuthorizationIfNeeded()
             }
-            await reminders.rescheduleAll(items: scheduled, profile: profile)
+            // Requested after the prompt has been answered, so a freshly granted permission is in
+            // force by the time the queue is rebuilt.
+            reminders.requestRefresh(context: context)
         }
     }
 
     private func requestPermission() {
         let reminders = appEnvironment.reminders
-        let scheduled = items
-        guard let profile = profiles.first else { return }
+        let context = modelContext
         Task {
             await reminders.requestAuthorizationIfNeeded()
-            await reminders.rescheduleAll(items: scheduled, profile: profile)
+            reminders.requestRefresh(context: context)
         }
     }
 
-    private func rescheduleNow() {
-        guard let profile = profiles.first else { return }
+    private func sendTestNotification() {
         let reminders = appEnvironment.reminders
-        let scheduled = items
+        testMessage = nil
         Task {
-            await reminders.rescheduleAll(items: scheduled, profile: profile)
+            let sent = await reminders.sendTestNotification()
+            if sent {
+                testMessage = "A test notification is on its way — it should arrive in about "
+                    + "five seconds."
+            } else {
+                // The reason is already in `reminders.lastError`, which the banner at the top of
+                // this screen is showing. Saying it twice would be worse, not clearer.
+                testMessage = nil
+            }
         }
     }
 
-    private func saveAndReschedule(_ profile: ShopProfile) {
+    /// Rebuilds the queue without saving anything. Used by the error banner's retry.
+    private func refreshNow() {
+        appEnvironment.reminders.requestRefresh(context: modelContext)
+    }
+
+    /// Saves the edited profile, then rebuilds the queue.
+    ///
+    /// Saving already announces the change through `CoreItemChangeRelay`, so this second request is
+    /// belt and braces rather than a second rebuild: `requestRefresh` replaces the pending one.
+    private func saveAndRefresh(_ profile: ShopProfile) {
         guard persist(profile) else { return }
-        rescheduleNow()
+        refreshNow()
     }
 
     /// Saves the profile. Returns `false` — and shows why — when the store refused the write, so a
@@ -374,10 +630,10 @@ struct NotificationSettingsView: View {
 
     private var now: Date { appEnvironment.dateProvider.now }
 
-    /// Cores that could receive a reminder: still open, and carrying a due date.
+    /// Cores that can still be reminded about at all.
     private var remindableCount: Int {
         items.reduce(into: 0) { total, item in
-            if item.status.isUnresolved && item.dueDate != nil { total += 1 }
+            if item.status.isUnresolved { total += 1 }
         }
     }
 
@@ -393,29 +649,15 @@ struct NotificationSettingsView: View {
         reminderDate(profile).formatted(date: .omitted, time: .shortened)
     }
 
-    private func leadPhrase(_ leadDays: Int) -> String {
-        if leadDays <= 0 { return "on the day a core is due" }
-        if leadDays == 1 { return "1 day before a deadline" }
-        return String(leadDays) + " days before a deadline"
-    }
-
-    /// "You'll be reminded 3 days before a deadline, at 8:00 AM."
-    private func previewSentence(_ profile: ShopProfile) -> String {
-        var sentence = "You'll be reminded "
-        sentence += leadPhrase(profile.reminderLeadDays)
-        sentence += ", at "
-        sentence += timeText(profile)
-        sentence += "."
-        return sentence
-    }
-
     private func coverageFooter(_ profile: ShopProfile) -> String {
-        var text = "Only open cores with a return deadline can be reminded about. "
-        text += "Credited and written-off cores are never scheduled, and a core whose reminder "
-        text += "moment has already passed is skipped instead of firing immediately. "
+        var text = "Reminders are built on this device from the dates in this ledger. "
+        text += "CoreCredit has no connection to any vendor, so it cannot tell when a core is "
+        text += "actually accepted or when a credit is actually issued — it only knows what has "
+        text += "been recorded here. Credited and written-off cores are never scheduled, and a "
+        text += "reminder whose moment has already passed is skipped instead of firing late. "
 
         if profile.remindersEnabled {
-            text += "Editing a core reschedules its own reminder straight away."
+            text += "Editing a core rebuilds this queue straight away."
         } else {
             text += "Reminders are currently switched off, so nothing is queued."
         }
@@ -456,16 +698,38 @@ struct NotificationSettingsView: View {
         }
     }
 
-    private static func clampLeadDays(_ days: Int) -> Int {
-        if days < minimumLeadDays { return minimumLeadDays }
-        if days > maximumLeadDays { return maximumLeadDays }
-        return days
+    // MARK: - Wording
+
+    private static func leadPhrase(_ leadDays: Int) -> String {
+        if leadDays <= 0 { return "on the day a core is due" }
+        if leadDays == 1 { return "1 day before a deadline" }
+        return String(leadDays) + " days before a deadline"
     }
 
-    /// Zero means "on the deadline itself", which is a legitimate choice for a shop that checks the
-    /// board every morning.
-    private static let minimumLeadDays = 0
-    private static let maximumLeadDays = 30
+    private static func dayPhrase(_ days: Int) -> String {
+        days == 1 ? "1 day" : String(days) + " days"
+    }
+
+    /// The example alert, built from the same two rules the planner uses, so what is shown here is
+    /// what will actually arrive.
+    private static func previewTitle(_ profile: ShopProfile) -> String {
+        profile.showsDetailInNotifications ? "Core return due Friday" : "Core return due soon"
+    }
+
+    private static func previewBody(_ profile: ShopProfile) -> String {
+        guard profile.showsDetailInNotifications else {
+            return "Open " + AppConfiguration.displayName + " to review this core."
+        }
+        return "Alternator (03-1887) \u{2014} "
+            + Money(cents: 8_650).formatted(currencyCode: profile.currencyCode)
+            + " to NAPA. Bin A3."
+    }
+
+    private static func clampDelay(_ days: Int) -> Int {
+        if days < ShopProfile.minimumDelayDays { return ShopProfile.minimumDelayDays }
+        if days > ShopProfile.maximumDelayDays { return ShopProfile.maximumDelayDays }
+        return days
+    }
 
     private static var appSettingsURL: URL? {
         URL(string: UIApplication.openSettingsURLString)

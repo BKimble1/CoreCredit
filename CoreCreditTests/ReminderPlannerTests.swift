@@ -203,23 +203,52 @@ struct ReminderPlannerTests {
 
     // MARK: - Identity
 
-    @Test("The identifier is derived from the item id, so re-planning replaces instead of stacking")
+    @Test("The identifier is derived from the item, the kind, and the lead, so re-planning replaces instead of stacking")
     func theIdentifierIsDerivedFromTheItemID() throws {
         let item = alternator
         let otherItem = alternator
 
-        let first = try #require(makePlan(for: item, leadDays: 3, hour: 8))
-        let second = try #require(makePlan(for: item, leadDays: 5, hour: 17, minute: 30))
+        let threeDay = try #require(makePlan(for: item, leadDays: 3, hour: 8))
+        let threeDayLater = try #require(makePlan(for: item, leadDays: 3, hour: 17, minute: 30))
+        let fiveDay = try #require(makePlan(for: item, leadDays: 5, hour: 17, minute: 30))
         let other = try #require(makePlan(for: otherItem, leadDays: 3, hour: 8))
 
-        #expect(first.identifier == second.identifier)
-        #expect(first.identifier != other.identifier)
-        #expect(first.fireDate != second.fireDate)
+        // Deterministic: the same core warned about the same number of days out is the same alert,
+        // whatever hour the shop moved its reminders to, so re-planning replaces it.
+        #expect(threeDay.identifier == threeDayLater.identifier)
+        #expect(threeDay.fireDate != threeDayLater.fireDate)
 
-        #expect(first.itemID == item.identifier)
-        #expect(first.identifier == CoreReminderRequest.identifier(for: item.identifier))
-        #expect(first.identifier == CoreReminderRequest.identifierPrefix + item.identifier.uuidString)
-        #expect(first.identifier.hasPrefix(CoreReminderRequest.identifierPrefix))
+        // Unique per lead and per core: 7/3/1 is three alerts, not three collisions on one.
+        #expect(threeDay.identifier != fiveDay.identifier)
+        #expect(threeDay.identifier != other.identifier)
+
+        // Derivable from the item alone, which is what lets cancellation be exact.
+        #expect(threeDay.itemID == item.identifier)
+        #expect(threeDay.kind == .dueSoon)
+        #expect(threeDay.leadDays == 3)
+        #expect(threeDay.identifier == CoreReminderRequest.identifier(for: item.identifier,
+                                                                     kind: .dueSoon,
+                                                                     leadDays: 3))
+        #expect(fiveDay.identifier == CoreReminderRequest.identifier(for: item.identifier,
+                                                                    kind: .dueSoon,
+                                                                    leadDays: 5))
+        #expect(CoreReminderRequest.identifier(for: item.identifier, kind: .dueToday)
+                != threeDay.identifier)
+
+        // `core-reminder-dueSoon3-<uuid>`: prefix, kind, lead, and the core's id as the suffix.
+        #expect(threeDay.identifier
+                == CoreReminderRequest.identifierPrefix + "dueSoon3-" + item.identifier.uuidString)
+        #expect(threeDay.identifier.hasPrefix(CoreReminderRequest.identifierPrefix))
+        #expect(threeDay.identifier.hasSuffix("-" + item.identifier.uuidString))
+
+        // The item is recoverable from the identifier, so every alert for one core can be found
+        // again without knowing which leads were configured when it was queued.
+        #expect(CoreReminderRequest.identifier(threeDay.identifier, belongsTo: item.identifier))
+        #expect(CoreReminderRequest.identifier(fiveDay.identifier, belongsTo: item.identifier))
+        #expect(CoreReminderRequest.identifier(other.identifier, belongsTo: item.identifier) == false)
+        #expect(CoreReminderRequest.identifiers([threeDay.identifier, fiveDay.identifier, other.identifier],
+                                                belongingTo: [item.identifier])
+                == [threeDay.identifier, fiveDay.identifier])
     }
 
     // MARK: - Wording
@@ -301,19 +330,38 @@ struct ReminderPlannerTests {
         #expect(afterCancel.isEmpty)
     }
 
-    @Test("Re-scheduling the same core replaces its pending reminder instead of stacking one")
+    @Test("Re-scheduling the same core replaces each of its pending reminders instead of stacking them")
     func reschedulingReplacesThePendingReminder() async throws {
         let item = alternator
-        let first = try #require(makePlan(for: item, leadDays: 3, hour: 8))
-        let second = try #require(makePlan(for: item, leadDays: 5, hour: 17, minute: 30))
+        let threeDay = try #require(makePlan(for: item, leadDays: 3, hour: 8))
+        let fiveDay = try #require(makePlan(for: item, leadDays: 5, hour: 8))
         let scheduler = RecordingNotificationScheduler()
 
-        try await scheduler.schedule(first)
-        try await scheduler.schedule(second)
+        try await scheduler.schedule(threeDay)
+        try await scheduler.schedule(fiveDay)
 
-        #expect(scheduler.scheduledRequests == [second])
+        // Two leads are two reasons to interrupt somebody, so they queue side by side.
+        #expect(scheduler.scheduledRequests.count == 2)
         let pending = await scheduler.pendingIdentifiers()
-        #expect(pending == [second.identifier])
+        #expect(pending == [threeDay.identifier, fiveDay.identifier].sorted())
+
+        // The same core re-planned at a different hour: each alert is replaced where it stands, and
+        // the queue is no longer than it was.
+        let threeDayLater = try #require(makePlan(for: item, leadDays: 3, hour: 17, minute: 30))
+        let fiveDayLater = try #require(makePlan(for: item, leadDays: 5, hour: 17, minute: 30))
+
+        try await scheduler.schedule(threeDayLater)
+        try await scheduler.schedule(fiveDayLater)
+
+        #expect(scheduler.scheduledRequests.count == 2)
+        #expect(scheduler.scheduledRequests(for: item.identifier).count == 2)
+        #expect(scheduler.scheduledRequests.contains(threeDayLater))
+        #expect(scheduler.scheduledRequests.contains(fiveDayLater))
+        #expect(scheduler.scheduledRequests.contains(threeDay) == false)
+        #expect(scheduler.scheduledRequests.contains(fiveDay) == false)
+
+        let afterReplan = await scheduler.pendingIdentifiers()
+        #expect(afterReplan == pending)
     }
 
     @Test("Scheduling while notifications are denied throws and records nothing")

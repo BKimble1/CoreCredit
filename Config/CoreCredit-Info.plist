@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Partial Info.plist for the CoreCredit app target.
+
+	  GENERATE_INFOPLIST_FILE stays YES; Xcode merges every INFOPLIST_KEY_* build
+	  setting on top of this file. Only keys that have no INFOPLIST_KEY_ equivalent
+	  belong here — currently just the URL scheme, because CFBundleURLTypes is an
+	  array of dictionaries and cannot be expressed as a build setting.
+
+	  The scheme must stay in step with AppConfiguration.urlScheme.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.blakekimble.corecredit.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>corecredit</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

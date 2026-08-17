@@ -90,6 +90,13 @@ final class AppEnvironment {
 
     let subscriptions: SubscriptionController
     let reminders: ReminderCoordinator
+
+    /// The `UNUserNotificationCenter` delegate: foreground presentation, the reminder actions, and
+    /// the deep link a tapped reminder resolves to. Held here because the notification centre keeps
+    /// only a weak reference to its delegate. Set `notifications.onOpenURL` from the app shell to
+    /// hand tapped links to the router; nothing here requests permission.
+    let notifications: NotificationResponder
+
     let exports: ExportCoordinator
     let textRecognizer: any TextRecognizing
 
@@ -97,6 +104,11 @@ final class AppEnvironment {
     /// screen. Nothing it holds is ever uploaded, and it stores no image bytes — see
     /// `ScanDiagnostics.swift`. It starts empty and stays empty until a scanner opens a session.
     let scanDiagnostics: ScanDiagnosticsRecorder
+
+    /// Where an incoming `corecredit://` URL, a Shortcut, or the Action Button leaves its request.
+    /// It only *records* the destination; `MainTabView` decides what that means and when, which is
+    /// how a link that arrives before the tab bar exists survives a cold start.
+    let deepLinks: DeepLinkRouter
 
     // MARK: - Observable state
 
@@ -144,7 +156,14 @@ final class AppEnvironment {
         // Reminders ----------------------------------------------------------------------
         let scheduler: any NotificationScheduling
         if launchOptions.disableNotifications {
-            scheduler = RecordingNotificationScheduler()
+            // `-uiTestNotificationAuthorization denied` reaches the settings screen's denied and
+            // not-determined branches, which are otherwise untestable: authorization cannot be
+            // revoked from inside the process. Unset keeps the recorder's `.authorized` default.
+            if let forced = launchOptions.notificationAuthorization {
+                scheduler = RecordingNotificationScheduler(status: forced)
+            } else {
+                scheduler = RecordingNotificationScheduler()
+            }
         } else {
             scheduler = UserNotificationScheduler()
         }
@@ -166,6 +185,33 @@ final class AppEnvironment {
         // Diagnostics ---------------------------------------------------------------------
         // In memory, on this device, for the owner to read. No permission, no file, no network.
         self.scanDiagnostics = ScanDiagnosticsRecorder(dateProvider: clock)
+
+        // Deep links -----------------------------------------------------------------------
+        // Nothing is navigated by constructing this; it is an empty mailbox until a URL or an
+        // `AppIntent` puts something in it. Constructed unconditionally, because a bin-tag QR code
+        // and the Quick Scan widget work the same way in a UI test as they do on a counter.
+        self.deepLinks = DeepLinkRouter()
+
+        // A UI test can hand a link in at launch (`-uiTestDeepLink corecredit://scan`). This is the
+        // cold-start path — the URL arrives before the shell exists and waits in the router until
+        // `MainTabView` consumes it — which is the case worth testing and the awkward one to reach
+        // otherwise, since XCUITest cannot open a custom scheme without driving Safari.
+        // Gated on `isUITesting`, so a stray argument can never steer a shipping build.
+        if launchOptions.isUITesting,
+           let raw = launchOptions.deepLink,
+           let url = URL(string: raw) {
+            _ = self.deepLinks.handle(url)
+        }
+
+        // Notifications ----------------------------------------------------------------------
+        // Registers the reminder categories and becomes the notification centre's delegate. It
+        // asks for no permission: a tapped reminder hands its `corecredit://` link to the same
+        // router a bin-tag QR code uses, through the registry, so the notification layer stays
+        // ignorant of the view tree.
+        self.notifications = NotificationResponder.installed(
+            isEnabled: !launchOptions.disableNotifications,
+            onOpenURL: { url in _ = DeepLinkRouterRegistry.current?.handle(url) }
+        )
 
         self.storeLoadWarning = loadFailure
     }

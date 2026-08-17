@@ -13,10 +13,11 @@ import SwiftUI
 /// 1. **Nothing is claimed that the code does not do.** The privacy section describes the actual
 ///    implementation — a local SwiftData store, local notifications, StoreKit for the subscription,
 ///    and no network client of any kind — and says so in those terms rather than in marketing ones.
-/// 2. **Placeholder links are labelled as placeholders.** `AppConfiguration`'s support and privacy
-///    URLs still point at `example.com`. Rather than presenting them as working pages, each is
-///    marked so the owner (and any reviewer) can see at a glance that they must be replaced before
-///    submission.
+/// 2. **A placeholder address is never printed.** `AppConfiguration`'s support and privacy URLs are
+///    still `example.com` stand-ins. Showing one to a shop owner would be worse than showing
+///    nothing, so this screen hides the row entirely and says, in words, that a support contact has
+///    not been set up yet. The full policies do not depend on those addresses at all: they ship
+///    inside the app and open natively through `LegalDocumentView`.
 ///
 /// There are no external purchase links here. The only purchase path in CoreCredit is the
 /// Subscription screen, which uses StoreKit through `SubscriptionStatusView` and `PaywallView`.
@@ -31,7 +32,7 @@ struct AboutView: View {
                 whatItIsCard
                 termsCard
                 privacyCard
-                linksCard
+                documentsCard
             }
             .padding(Spacing.l)
             .frame(maxWidth: 560, alignment: .leading)
@@ -87,8 +88,10 @@ struct AboutView: View {
     // MARK: - Terms
 
     /// The honest limits of the product, stated where an owner will actually read them.
+    ///
+    /// A summary, not the agreement: the full Terms of Use is the bundled document linked below.
     private var termsCard: some View {
-        SectionCard(title: "Terms of use", systemImage: "doc.text") {
+        SectionCard(title: "Terms of use, in brief", systemImage: "doc.text") {
             VStack(alignment: .leading, spacing: Spacing.m) {
                 paragraph("CoreCredit is an organisational record. It is a place to write down "
                           + "core charges and keep track of them — nothing more.")
@@ -120,8 +123,10 @@ struct AboutView: View {
     // MARK: - Privacy
 
     /// Describes the implementation as built. Every sentence here is checkable against the code.
+    ///
+    /// A summary, not the policy: the full Privacy Policy is the bundled document linked below.
     private var privacyCard: some View {
-        SectionCard(title: "Privacy", systemImage: "lock") {
+        SectionCard(title: "Privacy, in brief", systemImage: "lock") {
             VStack(alignment: .leading, spacing: Spacing.m) {
                 paragraph("Your shop's records are stored on this device, in the app's own "
                           + "storage. There is no CoreCredit account and no sign-in, because there "
@@ -148,35 +153,45 @@ struct AboutView: View {
         }
     }
 
-    // MARK: - Links
+    // MARK: - Documents
 
-    private var linksCard: some View {
-        SectionCard(title: "Support and policies", systemImage: "questionmark.circle") {
+    /// The full documents, and the support contact if there is one.
+    ///
+    /// These are `NavigationLink`s into the bundled documents rather than `Link`s to a web page:
+    /// the policies are compiled into the app and rendered natively, so they open in a tunnel, on
+    /// aeroplane mode, and in a basement parts room — and nothing is fetched to show them.
+    private var documentsCard: some View {
+        SectionCard(title: "Policies and support", systemImage: "questionmark.circle") {
             VStack(alignment: .leading, spacing: Spacing.m) {
-                linkRow(
-                    title: "Privacy policy",
+                documentRow(
+                    .privacyPolicy,
                     symbol: "hand.raised",
-                    urlString: AppConfiguration.privacyURLString,
-                    url: AppConfiguration.privacyURL,
-                    hint: "Opens the privacy policy page in the browser."
+                    hint: "Opens the privacy policy, stored inside the app."
                 )
 
                 Divider().overlay(Palette.hairline)
 
-                linkRow(
-                    title: "Support",
-                    symbol: "lifepreserver",
-                    urlString: AppConfiguration.supportURLString,
-                    url: AppConfiguration.supportURL,
-                    hint: "Opens the support page in the browser."
+                documentRow(
+                    .termsOfUse,
+                    symbol: "doc.text",
+                    hint: "Opens the terms of use, stored inside the app."
                 )
 
                 Divider().overlay(Palette.hairline)
 
-                LabeledValueRow("Support email", value: AppConfiguration.supportEmail, symbol: "envelope")
+                documentRow(
+                    .localDataAndBackup,
+                    symbol: "internaldrive",
+                    hint: "Opens the note on local storage, backups, and erasing."
+                )
 
-                if AboutView.isPlaceholder(AppConfiguration.supportEmail) {
-                    placeholderNote("This address is a placeholder and does not reach anyone yet.")
+                Divider().overlay(Palette.hairline)
+
+                supportRow
+
+                if AppConfiguration.isSupportContactConfigured == false {
+                    placeholderNote("A support contact hasn't been set up for this app yet, so "
+                                    + "there is no address to show.")
                 }
 
                 Text("Subscription options, restoring a purchase, and managing billing are all on "
@@ -188,49 +203,63 @@ struct AboutView: View {
         }
     }
 
-    @ViewBuilder
-    private func linkRow(
-        title: String,
+    private func documentRow(
+        _ documentID: LegalDocumentID,
         symbol: String,
-        urlString: String,
-        url: URL,
         hint: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            Link(destination: url) {
-                HStack(spacing: Spacing.m) {
-                    Image(systemName: symbol)
-                        .imageScale(.medium)
-                        .foregroundStyle(Palette.textSecondary)
-                        .accessibilityHidden(true)
-
-                    Text(title)
-                        .font(Typography.rowTitle)
-                        .foregroundStyle(Palette.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer(minLength: Spacing.s)
-
-                    Image(systemName: "arrow.up.forward")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(Palette.textSecondary)
-                        .accessibilityHidden(true)
-                }
-                .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .accessibilityLabel(Text(title))
-            .accessibilityHint(Text(AboutView.isPlaceholder(urlString)
-                                    ? "Placeholder address. " + hint
-                                    : hint))
-
-            if AboutView.isPlaceholder(urlString) {
-                placeholderNote("Placeholder address (" + urlString + "). The shop owner must "
-                                + "replace it with a real page before this app is submitted.")
-            }
+        NavigationLink {
+            LegalDocumentView(documentID: documentID)
+        } label: {
+            navigationRowLabel(title: documentID.displayName, symbol: symbol)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(documentID.displayName))
+        .accessibilityHint(Text(hint))
     }
 
+    /// Always a link to the same support screen, whether or not a contact exists yet — that screen
+    /// is the one place in the app that decides what can honestly be shown.
+    private var supportRow: some View {
+        NavigationLink {
+            LegalSupportView()
+        } label: {
+            navigationRowLabel(title: "Support and contact", symbol: "lifepreserver")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Support and contact"))
+        .accessibilityHint(Text("Opens the app version and, if one has been set up, the support "
+                                + "contact."))
+    }
+
+    private func navigationRowLabel(title: String, symbol: String) -> some View {
+        HStack(spacing: Spacing.m) {
+            Image(systemName: symbol)
+                .imageScale(.medium)
+                .foregroundStyle(Palette.textSecondary)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(Typography.rowTitle)
+                .foregroundStyle(Palette.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: Spacing.s)
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Palette.textSecondary)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    /// An honest caption about something that is not configured yet.
+    ///
+    /// It never contains an address. The stand-ins in `AppConfiguration` exist so the app compiles
+    /// and so `AppConfiguration.isPlaceholder(_:)` can hide the rows that depend on them; printing
+    /// one here would only invite a shop to write to a mailbox that does not exist.
     private func placeholderNote(_ message: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
             Image(systemName: "exclamationmark.triangle")
@@ -253,13 +282,6 @@ struct AboutView: View {
             .foregroundStyle(Palette.textPrimary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// True while a configured address is still one of the `example.com` stand-ins shipped in
-    /// `AppConfiguration`. Deriving this rather than hard-coding it means the caption disappears by
-    /// itself the moment the real addresses are filled in.
-    private static func isPlaceholder(_ value: String) -> Bool {
-        value.localizedCaseInsensitiveContains("example.com")
     }
 }
 

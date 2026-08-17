@@ -3,7 +3,9 @@
 //  CoreCredit
 //
 
+import StoreKit
 import SwiftUI
+import UIKit
 
 /// The upgrade sheet.
 ///
@@ -38,6 +40,17 @@ private struct PaywallContent: View {
     let trigger: PaywallTrigger
     let controller: SubscriptionController
 
+    /// The bundled document being read, if any.
+    ///
+    /// This screen is *presented as a sheet* from `MainTabView`, `CoreEditorView`, `CoreListView`,
+    /// and `SubscriptionStatusView`, and none of those wrap it in a `NavigationStack`. There is
+    /// therefore no stack here to push onto, so the documents are presented as their own sheet with
+    /// their own `NavigationStack` rather than as a navigation destination.
+    @State private var presentedDocument: PaywallLegalDocument?
+
+    /// Set when Apple's manage-subscriptions sheet could not be opened.
+    @State private var manageErrorMessage: String?
+
     var body: some View {
         ZStack {
             Palette.background
@@ -60,7 +73,7 @@ private struct PaywallContent: View {
                     }
 
                     includedCard
-                    restoreButton
+                    accountBlock
                     legalBlock
                 }
                 .padding(Spacing.l)
@@ -69,6 +82,19 @@ private struct PaywallContent: View {
             }
         }
         .accessibilityIdentifier(A11y.Paywall.root)
+        .sheet(item: $presentedDocument) { entry in
+            NavigationStack {
+                LegalDocumentView(documentID: entry.documentID)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Done") { presentedDocument = nil }
+                                .accessibilityLabel(Text("Done"))
+                                .accessibilityHint(Text("Closes the document and returns to the "
+                                                        + "upgrade screen."))
+                        }
+                    }
+            }
+        }
         .task {
             // The controller is normally started at launch. This covers the case where the sheet
             // is the first thing to need products — for example a cold launch straight into the
@@ -356,33 +382,35 @@ private struct PaywallContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: Restore + legal
+    // MARK: Account actions
+
+    /// The two things a shopper must always be able to do from a paywall without buying anything:
+    /// get back a subscription they already paid for, and get to Apple's screen to change or cancel
+    /// one.
+    private var accountBlock: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            restoreButton
+            manageSubscriptionControl
+
+            if let manageErrorMessage = manageErrorMessage {
+                ErrorBanner(
+                    message: manageErrorMessage,
+                    onDismiss: { self.manageErrorMessage = nil }
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     private var restoreButton: some View {
         Button {
             Task { await controller.restorePurchases() }
         } label: {
-            HStack(spacing: Spacing.s) {
-                if controller.isRestoring {
-                    ProgressView()
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .imageScale(.small)
-                }
-                Text("Restore purchases")
-                    .font(.body.weight(.semibold))
-            }
-            .foregroundStyle(Palette.textPrimary)
-            .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget)
-            .background(
-                RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                    .fill(Palette.surface)
+            secondaryLabel(
+                "Restore purchases",
+                systemImage: "arrow.clockwise",
+                showsProgress: controller.isRestoring
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                    .strokeBorder(Palette.hairline, lineWidth: 1)
-            )
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(controller.isBusy)
@@ -391,6 +419,95 @@ private struct PaywallContent: View {
         .accessibilityHint(Text("Checks this Apple Account for a subscription you already bought."))
     }
 
+    /// Prefers Apple's in-app management sheet and falls back to Apple's web page, matching
+    /// `SubscriptionStatusView`.
+    ///
+    /// `AppStore.showManageSubscriptions(in:)` needs a live `UIWindowScene`. There are real
+    /// situations where one is not reachable, so the fallback is not defensive padding — it is what
+    /// keeps this control from becoming a dead button.
+    @ViewBuilder
+    private var manageSubscriptionControl: some View {
+        if let scene = activeWindowScene {
+            Button {
+                Task { await presentManageSubscriptions(in: scene) }
+            } label: {
+                secondaryLabel(
+                    "Manage subscription",
+                    systemImage: "arrow.up.forward.app",
+                    showsProgress: false
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(A11y.Paywall.manageSubscription)
+            .accessibilityLabel(Text("Manage subscription"))
+            .accessibilityHint(Text("Opens the App Store subscription settings."))
+        } else {
+            Link(destination: PaywallContent.manageSubscriptionsURL) {
+                secondaryLabel(
+                    "Manage subscription",
+                    systemImage: "arrow.up.forward.app",
+                    showsProgress: false
+                )
+            }
+            .accessibilityIdentifier(A11y.Paywall.manageSubscription)
+            .accessibilityLabel(Text("Manage subscription"))
+            .accessibilityHint(Text("Opens Apple's subscription page in the browser."))
+        }
+    }
+
+    private func secondaryLabel(
+        _ title: String,
+        systemImage: String,
+        showsProgress: Bool
+    ) -> some View {
+        HStack(spacing: Spacing.s) {
+            if showsProgress {
+                ProgressView()
+            } else {
+                Image(systemName: systemImage)
+                    .imageScale(.small)
+            }
+            Text(title)
+                .font(.body.weight(.semibold))
+        }
+        .foregroundStyle(Palette.textPrimary)
+        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget)
+        .background(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .fill(Palette.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .strokeBorder(Palette.hairline, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+    }
+
+    private func presentManageSubscriptions(in scene: UIWindowScene) async {
+        do {
+            try await AppStore.showManageSubscriptions(in: scene)
+            manageErrorMessage = nil
+        } catch {
+            manageErrorMessage = "Couldn't open the subscription settings. You can manage the "
+                + "subscription in the Settings app, under your Apple Account."
+        }
+    }
+
+    /// The foreground scene, or any connected one, or `nil` when the app has none.
+    private var activeWindowScene: UIWindowScene? {
+        let windowScenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return windowScenes.first { $0.activationState == .foregroundActive } ?? windowScenes.first
+    }
+
+    private static let manageSubscriptionsURL =
+        URL(string: "https://apps.apple.com/account/subscriptions") ?? AppConfiguration.fallbackURL
+
+    // MARK: Legal
+
+    /// The renewal disclosure, and the two documents a shopper is agreeing to.
+    ///
+    /// Both open the copy compiled into the app rather than a web page, so they can be read at the
+    /// moment of purchase with no signal and with nothing fetched.
     private var legalBlock: some View {
         VStack(alignment: .leading, spacing: Spacing.m) {
             Text(
@@ -404,25 +521,30 @@ private struct PaywallContent: View {
             .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: Spacing.l) {
-                Link(destination: AppConfiguration.termsURL) {
-                    Text("Terms of Use")
-                        .font(.footnote.weight(.semibold))
-                        .frame(minHeight: Spacing.minimumTapTarget)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(Text("Terms of Use"))
-
-                Link(destination: AppConfiguration.privacyURL) {
-                    Text("Privacy Policy")
-                        .font(.footnote.weight(.semibold))
-                        .frame(minHeight: Spacing.minimumTapTarget)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(Text("Privacy Policy"))
+                legalButton(.termsOfUse, identifier: A11y.Paywall.termsOfUse)
+                legalButton(.privacyPolicy, identifier: A11y.Paywall.privacyPolicy)
             }
             .foregroundStyle(Palette.accent)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The identifier is passed in rather than derived from `documentID`, because only two of the
+    /// three bundled documents belong on a paywall and a mapping function would need a case for the
+    /// one that never appears here.
+    private func legalButton(_ documentID: LegalDocumentID, identifier: String) -> some View {
+        Button {
+            presentedDocument = PaywallLegalDocument(documentID: documentID)
+        } label: {
+            Text(documentID.displayName)
+                .font(.footnote.weight(.semibold))
+                .frame(minHeight: Spacing.minimumTapTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(Text(documentID.displayName))
+        .accessibilityHint(Text("Opens the document, which is stored inside the app."))
     }
 
     // MARK: Helpers
@@ -434,6 +556,20 @@ private struct PaywallContent: View {
         case .voluntary: return nil
         }
     }
+}
+
+// MARK: - Sheet item
+
+/// Identity for the document sheet.
+///
+/// `LegalDocumentID` is a plain domain enum and is deliberately left free of SwiftUI's
+/// `Identifiable` requirement; this wrapper supplies the identity `sheet(item:)` needs without
+/// pushing a presentation concern down into the model.
+private struct PaywallLegalDocument: Identifiable {
+
+    let documentID: LegalDocumentID
+
+    var id: String { documentID.rawValue }
 }
 
 // MARK: - Previews

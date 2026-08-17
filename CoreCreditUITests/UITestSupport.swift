@@ -18,10 +18,21 @@ import XCTest
 
 // MARK: - Identifier mirror
 
-/// Verbatim copy of the app's `A11y` strings. Only the members the tests actually query are here,
-/// and each one is copied character for character — a mirror member whose value has drifted from
-/// the app's is a query that resolves to nothing rather than a build failure.
+/// Verbatim copy of the app's `A11y` strings, each one copied character for character — a mirror
+/// member whose value has drifted from the app's is a query that resolves to nothing rather than a
+/// build failure.
+///
+/// Not every member the app declares is here, and a few here are not queried by any test yet: a
+/// screen's identifiers are mirrored in the same change that adds them to the app, so the mirror
+/// never lags behind the screen a test is about to be written for.
 enum A11yID {
+
+    /// The app shell. `deepLinkTarget` marks whatever a deep link, a Shortcut, or the Action
+    /// Button brought to the front — the quick-scan editor, in practice — so a test can wait on
+    /// one identifier rather than on the screen it happens to resolve to.
+    enum Root {
+        static let deepLinkTarget = "root.deepLinkTarget"
+    }
 
     enum Tab {
         static let dashboard = "tab.dashboard"
@@ -120,6 +131,12 @@ enum A11yID {
         static let annual = "paywall.annual"
         static let restore = "paywall.restore"
         static let close = "paywall.close"
+        static let privacyPolicy = "paywall.privacyPolicy"
+        static let termsOfUse = "paywall.termsOfUse"
+
+        /// Applied to both forms of the control — the in-app management button and the web-page
+        /// link it falls back to — because only one of them is ever built.
+        static let manageSubscription = "paywall.manageSubscription"
     }
 
     enum Settings {
@@ -130,11 +147,43 @@ enum A11yID {
         static let vendorWindow = "settings.vendorWindow"
         static let vendorSave = "settings.vendorSave"
         static let diagnostics = "settings.diagnostics"
+        static let notifications = "settings.notifications"
+        static let legal = "settings.legal"
     }
 
     enum Diagnostics {
         static let root = "diagnostics.root"
         static let clear = "diagnostics.clear"
+    }
+
+    /// The Legal hub and the document reader its rows push.
+    ///
+    /// `documentRoot` is one identifier for all three documents: the app has a single
+    /// `LegalDocumentView` parameterised by document, reached from this hub and from the paywall, so
+    /// a test waits on one thing and reads the navigation title to tell the documents apart.
+    enum Legal {
+        static let root = "legal.root"
+        static let privacyPolicy = "legal.privacyPolicy"
+        static let termsOfUse = "legal.termsOfUse"
+        static let localData = "legal.localData"
+        static let support = "legal.support"
+        static let documentRoot = "legal.documentRoot"
+    }
+
+    /// The notification settings screen.
+    ///
+    /// `enable` is present whenever a shop profile exists; `test` and `details` only while reminders
+    /// are switched on; `openSettings` only while this device has denied the permission. A query
+    /// that resolves to nothing therefore describes the screen's state, not a drifted identifier.
+    ///
+    /// Under `-uiTesting` the app installs `RecordingNotificationScheduler`, so nothing on this
+    /// screen can raise a real system permission prompt.
+    enum Notifications {
+        static let root = "notifications.root"
+        static let enable = "notifications.enable"
+        static let test = "notifications.test"
+        static let openSettings = "notifications.openSettings"
+        static let details = "notifications.details"
     }
 
     enum Onboarding {
@@ -171,6 +220,37 @@ enum LaunchFlag {
     static let storeKitFailure = "-uiTestStoreKitFailure"
     static let scannerPayload = "-uiTestScannerPayload"
     static let skipOnboarding = "-uiTestSkipOnboarding"
+
+    /// Delivers a `corecredit://` URL at launch, as though the system had opened it.
+    static let deepLink = "-uiTestDeepLink"
+
+    /// Forces the stubbed notification authorization state.
+    ///
+    /// Real authorization cannot be revoked from inside the process, and
+    /// `RecordingNotificationScheduler` reports `.authorized` by default, so without this the
+    /// denied and not-determined branches of `NotificationSettingsView` are unreachable.
+    static let notificationAuthorization = "-uiTestNotificationAuthorization"
+}
+
+/// The authorization states `LaunchFlag.notificationAuthorization` accepts. Values match
+/// `LaunchOptions.notificationAuthorization(named:)` in the app target.
+enum UITestNotificationAuthorization: String {
+    case notDetermined
+    case denied
+    case authorized
+    case provisional
+}
+
+/// System launch arguments a test occasionally needs. Not CoreCredit's own — these are read by
+/// UIKit, which is why they are passed through `launchApp(extraArguments:)` rather than given a
+/// parameter of their own.
+enum SystemLaunchArgument {
+
+    /// Forces a content size category for the whole run, so a screen can be asserted at an
+    /// accessibility text size without touching device settings.
+    static let contentSizeCategory = "-UIPreferredContentSizeCategoryName"
+
+    static let accessibilityExtraLarge = "UICTContentSizeCategoryAccessibilityXL"
 }
 
 enum UITestTimeout {
@@ -198,11 +278,22 @@ extension XCTestCase {
     ///   - skipOnboarding: Marks the seeded profile onboarded so the run starts on the tab bar.
     ///   - storeKitFailure: Makes the stub engine fail product loading.
     ///   - scannerPayload: Pre-fills the stub recogniser. Never needed for manual entry.
+    ///   - deepLink: A `corecredit://` URL handed to the app at launch, as though the system had
+    ///     opened it. This is the *cold-start* path — the URL reaches `DeepLinkRouter` before the
+    ///     shell exists and waits there until `MainTabView` consumes it — and it is the only way
+    ///     into it, because XCUITest cannot open a custom scheme without driving Safari. The app
+    ///     ignores the argument unless `-uiTesting` is set, which it always is here.
+    ///   - extraArguments: Arguments appended verbatim after CoreCredit's own, for the system
+    ///     switches a test occasionally needs (see `SystemLaunchArgument`). Appended last so a
+    ///     CoreCredit value flag can never swallow one of them.
     func launchApp(seed: UITestSeed = .empty,
                    tier: UITestTier? = .free,
                    skipOnboarding: Bool = true,
                    storeKitFailure: Bool = false,
                    scannerPayload: String? = nil,
+                   deepLink: String? = nil,
+                   notificationAuthorization: UITestNotificationAuthorization? = nil,
+                   extraArguments: [String] = [],
                    file: StaticString = #filePath,
                    line: UInt = #line) -> XCUIApplication {
         let app = XCUIApplication()
@@ -220,6 +311,14 @@ extension XCTestCase {
         if let scannerPayload = scannerPayload {
             arguments.append(contentsOf: [LaunchFlag.scannerPayload, scannerPayload])
         }
+        if let deepLink = deepLink {
+            arguments.append(contentsOf: [LaunchFlag.deepLink, deepLink])
+        }
+        if let notificationAuthorization = notificationAuthorization {
+            arguments.append(contentsOf: [LaunchFlag.notificationAuthorization,
+                                          notificationAuthorization.rawValue])
+        }
+        arguments.append(contentsOf: extraArguments)
 
         app.launchArguments = arguments
         app.launch()
@@ -281,6 +380,18 @@ extension XCTestCase {
             if nested.exists { return nested }
         }
         return direct
+    }
+
+    /// The switch carrying `identifier`, falling back to whatever else carries it.
+    ///
+    /// A SwiftUI `Toggle` publishes as a `.switch` whose accessibility *value* is `"1"` or `"0"`,
+    /// which is how a test reads whether a setting is on. Call this **after** the control is on
+    /// screen: several of the app's toggles live far enough down a lazy `Form` that they are not in
+    /// the accessibility tree until the screen has been scrolled towards them.
+    func toggle(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        let direct = app.switches.matching(identifier: identifier).firstMatch
+        if direct.exists { return direct }
+        return element(app, identifier)
     }
 
     /// Any element whose accessibility label is exactly `label`.
@@ -418,6 +529,25 @@ extension XCTestCase {
             remaining -= 1
         }
         return element.exists && element.isHittable
+    }
+
+    /// Scrolls the frontmost scrolling content until `element` **exists**.
+    ///
+    /// The counterpart to `scrollUntilHittable(_:in:)`, for the screens built on `Form` and `List`.
+    /// Those are lazy: a row far enough down is not merely off screen, it is absent from the
+    /// accessibility tree entirely, so `waitForExistence` would time out on a control that is
+    /// perfectly present. Nothing sleeps — each `exists` is an IPC round trip, which paces the loop.
+    @discardableResult
+    func scrollUntilExists(_ element: XCUIElement,
+                           in app: XCUIApplication,
+                           maxSwipes: Int = 12) -> Bool {
+        var remaining = maxSwipes
+        while remaining > 0 {
+            if element.exists { return true }
+            app.swipeUp()
+            remaining -= 1
+        }
+        return element.exists
     }
 
     /// Waits for existence, scrolls the element into reach, waits for hittability, then taps.

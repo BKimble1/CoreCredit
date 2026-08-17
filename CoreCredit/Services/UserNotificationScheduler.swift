@@ -2,7 +2,8 @@
 //  UserNotificationScheduler.swift
 //  CoreCredit
 //
-//  The only file in the app that imports UserNotifications.
+//  One of only two files in the app that import UserNotifications. The other is
+//  `NotificationResponder`, which handles what happens *after* an alert is delivered.
 //
 
 import Foundation
@@ -15,16 +16,18 @@ import UserNotifications
 ///
 /// **Permission is never requested implicitly.** `requestAuthorization()` shows the system prompt,
 /// and it is only ever called from `ReminderCoordinator.requestAuthorizationIfNeeded()`, which in
-/// turn is only called from the notification settings screen or the moment the user first opts
-/// into reminders. Nothing here runs at app startup.
+/// turn is only called from the notification settings screen. Nothing here runs at app startup.
+///
+/// # What goes on the wire
+///
+/// The content carries the title and body the planner composed — generic unless the shop opted into
+/// detail — and a `userInfo` of exactly two keys: the item's UUID and a deep-link route string.
+/// No amount, no vendor, no part description is ever put in `userInfo`.
 final class UserNotificationScheduler: NotificationScheduling {
 
     /// Groups every core reminder into one thread in Notification Centre so a shop with a dozen
     /// due cores sees one stack instead of a dozen separate banners.
     private static let threadIdentifier = "com.corecredit.reminders.core-return"
-
-    /// `userInfo` key carrying the item's UUID string, so a tapped notification can deep-link.
-    static let itemIDUserInfoKey = "coreItemID"
 
     init() {}
 
@@ -73,7 +76,10 @@ final class UserNotificationScheduler: NotificationScheduling {
         content.body = request.body
         content.sound = UNNotificationSound.default
         content.threadIdentifier = UserNotificationScheduler.threadIdentifier
-        content.userInfo = [UserNotificationScheduler.itemIDUserInfoKey: request.itemID.uuidString]
+        content.categoryIdentifier = request.kind.isAboutOneItem
+            ? ReminderNotificationCategory.itemReminder
+            : ReminderNotificationCategory.summary
+        content.userInfo = UserNotificationScheduler.userInfo(for: request)
 
         // A calendar trigger (rather than a time-interval one) keeps the alert pinned to the
         // shop's local wall-clock time even if the device travels across a time zone.
@@ -96,19 +102,59 @@ final class UserNotificationScheduler: NotificationScheduling {
         }
     }
 
+    /// Fires one throwaway alert `seconds` from now so the owner can confirm delivery works.
+    ///
+    /// Deliberately not a `CoreReminderRequest`: it names no core, carries no route, and is not
+    /// part of the planned queue. It reuses the reminder identifier prefix so `cancelAll()` sweeps
+    /// it away with everything else.
+    func scheduleTestNotification(after seconds: TimeInterval) async throws {
+        let status = await authorizationStatus()
+        guard status.allowsScheduling else {
+            throw NotificationSchedulingError.notAuthorized
+        }
+
+        // `UNTimeIntervalNotificationTrigger` rejects an interval below one second.
+        let delay = seconds < 1 ? 1 : seconds
+
+        let content = UNMutableNotificationContent()
+        content.title = "Test reminder"
+        content.body = "This is what a " + AppConfiguration.displayName
+            + " reminder looks like. Nothing in the ledger was changed."
+        content.sound = UNNotificationSound.default
+        content.threadIdentifier = UserNotificationScheduler.threadIdentifier
+        content.categoryIdentifier = ReminderNotificationCategory.summary
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)
+        let notificationRequest = UNNotificationRequest(
+            identifier: CoreReminderRequest.testIdentifier,
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await UNUserNotificationCenter.current().add(notificationRequest)
+        } catch {
+            throw NotificationSchedulingError.systemError(error.localizedDescription)
+        }
+    }
+
+    /// Removes every pending reminder belonging to these items, of every kind and every lead.
+    ///
+    /// Reads what is actually queued and matches on the item's UUID suffix rather than
+    /// reconstructing identifiers from the current settings. A shop that changed its lead days
+    /// between scheduling and cancelling would otherwise leave orphaned alerts behind.
     func cancel(itemIDs: [UUID]) async {
         guard !itemIDs.isEmpty else { return }
-        let identifiers = itemIDs.map { CoreReminderRequest.identifier(for: $0) }
+        let pending = await pendingIdentifiers()
+        let identifiers = CoreReminderRequest.identifiers(pending, belongingTo: itemIDs)
+        guard !identifiers.isEmpty else { return }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
     /// Removes only CoreCredit's own pending reminders, leaving anything else this app might
     /// schedule in future untouched.
     func cancelAll() async {
-        let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
-        let identifiers = pending
-            .map { $0.identifier }
-            .filter { $0.hasPrefix(CoreReminderRequest.identifierPrefix) }
+        let identifiers = await pendingIdentifiers()
         guard !identifiers.isEmpty else { return }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
     }
@@ -119,6 +165,23 @@ final class UserNotificationScheduler: NotificationScheduling {
             .map { $0.identifier }
             .filter { $0.hasPrefix(CoreReminderRequest.identifierPrefix) }
             .sorted()
+    }
+
+    // MARK: - Payload
+
+    /// The item identifier and the deep link, and nothing else.
+    ///
+    /// Typed as the dictionary `UNMutableNotificationContent.userInfo` actually takes, so nothing
+    /// has to be bridged at the assignment.
+    private static func userInfo(for request: CoreReminderRequest) -> [AnyHashable: Any] {
+        var payload: [AnyHashable: Any] = [:]
+        if let itemID = request.itemID {
+            payload[ReminderUserInfoKey.itemID] = itemID.uuidString
+        }
+        if let route = request.route {
+            payload[ReminderUserInfoKey.route] = route
+        }
+        return payload
     }
 
     // MARK: - Mapping

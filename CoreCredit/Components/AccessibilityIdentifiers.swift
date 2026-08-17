@@ -15,6 +15,14 @@ import Foundation
 /// *label*, which every component sets separately.
 enum A11y {
 
+    /// The app shell, outside any one feature screen.
+    enum Root {
+        /// Whatever a deep link, a Shortcut, or the Action Button brought to the front. Applied by
+        /// `MainTabView`'s own sheet, so a UI test waits on one identifier instead of guessing
+        /// which screen answered the link.
+        static let deepLinkTarget = "root.deepLinkTarget"
+    }
+
     enum Tab {
         static let dashboard = "tab.dashboard"
         static let cores = "tab.cores"
@@ -118,6 +126,14 @@ enum A11y {
         static let annual = "paywall.annual"
         static let restore = "paywall.restore"
         static let close = "paywall.close"
+        /// The two documents a shopper is agreeing to, opened from the paywall's own footer. They
+        /// present `LegalDocumentView` in a sheet, so `Legal.documentRoot` is what appears next.
+        static let privacyPolicy = "paywall.privacyPolicy"
+        static let termsOfUse = "paywall.termsOfUse"
+        /// "Manage subscription". One identifier for both forms of the control — the in-app
+        /// `AppStore.showManageSubscriptions` button and the web-page `Link` it falls back to —
+        /// because only one of them is ever built.
+        static let manageSubscription = "paywall.manageSubscription"
     }
 
     enum Settings {
@@ -135,12 +151,45 @@ enum A11y {
         static let exportCSV = "settings.exportCSV"
         /// The Scanner diagnostics row in the Settings list.
         static let diagnostics = "settings.diagnostics"
+        /// The Notifications row in the Settings list. The screen it pushes is
+        /// `Notifications.root`.
+        static let notifications = "settings.notifications"
+        /// The Legal row in the Settings list. The screen it pushes is `Legal.root`.
+        static let legal = "settings.legal"
     }
 
     /// The scanner diagnostics screen that row pushes.
     enum Diagnostics {
         static let root = "diagnostics.root"
         static let clear = "diagnostics.clear"
+    }
+
+    /// The Legal hub, its rows, and the document reader they push.
+    ///
+    /// `documentRoot` is deliberately one identifier for all three documents: `LegalDocumentView` is
+    /// a single screen parameterised by `LegalDocumentID`, and it is also presented from the paywall,
+    /// so a test waits on one thing whichever route opened it and reads the title to tell them apart.
+    enum Legal {
+        static let root = "legal.root"
+        static let privacyPolicy = "legal.privacyPolicy"
+        static let termsOfUse = "legal.termsOfUse"
+        static let localData = "legal.localData"
+        static let support = "legal.support"
+        static let documentRoot = "legal.documentRoot"
+    }
+
+    /// The notification settings screen.
+    ///
+    /// `enable` is there whenever a shop profile exists; `test` and `details` only while reminders
+    /// are switched on; `openSettings` only while the permission is `denied`, since it is the jump
+    /// to CoreCredit's page in the Settings app. A query resolving to nothing is a statement about
+    /// the screen's state rather than a broken identifier.
+    enum Notifications {
+        static let root = "notifications.root"
+        static let enable = "notifications.enable"
+        static let test = "notifications.test"
+        static let openSettings = "notifications.openSettings"
+        static let details = "notifications.details"
     }
 
     enum Onboarding {

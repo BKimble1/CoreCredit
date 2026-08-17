@@ -1,0 +1,82 @@
+{
+  "identifier": "local-data-and-backup",
+  "title": "Local Data and Backup",
+  "version": "1.0",
+  "effectiveDate": "2026-08-17",
+  "summary": "Your ledger lives on this device only - nothing syncs between devices or employees, and the only copies that exist anywhere else are the ones you export or the device backups you already make.",
+  "sections": [
+    {
+      "heading": "Where your records live",
+      "paragraphs": [
+        "Cores, vendors, bins, return batches, event history, photos, scanned receipts, and your settings are stored in the app's own storage inside its container on this device.",
+        "That is the working copy, and it is the only copy the app keeps."
+      ]
+    },
+    {
+      "heading": "Nothing syncs",
+      "paragraphs": [
+        "CoreCredit has no account, no cloud sync, and no shared workspace. Two devices running the app keep two separate ledgers that never see each other.",
+        "There is no way for two employees to work in the same ledger through the app. If several people need the same information, the practical answer today is one shared device, or exports you send them.",
+        "A device backup made by Apple is not sync. Restoring one device from another device's backup is an Apple feature, not a CoreCredit one."
+      ]
+    },
+    {
+      "heading": "Making your own copy",
+      "paragraphs": [
+        "Settings, then Data and export, can produce a spreadsheet export of the ledger (CSV), a printable ledger document (PDF), and a portable backup file (JSON) that contains the whole ledger.",
+        "Each file is generated on the device and then handed to the share sheet, where you decide where it goes - Files, mail, a note app, a computer, or a printer.",
+        "Make a backup before anything risky: erasing the app's data, replacing a device, or handing the device to someone else."
+      ]
+    },
+    {
+      "heading": "This version does not read a backup file back in",
+      "paragraphs": [
+        "The backup file is a complete, readable record of the ledger, but this version of the app has no screen for importing one back into the app.",
+        "Treat exports as your safety copy and your paper trail, not as a one-tap restore. Keep them somewhere you can actually open them."
+      ]
+    },
+    {
+      "heading": "Generated files are temporary",
+      "paragraphs": [
+        "Exports and bin tags are written into the app's caches folder, and files older than about a day are swept away automatically to keep the app from hoarding copies of your ledger.",
+        "That sweep only ever touches files the app itself generated. A file you have already shared or saved elsewhere is untouched by it."
+      ]
+    },
+    {
+      "heading": "Photos and evidence",
+      "paragraphs": [
+        "Photos you attach to a core - the part, the box, the invoice, the credit memo - are stored with that core in the app's own storage, not in your photo library.",
+        "They are included in a dispute packet only when you generate one, and that packet goes only where you send it."
+      ]
+    },
+    {
+      "heading": "Erasing everything",
+      "paragraphs": [
+        "The Erase control on the Data and export screen removes the shop's records from this device and clears the reminders that were queued for them.",
+        "It cannot reach files you have already exported and sent elsewhere, and it cannot reach a device backup you have already made.",
+        "Deleting the app removes its container, and everything in it, from the device."
+      ]
+    },
+    {
+      "heading": "If the device is lost, broken, or replaced",
+      "paragraphs": [
+        "The developer holds no copy of your records and cannot recover them. There is no server to recover them from.",
+        "What can bring the information back is your own material: the exports you saved, and the iCloud or computer backup of the device itself, restored through Apple in the normal way."
+      ]
+    },
+    {
+      "heading": "Keeping the ledger worth trusting",
+      "paragraphs": [
+        "The ledger is only as accurate as what was typed or scanned into it. Check recognised text, barcode results, amounts, deadlines, and credit figures against the paperwork.",
+        "Where the app and an invoice or credit memo disagree, the paperwork is the record that counts."
+      ]
+    },
+    {
+      "heading": "Questions",
+      "paragraphs": [
+        "A support contact must be published before this app is offered publicly: [TO BE SUPPLIED BY OWNER - support email address and support page address].",
+        "Until then, the app deliberately shows no support address rather than one that reaches nobody."
+      ]
+    }
+  ]
+}

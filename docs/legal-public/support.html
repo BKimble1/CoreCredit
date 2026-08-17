@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<!--
+  Published copy of a document that also ships inside the CoreCredit iOS app.
+
+  The app NEVER fetches this page, or any other page. The text below is compiled into the app as
+  JSON (CoreCredit/Resources/Legal/) and rendered natively on device, so it is readable with no
+  network connection. This file exists only so that App Store Connect has a public URL to point at.
+
+  The wording below is copied from that JSON, word for word. If the JSON changes, this file must be
+  updated in the same commit so the published copy and the in-app copy cannot drift apart.
+
+  The only styling is the inline stylesheet in the head: there is no external CSS, no
+  web font, no script, no image, no cookie, and no tracker of any kind on this page.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="index, follow">
+    <title>Support - CoreCredit</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0 auto;
+        padding: 2rem 1.25rem 4rem;
+        max-width: 42rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 1.0625rem;
+        line-height: 1.6;
+        color: #12161f;
+        background: #ffffff;
+      }
+      header { border-bottom: 1px solid #d5d9e0; padding-bottom: 1.25rem; margin-bottom: 1.5rem; }
+      h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 0.5rem; }
+      h2 { font-size: 1.1875rem; line-height: 1.3; margin: 2rem 0 0.5rem; }
+      p { margin: 0 0 1rem; }
+      .meta { font-size: 0.9375rem; color: #4a5563; margin: 0; }
+      .summary { font-size: 1.0625rem; color: #12161f; }
+      .todo { font-weight: 700; }
+      footer { border-top: 1px solid #d5d9e0; margin-top: 2.5rem; padding-top: 1.25rem;
+               font-size: 0.9375rem; color: #4a5563; }
+      a { color: #7a4500; }
+      @media (prefers-color-scheme: dark) {
+        body { color: #f2f5fa; background: #0b0e14; }
+        header, footer { border-color: #2b3341; }
+        .meta, footer { color: #a3aec0; }
+        .summary { color: #f2f5fa; }
+        a { color: #f5b23c; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Support</h1>
+      <p class="meta">CoreCredit for iOS - support and contact</p>
+    </header>
+    <main>
+      <p>CoreCredit is a core-return and vendor-credit ledger for owner-operated repair shops. Every record it keeps lives on the device it was entered on.</p>
+      <p class="todo">A support contact for CoreCredit must be published here before the app is offered publicly: [TO BE SUPPLIED BY OWNER - support email address and support page address].</p>
+      <p class="todo">The person or company responsible for CoreCredit must also be named here: [TO BE SUPPLIED BY OWNER - legal name of the developer or company, and a postal address if one is required].</p>
+      <p>Until those are supplied, the app deliberately shows no support address rather than one that reaches nobody.</p>
+      <h2>Before writing in</h2>
+      <p>Note the app version, shown in Settings, then Legal, then Support and contact. It says exactly which build you are running.</p>
+      <p>Subscription questions - restoring a purchase, changing a plan, cancelling, or a refund - are handled by Apple through the App Store, not by the app.</p>
+      <p>Scanner diagnostics, in Settings, shows exactly what the last scan read. It is usually the fastest way to understand a scan that went wrong, and it can be copied or shared as plain text.</p>
+      <p>Data and export writes a spreadsheet, a printable ledger, or a full backup file you can keep somewhere safe.</p>
+      <h2>Privacy and terms</h2>
+      <p>The privacy policy and the terms of use ship inside the app and are also published as their own pages alongside this one.</p>
+      <p>In short: there is no CoreCredit account, no CoreCredit server, and no analytics, tracking, or advertising in the app. Nothing a shop enters is sent to the developer.</p>
+      <h2>Where your records live</h2>
+      <p>Cores, vendors, bins, return batches, event history, photos, scanned receipts, and your settings are stored in the app's own storage inside its container on this device.</p>
+      <p>That is the working copy, and it is the only copy the app keeps.</p>
+      <h2>Nothing syncs</h2>
+      <p>CoreCredit has no account, no cloud sync, and no shared workspace. Two devices running the app keep two separate ledgers that never see each other.</p>
+      <p>There is no way for two employees to work in the same ledger through the app. If several people need the same information, the practical answer today is one shared device, or exports you send them.</p>
+      <p>A device backup made by Apple is not sync. Restoring one device from another device's backup is an Apple feature, not a CoreCredit one.</p>
+      <h2>Making your own copy</h2>
+      <p>Settings, then Data and export, can produce a spreadsheet export of the ledger (CSV), a printable ledger document (PDF), and a portable backup file (JSON) that contains the whole ledger.</p>
+      <p>Each file is generated on the device and then handed to the share sheet, where you decide where it goes - Files, mail, a note app, a computer, or a printer.</p>
+      <p>Make a backup before anything risky: erasing the app's data, replacing a device, or handing the device to someone else.</p>
+      <h2>This version does not read a backup file back in</h2>
+      <p>The backup file is a complete, readable record of the ledger, but this version of the app has no screen for importing one back into the app.</p>
+      <p>Treat exports as your safety copy and your paper trail, not as a one-tap restore. Keep them somewhere you can actually open them.</p>
+      <h2>Generated files are temporary</h2>
+      <p>Exports and bin tags are written into the app's caches folder, and files older than about a day are swept away automatically to keep the app from hoarding copies of your ledger.</p>
+      <p>That sweep only ever touches files the app itself generated. A file you have already shared or saved elsewhere is untouched by it.</p>
+      <h2>Photos and evidence</h2>
+      <p>Photos you attach to a core - the part, the box, the invoice, the credit memo - are stored with that core in the app's own storage, not in your photo library.</p>
+      <p>They are included in a dispute packet only when you generate one, and that packet goes only where you send it.</p>
+      <h2>Erasing everything</h2>
+      <p>The Erase control on the Data and export screen removes the shop's records from this device and clears the reminders that were queued for them.</p>
+      <p>It cannot reach files you have already exported and sent elsewhere, and it cannot reach a device backup you have already made.</p>
+      <p>Deleting the app removes its container, and everything in it, from the device.</p>
+      <h2>If the device is lost, broken, or replaced</h2>
+      <p>The developer holds no copy of your records and cannot recover them. There is no server to recover them from.</p>
+      <p>What can bring the information back is your own material: the exports you saved, and the iCloud or computer backup of the device itself, restored through Apple in the normal way.</p>
+      <h2>Keeping the ledger worth trusting</h2>
+      <p>The ledger is only as accurate as what was typed or scanned into it. Check recognised text, barcode results, amounts, deadlines, and credit figures against the paperwork.</p>
+      <p>Where the app and an invoice or credit memo disagree, the paperwork is the record that counts.</p>
+      <h2>Questions</h2>
+      <p class="todo">A support contact must be published before this app is offered publicly: [TO BE SUPPLIED BY OWNER - support email address and support page address].</p>
+      <p>Until then, the app deliberately shows no support address rather than one that reaches nobody.</p>
+    </main>
+    <footer>
+      <p>The section headings from 'Where your records live' onward are the published copy of the Local Data and Backup document that ships inside the app.</p>
+      <p>The app does not fetch this page and makes no network requests of its own.</p>
+    </footer>
+  </body>
+</html>

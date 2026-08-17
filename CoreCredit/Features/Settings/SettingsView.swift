@@ -122,6 +122,7 @@ struct SettingsView: View {
                         + "and when."
                 )
             }
+            .accessibilityIdentifier(A11y.Settings.notifications)
         } header: {
             Text("Reminders")
         }
@@ -172,6 +173,19 @@ struct SettingsView: View {
                 )
             }
             .accessibilityIdentifier(A11y.Settings.diagnostics)
+
+            NavigationLink {
+                LegalSectionView()
+            } label: {
+                SettingsRow(
+                    title: "Legal",
+                    value: "Privacy, terms, and how your data is stored",
+                    symbol: "doc.text",
+                    hint: "The privacy policy, the terms of use, and how CoreCredit keeps your "
+                        + "records on this device. All of it opens without a connection."
+                )
+            }
+            .accessibilityIdentifier(A11y.Settings.legal)
 
             NavigationLink {
                 AboutView()

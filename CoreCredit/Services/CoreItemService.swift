@@ -1,6 +1,50 @@
 import Foundation
 import SwiftData
 
+/// Where the write path announces that something in the ledger changed.
+///
+/// # Why this exists
+///
+/// Reminders have to be re-planned after every write, but `CoreItemService` must not know that
+/// notifications exist — it is the audited mutation path, not a scheduling layer, and pulling
+/// `UserNotifications` into it would make every test that saves a core drag the notification centre
+/// along with it. So the service posts a bare "the ledger changed, here is the context it changed
+/// in" and stops caring. `ReminderCoordinator` is the listener, and it is the only side of this
+/// that touches notifications.
+///
+/// # One listener
+///
+/// The relay holds a single observer, claimed by whichever `ReminderCoordinator` was created last.
+/// The app creates exactly one, in `AppEnvironment.init`, so in practice there is no contention.
+/// A caller that wants none of this hands `CoreItemService` a freshly built relay: nobody is
+/// subscribed to it, so every announcement it receives goes nowhere.
+@MainActor
+final class CoreItemChangeRelay {
+
+    /// The instance `CoreItemService` uses unless a caller injects another.
+    static let shared = CoreItemChangeRelay()
+
+    private var observer: ((ModelContext) -> Void)?
+
+    init() {}
+
+    /// Replaces the current observer.
+    func setObserver(_ observer: ((ModelContext) -> Void)?) {
+        self.observer = observer
+    }
+
+    func removeObserver() {
+        observer = nil
+    }
+
+    /// Announces a change. A no-op when nothing is listening — nothing is ever buffered, because a
+    /// change that nobody was listening for is one the next full refresh will read out of the store
+    /// anyway.
+    func post(_ context: ModelContext) {
+        observer?(context)
+    }
+}
+
 /// Every write to a `CoreItem` goes through here.
 ///
 /// The reason this type exists is the audit trail: a core's timeline is the evidence a shop shows
@@ -15,9 +59,26 @@ struct CoreItemService {
     let context: ModelContext
     let dateProvider: any DateProvider
 
-    init(context: ModelContext, dateProvider: any DateProvider = SystemDateProvider()) {
+    /// The relay this service announces through, or `nil` for the app-wide one.
+    ///
+    /// This is the *only* connection between the write path and notifications, and it points the
+    /// harmless way round: the service knows about a relay that takes a `ModelContext`, not about
+    /// `UserNotifications`, `ReminderCoordinator`, or `ShopProfile.remindersEnabled`. Hand in a
+    /// freshly built `CoreItemChangeRelay` — one nobody has subscribed to — to keep a test's writes
+    /// entirely to itself.
+    private let injectedChangeRelay: CoreItemChangeRelay?
+
+    init(context: ModelContext,
+         dateProvider: any DateProvider = SystemDateProvider(),
+         changeRelay: CoreItemChangeRelay? = nil) {
         self.context = context
         self.dateProvider = dateProvider
+        self.injectedChangeRelay = changeRelay
+    }
+
+    /// Where a completed write is announced.
+    var changeRelay: CoreItemChangeRelay {
+        injectedChangeRelay ?? CoreItemChangeRelay.shared
     }
 
     // MARK: - Queries
@@ -439,6 +500,12 @@ struct CoreItemService {
                               to: toStatus)
         context.insert(event)
         event.coreItem = item
+
+        // Announced here as well as from `persist()` because `ReturnBatchService` writes item
+        // events through this method and then saves through *its* own `persist()`, which this
+        // service never sees. The listener coalesces and defers to the next turn of the run loop,
+        // so announcing before the save — and announcing twice for one change — is harmless.
+        announceChange()
     }
 
     /// Builds an editable draft from a stored item, for the editor screen.
@@ -552,5 +619,16 @@ struct CoreItemService {
         } catch {
             throw DomainError.persistenceFailed(String(describing: error))
         }
+        announceChange()
+    }
+
+    /// Tells the relay the ledger moved.
+    ///
+    /// Announced after the save rather than before it, so a listener that reads the store back sees
+    /// the change it is being told about. Deliberately fire-and-forget: whether anything is
+    /// listening, and what it does about it, is none of this service's business — a mutation must
+    /// never fail because a reminder could not be re-planned.
+    private func announceChange() {
+        changeRelay.post(context)
     }
 }

@@ -88,6 +88,22 @@ struct LaunchOptions: Equatable, Sendable {
     /// Starts on the main tab bar even when no onboarded shop profile exists.
     var skipOnboarding: Bool
 
+    /// A deep link to deliver as though the system had opened it, e.g. `corecredit://scan`.
+    ///
+    /// UI tests cannot ask the springboard to open a custom scheme without driving Safari, which
+    /// is slow and flaky. Handing the URL in at launch exercises the *cold-start* path — the one
+    /// where the link arrives before the shell exists — which is exactly the path worth testing.
+    /// Ignored unless `isUITesting` is set, so it can never affect a shipping build.
+    var deepLink: String?
+
+    /// Forces the stubbed notification authorization state under UI testing.
+    ///
+    /// The denied and not-determined branches of the notification settings screen are otherwise
+    /// unreachable from a UI test: real authorization cannot be revoked from inside the process,
+    /// and `RecordingNotificationScheduler` reports `.authorized` by default. `nil` keeps that
+    /// default. Ignored unless `isUITesting` is set.
+    var notificationAuthorization: NotificationAuthorizationStatus?
+
     init(isUITesting: Bool = false,
          useInMemoryStore: Bool = false,
          seedScenario: SeedScenario = SeedScenario.none,
@@ -96,7 +112,9 @@ struct LaunchOptions: Equatable, Sendable {
          disableAnimations: Bool = false,
          disableNotifications: Bool = false,
          stubScannerPayload: String? = nil,
-         skipOnboarding: Bool = false) {
+         skipOnboarding: Bool = false,
+         deepLink: String? = nil,
+         notificationAuthorization: NotificationAuthorizationStatus? = nil) {
         self.isUITesting = isUITesting
         self.useInMemoryStore = useInMemoryStore
         self.seedScenario = seedScenario
@@ -106,6 +124,8 @@ struct LaunchOptions: Equatable, Sendable {
         self.disableNotifications = disableNotifications
         self.stubScannerPayload = stubScannerPayload
         self.skipOnboarding = skipOnboarding
+        self.deepLink = deepLink
+        self.notificationAuthorization = notificationAuthorization
     }
 
     /// A normal launch: on-disk store, real services, no fixtures.
@@ -144,9 +164,12 @@ struct LaunchOptions: Equatable, Sendable {
         static let storeKitFailure = "-uiTestStoreKitFailure"
         static let scannerPayload = "-uiTestScannerPayload"
         static let skipOnboarding = "-uiTestSkipOnboarding"
+        static let deepLink = "-uiTestDeepLink"
+        static let notificationAuthorization = "-uiTestNotificationAuthorization"
 
         static let all: Set<String> = [
-            uiTesting, seed, tier, storeKitFailure, scannerPayload, skipOnboarding
+            uiTesting, seed, tier, storeKitFailure, scannerPayload, skipOnboarding,
+            deepLink, notificationAuthorization
         ]
     }
 
@@ -158,6 +181,21 @@ struct LaunchOptions: Equatable, Sendable {
         static let storeKitFailure = "UITEST_STOREKIT_FAILURE"
         static let scannerPayload = "UITEST_SCANNER_PAYLOAD"
         static let skipOnboarding = "UITEST_SKIP_ONBOARDING"
+        static let deepLink = "UITEST_DEEP_LINK"
+        static let notificationAuthorization = "UITEST_NOTIFICATION_AUTHORIZATION"
+    }
+
+    /// Maps a launch-argument value to an authorization state. An unrecognised value yields
+    /// `nil`, which keeps the stub's default rather than guessing at what was meant.
+    private static func notificationAuthorization(named raw: String) -> NotificationAuthorizationStatus? {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "notdetermined", "not-determined": return .notDetermined
+        case "denied": return .denied
+        case "authorized": return .authorized
+        case "provisional": return .provisional
+        case "ephemeral": return .ephemeral
+        default: return nil
+        }
     }
 
     private static func applyArguments(_ arguments: [String], to options: inout LaunchOptions) {
@@ -193,6 +231,18 @@ struct LaunchOptions: Equatable, Sendable {
 
             case Flag.skipOnboarding:
                 options.skipOnboarding = true
+
+            case Flag.deepLink:
+                if let raw = value(after: index, in: arguments) {
+                    options.deepLink = raw
+                    index += 1
+                }
+
+            case Flag.notificationAuthorization:
+                if let raw = value(after: index, in: arguments) {
+                    options.notificationAuthorization = notificationAuthorization(named: raw)
+                    index += 1
+                }
 
             default:
                 // Anything else belongs to Xcode, XCTest, or the system. Leave it alone.
@@ -232,6 +282,12 @@ struct LaunchOptions: Equatable, Sendable {
         }
         if let raw = environment[EnvironmentKey.scannerPayload] {
             options.stubScannerPayload = payload(from: raw)
+        }
+        if let raw = environment[EnvironmentKey.deepLink], !raw.isEmpty {
+            options.deepLink = raw
+        }
+        if let raw = environment[EnvironmentKey.notificationAuthorization], !raw.isEmpty {
+            options.notificationAuthorization = notificationAuthorization(named: raw)
         }
         if let raw = environment[EnvironmentKey.skipOnboarding], isAffirmative(raw) {
             options.skipOnboarding = true
