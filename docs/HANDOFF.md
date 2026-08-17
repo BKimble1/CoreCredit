@@ -11,15 +11,18 @@ authoritative build. Every claim below distinguishes what was *verified* from wh
 
 | Thing | State |
 |---|---|
-| App target, Debug, iOS Simulator | **compiles** (Codemagic `corecredit-simulator-build`) |
-| `CoreCreditQuickScanWidget` extension | **compiles** — the app target depends on it and embeds the `.appex`, so a widget error fails that step |
-| `CoreCreditTests` / `CoreCreditUITests` targets | **not yet compiled** — the test step has not reached its build phase |
-| Any test result | **none** — no assertion has ever been evaluated |
-| Release archive / device build / signing | **not yet verified** |
+| App target, Debug, iOS Simulator | **compiles** |
+| `CoreCreditQuickScanWidget` extension | **compiles** — the app depends on it and embeds the `.appex`, so a widget error fails the build |
+| App + extension install and launch on a simulator | **yes** |
+| `CoreCreditTests` / `CoreCreditUITests` targets | **compile** |
+| Unit test suite | **260 tests in 23 suites, all passing** (`corecredit-simulator-build`) |
+| UI test suite | **never run** — not wired into either workflow |
+| Release archive / device build / signing | **blocked** on the widget App ID, §2 item 0 |
 
-So the architecture, the data model, the money arithmetic, and the business rules now have a
-compiler behind them for the app and the widget. The test targets do not yet. Do not read
-"compiles" as "works": nothing has been *run*.
+The architecture, the data model, the money arithmetic, and the business rules are now backed by
+a compiler *and* by an executed test suite. Two things are still unproven: nothing has run on real
+hardware, and no UI test has ever executed, so every claim about layout, Dynamic Type, VoiceOver,
+camera behaviour, and notification delivery remains reasoning rather than evidence.
 
 ### What was actually verified
 
@@ -43,11 +46,12 @@ compiler behind them for the app and the widget. The test targets do not yet. Do
 
 ### What could NOT be verified
 
-- **Type checking and compilation.** No compiler ran. Generic inference, overload resolution,
-  `@Observable` macro expansion, SwiftData macro expansion, and `#Predicate` compilation are all
-  unchecked.
-- **Any test result.** The 21 unit-test files and 4 UI-test files have never executed. Their
-  *assertions* were written against the real implementations, but no assertion has been evaluated.
+- **The UI test suite.** The 7 UI-test files have never executed — neither workflow runs them,
+  because they drive a full simulator session and belong in a longer job. Their assertions were
+  written against real accessibility identifiers, but none has been evaluated.
+- **Anything on real hardware.** The camera and scanner path, notification delivery, widget
+  rendering on a Home Screen, Siri and Action Button entry, and StoreKit purchases have only ever
+  run against stubs or not at all.
 - **Runtime behaviour**, layout, Dynamic Type reflow, VoiceOver output, PDF rendering, QR
   scannability, and StoreKit purchase flows.
 - **Code signing and device install.**
@@ -59,6 +63,33 @@ compiler behind them for the app and the widget. The test targets do not yet. Do
 Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** unless noted.
 
 ### Required
+
+0. **Register the widget's App ID and provisioning profile — one time, in the Developer portal.**
+   This is the only step in this list that blocks the TestFlight archive outright. Without it the
+   build fails with *"CoreCreditQuickScanWidget requires a provisioning profile"*.
+
+   Codemagic's managed signing (`ios_signing` in `codemagic.yaml`) takes exactly one
+   `bundle_identifier` and creates the App ID and profile for that one only, so the embedded
+   extension is not covered. Fetching signing files per target from a script does not work either:
+   `app-store-connect fetch-signing-files` also wants to install a *certificate*, and fails with
+   *"Cannot save Signing Certificates without certificate private key"* because that key lives in
+   Codemagic rather than in this repository.
+
+   Do this once:
+
+   1. <https://developer.apple.com/account> → **Certificates, Identifiers & Profiles** →
+      **Identifiers** → **+** → *App IDs* → *App*
+      - Description: `CoreCredit Quick Scan Widget`
+      - Bundle ID: **Explicit**, `com.blakekimble.corecredit.widget`
+      - Enable no capabilities — the widget needs none.
+   2. **Profiles** → **+** → *App Store Connect* (distribution) → select that App ID → pick the
+      same distribution certificate the app uses → name it something like
+      `CoreCredit Quick Scan Widget App Store` → Generate.
+
+   Nothing needs to be downloaded. Codemagic matches profiles by bundle-identifier prefix, so once
+   this profile exists the existing `bundle_identifier: com.blakekimble.corecredit` picks up both
+   the app and the extension on the next build.
+
 
 1. **Apple Developer team — set.** `DEVELOPMENT_TEAM = 7GNFT94A9L` on all six build
    configurations, `CODE_SIGN_STYLE = Automatic`. Nothing to do.
@@ -99,7 +130,8 @@ Honest and specific. Nothing here is a P0 gap.
 
 ### Environment-constrained
 
-- **Never compiled or run** — see §1. This is the dominant limitation.
+- **Authored without a Swift toolchain** — every build and test run happens on Codemagic. The unit
+  suite passes there; see §1 for exactly what that does and does not cover.
 
 ### Scanning (added after the initial build)
 

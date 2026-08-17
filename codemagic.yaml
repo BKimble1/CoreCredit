@@ -119,16 +119,21 @@ workflows:
 
     environment:
       xcode: 26.4
-      # There is deliberately no `ios_signing:` block here.
+      # Codemagic's managed signing. This is the only path here that carries a certificate
+      # *private key*: fetching signing files by hand fails with "Cannot save Signing
+      # Certificates without certificate private key", because that key lives in Codemagic and
+      # never in this repository.
       #
-      # It takes exactly one `bundle_identifier` and requires it whenever `distribution_type` is
-      # set, so it cannot describe an app that embeds an extension. Naming the app left the
-      # widget unsigned ("CoreCreditQuickScanWidget requires a provisioning profile"), and
-      # omitting the identifier is rejected as invalid configuration.
+      # `bundle_identifier` is required whenever `distribution_type` is set, and only one may be
+      # given. Matching is by prefix rather than exact, so once a provisioning profile exists for
+      # `com.blakekimble.corecredit.widget` this picks it up for the embedded extension too.
       #
-      # Signing files are fetched per target in a script instead — see "Fetch signing files"
-      # below. Credentials still come from the "CoreCredit App Store" integration; nothing is
-      # stored in this repository.
+      # ONE-TIME OWNER ACTION: the widget's App ID and provisioning profile have to exist in the
+      # Developer portal. Managed signing creates them for the identifier named below, but not
+      # for the extension's. docs/HANDOFF.md has the exact steps.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.blakekimble.corecredit
       vars:
         APP_STORE_APPLE_ID: "6802336957"
 
@@ -139,28 +144,6 @@ workflows:
           xcodebuild -version
           xcodebuild -list \
             -project "$CM_BUILD_DIR/CoreCredit.xcodeproj"
-
-      # One fetch per shipped target. The IPA signs the app and the embedded widget extension;
-      # the two test bundles are never archived, so they need nothing.
-      #
-      # `--create` registers a missing App ID and creates its profile, which is what makes the
-      # widget's `com.blakekimble.corecredit.widget` work on a first run without anyone opening
-      # the Developer portal. Authentication comes from the attached App Store Connect
-      # integration, so no key is passed here and none is stored in the repository.
-      - name: Fetch signing files for the app and the widget
-        script: |
-          set -e
-          keychain initialize
-
-          app-store-connect fetch-signing-files "com.blakekimble.corecredit" \
-            --type IOS_APP_STORE \
-            --create
-
-          app-store-connect fetch-signing-files "com.blakekimble.corecredit.widget" \
-            --type IOS_APP_STORE \
-            --create
-
-          keychain add-certificates
 
       - name: Apply App Store signing
         script: |
