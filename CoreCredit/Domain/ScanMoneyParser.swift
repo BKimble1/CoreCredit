@@ -302,7 +302,14 @@ enum ScanMoneyParser {
         }
         // `canonical` carries no sign, so `parsed.cents` is never negative here; the sign is
         // re-applied below, which keeps the range check on a single, positive magnitude.
-        guard parsed.cents >= 0, parsed.cents <= maximumCents else { return .failure(.outOfRange) }
+        // The failure case is spelled out in full here. In this one guard the two `Int64`
+        // comparisons and the `else` branch are solved in a single constraint system, and the
+        // leading-dot `.failure(.outOfRange)` needs *two* levels of inference at once — Xcode 26.4
+        // gives up with "cannot infer contextual base in reference to member 'outOfRange'".
+        // Naming the Result type removes the ambiguity without changing behaviour.
+        guard parsed.cents >= 0, parsed.cents <= maximumCents else {
+            return Result<Money, ScanMoneyRejection>.failure(.outOfRange)
+        }
 
         if isNegative { return .success(Money(cents: -parsed.cents)) }
         return .success(parsed)
