@@ -162,6 +162,18 @@ struct SettingsView: View {
             }
 
             NavigationLink {
+                ScannerDiagnosticsView()
+            } label: {
+                SettingsRow(
+                    title: "Scanner diagnostics",
+                    value: diagnosticsSummary,
+                    symbol: "barcode.viewfinder",
+                    hint: "Exactly what the last scan read, kept on this device and never uploaded."
+                )
+            }
+            .accessibilityIdentifier(A11y.Settings.diagnostics)
+
+            NavigationLink {
                 AboutView()
             } label: {
                 SettingsRow(
@@ -226,6 +238,15 @@ struct SettingsView: View {
 
     private var planSummary: String {
         appEnvironment.subscriptions.entitlement.tier.displayName
+    }
+
+    /// Whether there is anything to look at, without hinting that the app keeps a scan history —
+    /// it keeps exactly one session, in memory.
+    private var diagnosticsSummary: String {
+        guard let session = appEnvironment.scanDiagnostics.session, session.isEmpty == false else {
+            return "No scan recorded yet"
+        }
+        return "The most recent scan, on this device only"
     }
 
     // MARK: - Loading

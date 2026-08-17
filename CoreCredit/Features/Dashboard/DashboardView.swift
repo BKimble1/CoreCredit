@@ -83,6 +83,10 @@ struct DashboardView: View {
             NavigationStack {
                 CoreEditorView(mode: .create)
             }
+        case .scanCore:
+            NavigationStack {
+                CoreEditorView(mode: .create, initialRoute: .scan)
+            }
         case .paywall(let trigger):
             PaywallView(trigger: trigger)
         }
@@ -103,7 +107,7 @@ struct DashboardView: View {
     @ViewBuilder
     private func populatedContent(summary: RiskSummary, urgent: [CoreItem]) -> some View {
         MoneyAtRiskHeader(summary: summary, currencyCode: currencyCode)
-        addCoreButton
+        addCoreActions
         needsAttentionSection(summary: summary, urgent: urgent)
         statusSection(summary: summary)
         agingSection(summary: summary)
@@ -227,7 +231,7 @@ struct DashboardView: View {
         )
 
         workflowCard
-        addCoreButton
+        addCoreActions
     }
 
     private var workflowCard: some View {
@@ -287,6 +291,16 @@ struct DashboardView: View {
 
     // MARK: - Shared pieces
 
+    /// The two ways into the same new record: type it, or scan it.
+    ///
+    /// Both go through `DashboardModel`, so both hit the free-limit check before anything opens.
+    private var addCoreActions: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            addCoreButton
+            scanCoreButton
+        }
+    }
+
     private var addCoreButton: some View {
         Button {
             model.requestAddCore(
@@ -299,6 +313,25 @@ struct DashboardView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier(A11y.Dashboard.addCore)
         .accessibilityHint(Text("Logs a new core charge you are waiting to get credited."))
+    }
+
+    /// Opens the intake form with the scanner already in front of it. Secondary, not primary: amber
+    /// belongs to the one action on the screen that always works, which is the one that needs no
+    /// camera at all.
+    private var scanCoreButton: some View {
+        Button {
+            model.requestScanCore(
+                items: items,
+                tier: appEnvironment.subscriptions.entitlement.tier
+            )
+        } label: {
+            DashboardActionLabel(title: "Scan core", systemImage: "barcode.viewfinder")
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(A11y.Dashboard.scanCore)
+        .accessibilityLabel(Text("Scan core"))
+        .accessibilityHint(Text("Opens the scanner on a new core charge. You can still type "
+                                + "everything in if the code will not read."))
     }
 
     private func sectionHeading(_ text: String) -> some View {
@@ -395,5 +428,42 @@ private struct AgingBucketItemsView: View {
                 && RiskCalculator.agingBucket(item, now: now, calendar: calendar) == bucket
         }
         return CoreItemQuery.sort(open, by: .oldestFirst)
+    }
+}
+
+// MARK: - Secondary action label
+
+/// The label for a supporting action on the dashboard.
+///
+/// Outlined rather than filled: amber marks the one primary action on a screen, and on this screen
+/// that is "Add core" — the path that works with no camera, no permission, and no hardware.
+private struct DashboardActionLabel: View {
+
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+            Text(title)
+                .font(.body.weight(.semibold))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(Palette.textPrimary)
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
+        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget)
+        .background(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .fill(Palette.surfaceElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .strokeBorder(Palette.hairline, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
     }
 }

@@ -26,7 +26,7 @@ struct PersistenceTests {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let storeURL = directory.appending(path: "CoreCredit.store", directoryHint: .notDirectory)
-        let schema = Schema(versionedSchema: CoreCreditSchemaV1.self)
+        let schema = Schema(versionedSchema: CoreCreditSchemaV2.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
 
         // First launch: write the ledger, then let the container go out of scope.
@@ -76,6 +76,67 @@ struct PersistenceTests {
 
         let restoredVendors = try reopenedContext.fetch(FetchDescriptor<Vendor>())
         #expect(restoredVendors.count == 1)
+    }
+
+    // MARK: - Schema V1 -> V2 compatibility
+
+    @MainActor
+    @Test("A store written before the scanned-barcode fields existed still opens, reading them as nil")
+    func aStoreWrittenBeforeTheScannedBarcodeFieldsStillOpens() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let storeURL = directory.appending(path: "CoreCredit.store", directoryHint: .notDirectory)
+
+        // First launch: the shape a TestFlight build wrote, under the V1 versioned schema. Nothing
+        // here ever sets `scannedBarcodeValue` or `scannedBarcodeSymbology` — they did not exist.
+        func firstLaunch() throws {
+            let schema = Schema(versionedSchema: CoreCreditSchemaV1.self)
+            let configuration = ModelConfiguration(schema: schema, url: storeURL)
+            let container = try ModelContainer(for: schema,
+                                               migrationPlan: CoreCreditMigrationPlan.self,
+                                               configurations: configuration)
+            let context = ModelContext(container)
+
+            let napa = Vendor(name: "NAPA", defaultReturnWindowDays: 30, now: TestClock.referenceNow)
+            context.insert(napa)
+
+            let item = CoreItem(partName: "Alternator",
+                                expectedCredit: Money(cents: 8_650),
+                                receivedDate: TestClock.referenceNow,
+                                vendor: napa,
+                                now: TestClock.referenceNow)
+            item.partNumber = "03-1887"
+            item.invoiceReference = "INV-552"
+            context.insert(item)
+            try context.save()
+        }
+
+        try firstLaunch()
+
+        // Second launch: the shipping schema, opened through the lightweight V1 -> V2 stage. The
+        // existing row must survive untouched, with the two new attributes reading back as nil.
+        let currentSchema = Schema(versionedSchema: CoreCreditSchemaV2.self)
+        let currentConfiguration = ModelConfiguration(schema: currentSchema, url: storeURL)
+        let reopened = try ModelContainer(for: currentSchema,
+                                          migrationPlan: CoreCreditMigrationPlan.self,
+                                          configurations: currentConfiguration)
+        let reopenedContext = ModelContext(reopened)
+        let restoredItems = try reopenedContext.fetch(FetchDescriptor<CoreItem>())
+
+        #expect(restoredItems.count == 1)
+        let restored = try #require(restoredItems.first)
+        #expect(restored.partName == "Alternator")
+        #expect(restored.partNumber == "03-1887")
+        #expect(restored.invoiceReference == "INV-552")
+        #expect(restored.expectedCredit == Money(cents: 8_650))
+        #expect(restored.vendor?.name == "NAPA")
+        #expect(restored.scannedBarcodeValue == nil)
+        #expect(restored.scannedBarcodeSymbology == nil)
+
+        // The plan itself: two versions, one additive stage between them.
+        #expect(CoreCreditMigrationPlan.schemas.count == 2)
+        #expect(CoreCreditMigrationPlan.stages.count == 1)
     }
 
     // MARK: - Creating items

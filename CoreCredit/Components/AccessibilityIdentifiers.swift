@@ -27,6 +27,8 @@ enum A11y {
         static let overdueAmount = "dashboard.overdueAmount"
         static let addCore = "dashboard.addCore"
         static let root = "dashboard.root"
+        /// Opens the intake form with the scanner already in front of it.
+        static let scanCore = "dashboard.scanCore"
     }
 
     enum Cores {
@@ -53,6 +55,32 @@ enum A11y {
         static let save = "editor.save"
         static let cancel = "editor.cancel"
         static let scan = "editor.scan"
+    }
+
+    /// The barcode capture sheet. Every one of these exists in all six availability states, because
+    /// manual entry is present in all six.
+    enum Scan {
+        static let root = "scan.root"
+        /// The type-it-in field.
+        static let manualEntry = "scan.manualEntry"
+        /// "Use this number" — accepts whatever is in `manualEntry`.
+        static let useManual = "scan.useManual"
+        /// "Resume scanning" on a frozen scan.
+        static let resume = "scan.resume"
+        static let cancel = "scan.cancel"
+    }
+
+    /// The confirmation step. Shared by the live scanner, the photo read, and the document scan, so
+    /// these identifiers resolve on whichever of the three is in front.
+    enum ScanReview {
+        static let root = "scanReview.root"
+        static let apply = "scanReview.apply"
+        static let retake = "scanReview.retake"
+        static let cancel = "scanReview.cancel"
+
+        /// One row per candidate, keyed on the candidate's own identifier so several rows of the
+        /// same kind stay distinct.
+        static func row(_ id: UUID) -> String { "scanReview.row." + id.uuidString }
     }
 
     enum Detail {
@@ -105,6 +133,14 @@ enum A11y {
         /// `NavigationStack` behind it.
         static let subscriptionScreen = "settings.subscriptionScreen"
         static let exportCSV = "settings.exportCSV"
+        /// The Scanner diagnostics row in the Settings list.
+        static let diagnostics = "settings.diagnostics"
+    }
+
+    /// The scanner diagnostics screen that row pushes.
+    enum Diagnostics {
+        static let root = "diagnostics.root"
+        static let clear = "diagnostics.clear"
     }
 
     enum Onboarding {

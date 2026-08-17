@@ -14,8 +14,14 @@ import Foundation
 
 /// One line of text recognised in an image.
 ///
-/// Equality intentionally ignores `id` — the identifier exists so SwiftUI can list lines, while
-/// two lines with the same text and confidence are the same recognition for comparison purposes.
+/// Equality intentionally ignores `id` — the identifier exists so SwiftUI can list lines — and
+/// compares everything else, which is the same rule `ScanCandidate`, `ScanResult` and
+/// `OCRFieldSuggestion` follow. Two lines read off different pages, or in different places on the
+/// page, are not the same recognition.
+///
+/// `boundingBox`, `alternatives` and `page` are **defaulted** so every call site that predates them
+/// still compiles unchanged: a recogniser that knows nothing about geometry keeps returning
+/// `RecognizedLine(text:confidence:)`.
 struct RecognizedLine: Equatable, Sendable, Identifiable {
 
     /// Per-instance identity for SwiftUI. Not part of equality.
@@ -27,14 +33,43 @@ struct RecognizedLine: Equatable, Sendable, Identifiable {
     /// Vision's confidence for the winning candidate, 0…1.
     var confidence: Double
 
-    init(id: UUID = UUID(), text: String, confidence: Double) {
+    /// Where the line sits in the image, in Vision's normalised bottom-left space. `nil` when the
+    /// recogniser did not report geometry — a stub fixture, or a caller that never needed it.
+    ///
+    /// The ranking layer uses it to prefer a value printed next to its label over an equally-scored
+    /// value from somewhere else on the page.
+    var boundingBox: ScanBoundingBox?
+
+    /// Lower-ranked readings of the *same* line, strongest first.
+    ///
+    /// These exist so a misread can be corrected by tapping instead of retyping. They are offered,
+    /// never substituted: `text` is always the winning candidate, and nothing in this app quietly
+    /// swaps an alternative in.
+    var alternatives: [String]
+
+    /// Zero-based page index for a multi-page document scan. Single-image recognition leaves it 0.
+    var page: Int
+
+    init(id: UUID = UUID(),
+         text: String,
+         confidence: Double,
+         boundingBox: ScanBoundingBox? = nil,
+         alternatives: [String] = [],
+         page: Int = 0) {
         self.id = id
         self.text = text
         self.confidence = confidence
+        self.boundingBox = boundingBox
+        self.alternatives = alternatives
+        self.page = page
     }
 
     static func == (lhs: RecognizedLine, rhs: RecognizedLine) -> Bool {
-        lhs.text == rhs.text && lhs.confidence == rhs.confidence
+        lhs.text == rhs.text
+            && lhs.confidence == rhs.confidence
+            && lhs.boundingBox == rhs.boundingBox
+            && lhs.alternatives == rhs.alternatives
+            && lhs.page == rhs.page
     }
 }
 
@@ -125,6 +160,54 @@ protocol TextRecognizing: Sendable {
     /// Barcodes found in a still image. Returns an empty array when the image simply has no
     /// codes in it — that is a normal outcome for a photo of an invoice, not an error.
     func recognizeBarcodes(in imageData: Data) async throws -> [ScanResult]
+
+    /// Recognised text across the pages of one document scan, each line stamped with the page it
+    /// came from. Pages are supplied in capture order.
+    ///
+    /// Throws `RecognitionError.noTextFound` when *no* page yielded readable text; a single blank
+    /// page inside a multi-page invoice is not a failure.
+    ///
+    /// A protocol-extension default is provided, so a conformer that has nothing better to offer
+    /// gets correct multi-page behaviour without writing a line of code.
+    func recognizePages(_ pages: [Data]) async throws -> [RecognizedLine]
+}
+
+extension TextRecognizing {
+
+    /// Default: recognises each page in turn and stamps `page` with its index.
+    ///
+    /// Pages are processed sequentially rather than concurrently on purpose. Recognition is memory
+    /// hungry — a full-page invoice decodes to tens of megabytes — and a five-page scan run in
+    /// parallel is exactly how a capture flow gets jetsammed on an older device. Sequential also
+    /// keeps the returned order stable, which the ranking layer depends on.
+    ///
+    /// Only `RecognitionError.noTextFound` is tolerated per page. Anything else — undecodable data,
+    /// a Vision failure — propagates, because those mean the caller handed over something broken
+    /// rather than something blank.
+    func recognizePages(_ pages: [Data]) async throws -> [RecognizedLine] {
+        guard !pages.isEmpty else { throw RecognitionError.noTextFound }
+
+        var results: [RecognizedLine] = []
+        for (index, pageData) in pages.enumerated() {
+            let lines: [RecognizedLine]
+            do {
+                lines = try await recognizeLines(in: pageData)
+            } catch RecognitionError.noTextFound {
+                continue
+            }
+            for line in lines {
+                results.append(RecognizedLine(id: line.id,
+                                              text: line.text,
+                                              confidence: line.confidence,
+                                              boundingBox: line.boundingBox,
+                                              alternatives: line.alternatives,
+                                              page: index))
+            }
+        }
+
+        guard !results.isEmpty else { throw RecognitionError.noTextFound }
+        return results
+    }
 }
 
 /// Everything that can go wrong while reading an image, as a presentable state.

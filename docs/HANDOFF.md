@@ -36,7 +36,7 @@ the business rules; those were specified up front in `docs/CONTRACTS.md` and cro
 - **Type checking and compilation.** No compiler ran. Generic inference, overload resolution,
   `@Observable` macro expansion, SwiftData macro expansion, and `#Predicate` compilation are all
   unchecked.
-- **Any test result.** The 15 unit-test files and 4 UI-test files have never executed. Their
+- **Any test result.** The 21 unit-test files and 4 UI-test files have never executed. Their
   *assertions* were written against the real implementations, but no assertion has been evaluated.
 - **Runtime behaviour**, layout, Dynamic Type reflow, VoiceOver output, PDF rendering, QR
   scannability, and StoreKit purchase flows.
@@ -50,13 +50,12 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
 
 ### Required
 
-1. **Apple Developer team.** `DEVELOPMENT_TEAM` is deliberately empty in all four build
-   configurations so simulator builds work with no signing setup. Set it in *Signing &
-   Capabilities* (or the build settings) before archiving.
-2. **Bundle identifier.** Currently `com.example.corecredit` (and `.tests` / `.uitests`).
-   Change in `AppConfiguration.bundleIdentifier` **and** in `PRODUCT_BUNDLE_IDENTIFIER` for all
-   three targets in `project.pbxproj`.
-3. **Subscription product IDs.** `com.example.corecredit.pro.monthly` and
+1. **Apple Developer team — set.** `DEVELOPMENT_TEAM = 7GNFT94A9L` on all six build
+   configurations, `CODE_SIGN_STYLE = Automatic`. Nothing to do.
+2. **Bundle identifier — set.** `com.blakekimble.corecredit` (plus `.tests` / `.uitests`),
+   matching `AppConfiguration.bundleIdentifier` and the Codemagic `ios_signing` block.
+   App Store Connect Apple ID `6802336957`.
+3. **Subscription product IDs — STILL PLACEHOLDERS.** `com.example.corecredit.pro.monthly` and
    `com.example.corecredit.pro.annual`, subscription group `21500000`. Change in
    `AppConfiguration` **and** in `StoreKit/CoreCredit.storekit`, then create the matching
    auto-renewable subscriptions in App Store Connect in a single group.
@@ -65,10 +64,9 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
    design.
 4. **Support / privacy / terms URLs.** All three point at `example.com`. The About screen
    visibly marks them as placeholders; replace them with live pages.
-5. **App icon.** `CoreCredit/Resources/Assets.xcassets/AppIcon.appiconset/` contains a valid but
-   **empty** appiconset. Drop in a 1024×1024 PNG with no alpha and add
-   `"filename": "AppIcon.png"` to the entry. Until then `actool` emits an unassigned-slot
-   warning; the build still succeeds.
+5. **App icon — supplied.** `AppIcon.appiconset/AppIcon.png` is real 1024×1024 artwork
+   (opaque, no alpha channel, metadata stripped) and `Contents.json` references it. Nothing is
+   required here before submission; replace the PNG in place if the branding changes.
 6. **Support email.** `AppConfiguration.supportEmail` is `support@example.com`.
 
 ### Recommended
@@ -92,7 +90,25 @@ Honest and specific. Nothing here is a P0 gap.
 ### Environment-constrained
 
 - **Never compiled or run** — see §1. This is the dominant limitation.
-- **No app icon artwork.** A placeholder slot, not a drawn icon.
+
+### Scanning (added after the initial build)
+
+- **The scan layer has never run against a camera.** Every symbology list, the `DataScanner`
+  pause/resume cycle, `VNDocumentCameraViewController`, haptic timing, and real-world OCR accuracy
+  are unverified. The deterministic parts — normalisation, classification, money parsing,
+  deduplication, ranking — are unit-tested; the hardware parts are not.
+- **Diagnostics are in-memory and hold only the most recent session.** They are deliberately not
+  persisted, so a crash loses them. That is the privacy trade-off: nothing to leak, nothing to
+  upload, and no image bytes are ever recorded.
+- **`draft.scannedBarcodeValue` round-trips but has no editor UI.** It is stored, shown in
+  diagnostics, and preserved across an edit, but there is no field to view or clear it directly.
+- **Schema versioning is additive-only.** `CoreCreditSchemaV1.models` returns the live model types,
+  so V1 and V2 describe identical entities and the lightweight stage is a structural no-op.
+  Existing stores open correctly because the change is purely additive, but the plan cannot express
+  a future rename or retype. Freeze V1's models into nested copies before the first non-additive
+  migration. Documented in `docs/SCAN_CONTRACTS.md` §12.
+- **`ScanMoneyParser.moneyTokens(in:)` is unreferenced in production** — the ranking path uses the
+  extractor's own tokeniser and calls `ScanMoneyParser.parse` for the ambiguity guard.
 - **UI tests mirror the accessibility identifiers.** A UI test bundle runs out of process and
   cannot import the app module, so `CoreCreditUITests/UITestSupport.swift` carries a verbatim
   copy of the `A11y` strings. Renaming an identifier in the app will **not** cause a compile

@@ -66,8 +66,16 @@ struct CoreEditorView: View {
     @State private var model: CoreEditorModel
     @FocusState private var focusedField: CoreItemField?
 
-    init(mode: CoreEditorMode) {
-        _model = State(initialValue: CoreEditorModel(mode: mode))
+    /// - Parameters:
+    ///   - mode: Creating a record, or editing one that already exists.
+    ///   - initialRoute: A modal to open on top of the form as it appears. This is how the
+    ///     Dashboard's "Scan core" action reaches the scanner *without* presenting a second copy of
+    ///     the intake form: there is one editor, and the scanner is a sheet over it, so cancelling
+    ///     the camera lands on the form the user was always going to fill in.
+    init(mode: CoreEditorMode, initialRoute: CoreEditorModel.Route? = nil) {
+        let model = CoreEditorModel(mode: mode)
+        model.route = initialRoute
+        _model = State(initialValue: model)
     }
 
     var body: some View {
@@ -536,6 +544,20 @@ struct CoreEditorView: View {
                     photoButton(kind: .receipt, title: "Return receipt")
                 }
 
+                Button {
+                    focusedField = nil
+                    model.route = .documentScan
+                } label: {
+                    SecondaryActionLabel(title: "Scan an invoice or receipt",
+                                         systemImage: "doc.viewfinder")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Scan an invoice or receipt"))
+                .accessibilityHint(
+                    Text("Opens the document camera for a multi-page invoice. "
+                         + "Nothing is filled in until you confirm each value.")
+                )
+
                 if !model.photos.isEmpty {
                     AttachmentStrip(
                         attachments: model.photos,
@@ -649,20 +671,38 @@ struct CoreEditorView: View {
 
     // MARK: - Sheets
 
+    /// One sheet, one route. A capture hands its result *back* to the model, which swaps the route
+    /// to `.scanReview`; the capture sheet never dismisses itself on success, so a dismissal cannot
+    /// race the presentation that follows it.
     @ViewBuilder
     private func sheetContent(for route: CoreEditorModel.Route) -> some View {
         switch route {
         case .scan:
-            ScanSheet { payload in
-                model.applyScannedPayload(payload)
+            ScanSheet { session in
+                model.beginReview(of: session)
             }
         case .attachment(let kind):
             AttachmentPickerSheet(kind: kind) { attachment in
                 model.addPhoto(attachment, using: itemService)
             }
         case .readPhoto(let data):
-            OCRReviewSheet(imageData: data) { suggestions in
-                model.apply(suggestions, vendors: vendors)
+            OCRReviewSheet(imageData: data) { candidates in
+                model.apply(candidates, vendors: vendors)
+            }
+        case .scanReview(let session):
+            ScanReviewSheet(
+                session: session,
+                onApply: { candidates in
+                    model.apply(candidates, vendors: vendors)
+                },
+                onRetake: {
+                    model.route = .scan
+                }
+            )
+        case .documentScan:
+            DocumentScanSheet { candidates in
+                model.apply(candidates, vendors: vendors)
+                model.route = nil
             }
         }
     }

@@ -35,6 +35,13 @@ struct CoreItemDraft: Equatable, Sendable {
     var customDueDate: Date?
     var notes: String
 
+    /// The exact payload as the scanner reported it, before any normalisation.
+    /// Held apart from `partNumber` so confirming a scan can never overwrite what the user typed.
+    var scannedBarcodeValue: String?
+
+    /// `VNBarcodeSymbology.rawValue` for the payload above.
+    var scannedBarcodeSymbology: String?
+
     init(existingID: UUID? = nil,
          partName: String = "",
          partNumber: String = "",
@@ -46,7 +53,9 @@ struct CoreItemDraft: Equatable, Sendable {
          receivedDate: Date = Date(),
          usesCustomDueDate: Bool = false,
          customDueDate: Date? = nil,
-         notes: String = "") {
+         notes: String = "",
+         scannedBarcodeValue: String? = nil,
+         scannedBarcodeSymbology: String? = nil) {
         self.existingID = existingID
         self.partName = partName
         self.partNumber = partNumber
@@ -59,6 +68,8 @@ struct CoreItemDraft: Equatable, Sendable {
         self.usesCustomDueDate = usesCustomDueDate
         self.customDueDate = customDueDate
         self.notes = notes
+        self.scannedBarcodeValue = scannedBarcodeValue
+        self.scannedBarcodeSymbology = scannedBarcodeSymbology
     }
 
     /// The parsed amount, or `nil` while the text is empty or unparseable.

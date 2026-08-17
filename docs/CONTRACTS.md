@@ -1,5 +1,8 @@
 # CoreCredit — Authoritative API Contract
 
+> **The scan/OCR/capture layer has its own addendum: `docs/SCAN_CONTRACTS.md`.**
+> Where the two disagree about a scan type, the addendum wins. Everything else here still applies.
+
 **This file is normative.** Every file in the app must compile against exactly these declarations.
 If you are implementing a layer, you MUST:
 
@@ -1088,8 +1091,13 @@ enum BarcodeScannerAvailabilityChecker {
 }
 
 // BarcodeScannerView.swift — UIViewControllerRepresentable over DataScannerViewController
+// SUPERSEDED by docs/SCAN_CONTRACTS.md §10, which adds explicit symbologies, an
+// `isPaused` binding, duplicate suppression, a cooldown on an injected clock, and haptics.
 @MainActor struct BarcodeScannerView: UIViewControllerRepresentable {
-    init(onScan: @escaping (ScanResult) -> Void, onError: @escaping (String) -> Void)
+    init(isPaused: Bool = false,
+         dateProvider: any DateProvider = SystemDateProvider(),
+         onScan: @escaping (ScanResult) -> Void,
+         onError: @escaping (String) -> Void)
 }
 
 // TextRecognizing.swift
@@ -1636,6 +1644,7 @@ Features/Cores/CoreListView.swift                 -> struct CoreListView: View
 Features/Capture/CoreEditorView.swift             -> struct CoreEditorView: View
                  CoreEditorModel.swift            -> @MainActor @Observable final class CoreEditorModel
                  ScanSheet.swift                  -> struct ScanSheet: View
+                 ScanReviewSheet.swift            -> struct ScanReviewSheet: View
                  OCRReviewSheet.swift             -> struct OCRReviewSheet: View
                  AttachmentPickerSheet.swift      -> struct AttachmentPickerSheet: View
                  BinTagSheet.swift                -> struct BinTagSheet: View

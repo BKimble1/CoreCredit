@@ -31,6 +31,11 @@ final class DashboardModel {
         /// `CoreEditorView(mode: .create)`.
         case editor
 
+        /// The same editor, opened straight into the scanner. Deliberately *not* a second screen:
+        /// it is one intake form with a capture sheet already in front of it, so cancelling the
+        /// camera leaves the user on the form rather than nowhere.
+        case scanCore
+
         /// Shown *instead of* the editor when the free tier blocks another open core.
         case paywall(PaywallTrigger)
 
@@ -38,6 +43,8 @@ final class DashboardModel {
             switch self {
             case .editor:
                 return "editor"
+            case .scanCore:
+                return "scanCore"
             case .paywall(let trigger):
                 return "paywall." + trigger.id
             }
@@ -109,12 +116,25 @@ final class DashboardModel {
     /// The limit counts **unresolved** items only, so settling a core frees a slot, and nothing
     /// already logged is ever hidden or locked — see `EntitlementPolicy`.
     func requestAddCore(items: [CoreItem], tier: SubscriptionTier) {
+        route = blockingRoute(items: items, tier: tier) ?? .editor
+    }
+
+    /// The same check, for the scanner shortcut.
+    ///
+    /// Scanning is a faster way into the *same* new record, so it is gated by exactly the same
+    /// limit. Letting the camera route around the paywall would make the limit meaningless.
+    func requestScanCore(items: [CoreItem], tier: SubscriptionTier) {
+        route = blockingRoute(items: items, tier: tier) ?? .scanCore
+    }
+
+    /// The paywall route when the free limit blocks another open core, `nil` when it does not.
+    private func blockingRoute(items: [CoreItem], tier: SubscriptionTier) -> Route? {
         let unresolved = RiskCalculator.unresolvedCount(items)
-        if let trigger = EntitlementPolicy.blockingTrigger(unresolvedCount: unresolved, tier: tier) {
-            route = .paywall(trigger)
-        } else {
-            route = .editor
+        guard let trigger = EntitlementPolicy.blockingTrigger(unresolvedCount: unresolved,
+                                                              tier: tier) else {
+            return nil
         }
+        return .paywall(trigger)
     }
 
     // MARK: - Errors

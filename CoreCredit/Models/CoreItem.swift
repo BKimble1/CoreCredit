@@ -15,6 +15,14 @@ final class CoreItem {
     var id: UUID = UUID()
     var partName: String = ""
     var partNumber: String = ""
+
+    /// The exact payload as the scanner reported it, before any normalisation.
+    /// Kept apart from `partNumber` so a scan can never overwrite a confirmed value.
+    var scannedBarcodeValue: String?
+
+    /// `VNBarcodeSymbology.rawValue` for the payload above.
+    var scannedBarcodeSymbology: String?
+
     var expectedCreditCents: Int64 = 0
     var actualCreditCents: Int64?
     var invoiceReference: String = ""
@@ -45,6 +53,10 @@ final class CoreItem {
     /// `dueDate` is deliberately left `nil` here: the due date depends on the vendor's return
     /// window *and* an injected calendar, so it is computed by `CoreItemService` (or explicitly
     /// by the seeding helpers) rather than guessed inside the model.
+    ///
+    /// The scanned-barcode fields are likewise left `nil`: they are written by `CoreItemService`
+    /// only when a draft actually carries a scanned payload. Keeping them out of the parameter
+    /// list means every existing call site of this initialiser is unchanged.
     init(partName: String,
          expectedCredit: Money,
          receivedDate: Date,
@@ -54,6 +66,8 @@ final class CoreItem {
         self.id = UUID()
         self.partName = partName
         self.partNumber = ""
+        self.scannedBarcodeValue = nil
+        self.scannedBarcodeSymbology = nil
         self.expectedCreditCents = expectedCredit.cents
         self.actualCreditCents = nil
         self.invoiceReference = ""

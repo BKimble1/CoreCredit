@@ -33,6 +33,11 @@ final class CoreEditorModel {
     // MARK: - Routing
 
     /// The modal the editor currently has open. `nil` means the form itself is in front.
+    ///
+    /// `id` is **unique per associated value**, deliberately. One `.sheet(item:)` drives this
+    /// screen, and SwiftUI only re-presents when the identifier changes: an `id` that ignored the
+    /// payload — as `.readPhoto` used to — meant reading a *second* photo, or reviewing a *second*
+    /// scan, silently did nothing.
     enum Route: Identifiable {
 
         /// Barcode capture, with its own manual-entry fallback.
@@ -45,14 +50,25 @@ final class CoreEditorModel {
         /// have to reach back into SwiftData for them.
         case readPhoto(Data)
 
+        /// Confirmation of everything a capture produced. Carries the session so the sheet is a
+        /// pure function of the route.
+        case scanReview(ScanReviewSession)
+
+        /// Multi-page invoice or receipt capture through the document camera.
+        case documentScan
+
         var id: String {
             switch self {
             case .scan:
                 return "scan"
             case .attachment(let kind):
                 return "attachment." + kind.rawValue
-            case .readPhoto:
-                return "readPhoto"
+            case .readPhoto(let data):
+                return "readPhoto." + CoreEditorModel.identityKey(for: data)
+            case .scanReview(let session):
+                return "scanReview." + session.id.uuidString
+            case .documentScan:
+                return "documentScan"
             }
         }
     }
@@ -247,6 +263,10 @@ final class CoreEditorModel {
     /// A barcode on a part or its box is, overwhelmingly, the part number — so that is where it
     /// goes. It lands in an ordinary editable field and the user is told what happened, because a
     /// vendor's internal SKU is sometimes not the number the shop wants recorded.
+    ///
+    /// Kept for the direct "I already know this is the part number" path. The scanner itself no
+    /// longer calls it: a live read now travels as `[ScanCandidate]` through the review sheet, so
+    /// the user sees what was read and where it is going before anything is filled in.
     func applyScannedPayload(_ payload: String) {
         let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -255,11 +275,120 @@ final class CoreEditorModel {
         revalidateIfNeeded()
     }
 
+    /// Opens the confirmation step for a capture. Nothing is written by presenting it.
+    func beginReview(of session: ScanReviewSession) {
+        route = .scanReview(session)
+    }
+
+    /// Writes confirmed scan candidates into the draft.
+    ///
+    /// Called only from the review sheet's *Apply Selected Suggestions* action. Three things this
+    /// deliberately does **not** do: it does not touch the store (the draft is in memory until the
+    /// editor's own Save runs), it does not apply anything the user did not tick, and it never lets
+    /// a raw barcode payload overwrite the confirmed part number — the payload has its own field on
+    /// the draft so both survive.
+    ///
+    /// A suggested vendor is matched against the shop's existing vendors by name; when there is no
+    /// match the inline "add a vendor" form is opened pre-filled, rather than silently dropping it.
+    func apply(_ candidates: [ScanCandidate], vendors: [Vendor]) {
+        var applied: [String] = []
+        var unmatchedVendorName: String?
+
+        for candidate in candidates {
+            let value = candidate.normalizedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            switch candidate.kind {
+            case .partNumber:
+                guard value.isEmpty == false else { continue }
+                draft.partNumber = value
+                applied.append("part number")
+
+            case .barcode:
+                // The value as the user confirmed it — the review sheet carries their edit in
+                // `normalizedValue`, and a technician who corrected a misread digit must not have
+                // that correction thrown away. `candidate.rawValue` is untouched either way: it is
+                // the record of what was recognised, kept so "did it misread it, or did someone
+                // change it?" is still answerable. Never into `partNumber`, whichever it is.
+                guard value.isEmpty == false else { continue }
+                draft.scannedBarcodeValue = value
+                draft.scannedBarcodeSymbology = candidate.barcodeSymbology
+                applied.append("scanned barcode")
+
+            case .invoiceNumber:
+                guard value.isEmpty == false else { continue }
+                draft.invoiceReference = value
+                applied.append("invoice")
+
+            case .repairOrder:
+                guard value.isEmpty == false else { continue }
+                draft.repairOrderReference = value
+                applied.append("repair order")
+
+            case .coreAmount:
+                guard value.isEmpty == false else { continue }
+                // Exact cents when it parses, so the field holds a figure the validator agrees
+                // with; the user's own text otherwise, so nothing they typed is thrown away.
+                if let money = candidate.money {
+                    draft.expectedCreditText = money.plainDecimalString
+                } else {
+                    draft.expectedCreditText = value
+                }
+                applied.append("core charge")
+
+            case .vendorName:
+                guard value.isEmpty == false else { continue }
+                if let match = vendors.first(where: {
+                    $0.name.localizedCaseInsensitiveCompare(value) == .orderedSame
+                }) {
+                    draft.vendorIdentifier = match.id
+                    applied.append("vendor")
+                } else {
+                    unmatchedVendorName = value
+                }
+
+            case .returnReference:
+                guard value.isEmpty == false else { continue }
+                // Appended, never substituted: CoreCredit has no RMA field, and whatever the user
+                // already wrote in the notes is theirs.
+                let line = "Return reference " + value
+                if draft.notes.contains(line) == false {
+                    draft.notes = draft.notes.isEmpty ? line : draft.notes + "\n" + line
+                }
+                applied.append("return reference")
+
+            case .date, .unknown:
+                // Informational. The received date comes from the app's own clock, and text that
+                // matched nothing has no field until the user retargets it in the review sheet.
+                continue
+            }
+        }
+
+        if let unmatchedVendorName = unmatchedVendorName {
+            newVendorName = unmatchedVendorName
+            isAddingVendor = true
+        }
+
+        if applied.isEmpty {
+            noticeMessage = unmatchedVendorName == nil
+                ? "Nothing was applied from that scan. Type the details in instead."
+                : "That vendor isn't in your list yet. Check the name and add it, or pick a different vendor."
+        } else {
+            noticeMessage = "Filled in from the scan: " + applied.joined(separator: ", ")
+                + ". Check each one before you save."
+        }
+
+        revalidateIfNeeded()
+    }
+
     // MARK: - OCR
 
     /// Writes confirmed OCR suggestions into the draft.
     ///
-    /// Called only from `OCRReviewSheet`'s "Apply selected" action — nothing here runs on its own.
+    /// The older, flatter shape, kept because `OCRSuggestionExtractor.suggestions(from:)` is still
+    /// part of the extractor's contract. The review sheets now hand over `[ScanCandidate]` instead,
+    /// which carries the raw reading and the reasoning as well as the value. Nothing here runs on
+    /// its own either way.
+    ///
     /// A suggested vendor is matched against the shop's existing vendors by name; when there is no
     /// match the inline "add a vendor" form is opened pre-filled, rather than silently dropping it.
     func apply(_ suggestions: [OCRFieldSuggestion], vendors: [Vendor]) {
@@ -457,8 +586,38 @@ final class CoreEditorModel {
                       receivedDate: item.receivedDate,
                       usesCustomDueDate: item.usesCustomDueDate,
                       customDueDate: item.dueDate,
-                      notes: item.notes)
+                      notes: item.notes,
+                      // Carried so a payload recorded earlier is visible while editing — and can
+                      // therefore be corrected. Left out, it would be invisible and unreachable.
+                      scannedBarcodeValue: item.scannedBarcodeValue,
+                      scannedBarcodeSymbology: item.scannedBarcodeSymbology)
     }
+
+    /// A per-value key for image bytes, so `Route.readPhoto` re-presents when the photo changes.
+    ///
+    /// Byte count *and* a hash of the edges, because either alone is weaker than the pair. The
+    /// edges rather than the whole image on purpose: `Route.id` is read on every body evaluation of
+    /// the editor — that is once per keystroke while a photo route exists — and hashing half a
+    /// megabyte of JPEG on each of those is work nobody asked for. Two different photos differ in
+    /// length or in their first bytes essentially always, and the identifier only has to
+    /// distinguish two routes inside one run: it is never stored, and never compared across
+    /// launches.
+    private static func identityKey(for data: Data) -> String {
+        var hasher = Hasher()
+        hasher.combine(data.count)
+        for byte in data.prefix(identitySampleLength) {
+            hasher.combine(byte)
+        }
+        if data.count > identitySampleLength {
+            for byte in data.suffix(identitySampleLength) {
+                hasher.combine(byte)
+            }
+        }
+        return String(data.count) + "-" + String(UInt(bitPattern: hasher.finalize()))
+    }
+
+    /// How many bytes are sampled from each end of an image for `identityKey(for:)`.
+    private static let identitySampleLength = 64
 
     /// Prefers an error's own sentence — and its recovery suggestion — over a Cocoa domain and code.
     private static func presentable(_ error: any Error) -> String {

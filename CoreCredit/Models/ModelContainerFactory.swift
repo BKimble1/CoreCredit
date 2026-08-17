@@ -30,9 +30,12 @@ enum ModelContainerFactory {
 
     // MARK: - Container construction
 
-    /// The full V1 schema, migrated through `CoreCreditMigrationPlan`.
+    /// The full current schema (V2), migrated through `CoreCreditMigrationPlan`.
+    ///
+    /// A store written by an earlier build opens through the plan's lightweight V1 -> V2 stage,
+    /// which only adds optional attributes and rewrites no data.
     static func makeContainer(inMemory: Bool) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: CoreCreditSchemaV1.self)
+        let schema = Schema(versionedSchema: CoreCreditSchemaV2.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
         return try ModelContainer(for: schema,
                                   migrationPlan: CoreCreditMigrationPlan.self,

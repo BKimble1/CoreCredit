@@ -35,6 +35,7 @@ enum A11yID {
         static let overdueAmount = "dashboard.overdueAmount"
         static let addCore = "dashboard.addCore"
         static let root = "dashboard.root"
+        static let scanCore = "dashboard.scanCore"
     }
 
     enum Cores {
@@ -62,6 +63,31 @@ enum A11yID {
         static let cancel = "editor.cancel"
         // `editor.scan` is deliberately absent: it opens the camera-backed scan sheet, and the
         // brief forbids any test depending on camera permission. Manual entry only.
+    }
+
+    /// The barcode capture sheet. Reachable from the Dashboard's `scanCore` action, which opens the
+    /// editor with this sheet already in front of it — on the simulator that lands on the
+    /// "no camera" state, where manual entry is the whole screen and no permission is involved.
+    enum Scan {
+        static let root = "scan.root"
+        static let manualEntry = "scan.manualEntry"
+        static let useManual = "scan.useManual"
+        static let resume = "scan.resume"
+        static let cancel = "scan.cancel"
+    }
+
+    /// The confirmation step every capture path ends on.
+    enum ScanReview {
+        static let root = "scanReview.root"
+        static let apply = "scanReview.apply"
+        static let retake = "scanReview.retake"
+        static let cancel = "scanReview.cancel"
+
+        /// Mirrors `A11y.ScanReview.row(_:)`. The candidate's UUID is created at runtime, so tests
+        /// normally match on `rowPrefix` instead of building the whole identifier.
+        static func row(_ id: UUID) -> String { "scanReview.row." + id.uuidString }
+
+        static let rowPrefix = "scanReview.row."
     }
 
     enum Detail {
@@ -103,6 +129,12 @@ enum A11yID {
         static let vendorName = "settings.vendorName"
         static let vendorWindow = "settings.vendorWindow"
         static let vendorSave = "settings.vendorSave"
+        static let diagnostics = "settings.diagnostics"
+    }
+
+    enum Diagnostics {
+        static let root = "diagnostics.root"
+        static let clear = "diagnostics.clear"
     }
 
     enum Onboarding {

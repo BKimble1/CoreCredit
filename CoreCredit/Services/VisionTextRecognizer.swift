@@ -9,6 +9,7 @@
 //  here is ever written to a `CoreItem` without a human confirming it.
 //
 
+import CoreGraphics
 import Foundation
 import ImageIO
 import Vision
@@ -35,6 +36,20 @@ final class VisionTextRecognizer: TextRecognizing {
         return try await task.value
     }
 
+    /// Multi-page recognition for a document scan, with every line stamped with its page index.
+    ///
+    /// The whole document is recognised inside **one** detached task rather than one task per page:
+    /// pages are processed in order, so a five-page invoice never has five full-size decodes alive
+    /// at once, and the returned order is reproducible.
+    func recognizePages(_ pages: [Data]) async throws -> [RecognizedLine] {
+        guard !pages.isEmpty else { throw RecognitionError.noTextFound }
+
+        let task = Task.detached(priority: .userInitiated) {
+            try VisionTextRecognizer.recognizePagesSynchronously(pages)
+        }
+        return try await task.value
+    }
+
     // MARK: - Recognition (off the main actor)
 
     /// Text recognition proper. Runs synchronously; only ever called from a detached task.
@@ -43,6 +58,11 @@ final class VisionTextRecognizer: TextRecognizing {
     /// (`INV-55219`), and repair-order numbers are not words, and the language model happily
     /// "corrects" them into something plausible and wrong. `revision` is left at the framework
     /// default so the app follows the OS rather than pinning to a model that may be withdrawn.
+    ///
+    /// Three candidates are requested instead of one. The winner becomes `text`, exactly as before;
+    /// the runners-up become `alternatives`, which the review sheet offers as tappable chips. This
+    /// is the *opposite* of language correction: nothing is substituted behind the user's back, the
+    /// second reading of `SO5` is simply there to be tapped when the first one is wrong.
     private static func recognizeLinesSynchronously(in imageData: Data) throws -> [RecognizedLine] {
         try validateImageData(imageData)
 
@@ -64,14 +84,84 @@ final class VisionTextRecognizer: TextRecognizing {
         var lines: [RecognizedLine] = []
 
         for case let observation as VNRecognizedTextObservation in observations {
-            guard let candidate = observation.topCandidates(1).first else { continue }
-            let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            let candidates = observation.topCandidates(maximumCandidateCount)
+            guard let winner = candidates.first else { continue }
+            let text = winner.string.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
-            lines.append(RecognizedLine(text: text, confidence: Double(candidate.confidence)))
+
+            lines.append(RecognizedLine(text: text,
+                                        confidence: Double(winner.confidence),
+                                        boundingBox: normalizedBox(from: observation.boundingBox),
+                                        alternatives: alternatives(from: candidates, winner: text)))
         }
 
         guard !lines.isEmpty else { throw RecognitionError.noTextFound }
         return lines
+    }
+
+    /// Every page of a document scan, in capture order, each line stamped with its page index.
+    ///
+    /// A page Vision finds nothing on is skipped rather than fatal: the back of an invoice is often
+    /// blank, and losing the four pages that *did* read because of it would be absurd. A page whose
+    /// bytes cannot be decoded at all still throws, because that means the caller handed over
+    /// something broken. Runs synchronously; only ever called from a detached task.
+    private static func recognizePagesSynchronously(_ pages: [Data]) throws -> [RecognizedLine] {
+        var results: [RecognizedLine] = []
+
+        for (index, pageData) in pages.enumerated() {
+            let lines: [RecognizedLine]
+            do {
+                lines = try recognizeLinesSynchronously(in: pageData)
+            } catch RecognitionError.noTextFound {
+                continue
+            }
+            for line in lines {
+                results.append(RecognizedLine(id: line.id,
+                                              text: line.text,
+                                              confidence: line.confidence,
+                                              boundingBox: line.boundingBox,
+                                              alternatives: line.alternatives,
+                                              page: index))
+            }
+        }
+
+        guard !results.isEmpty else { throw RecognitionError.noTextFound }
+        return results
+    }
+
+    /// How many readings of each line to ask Vision for: the winner plus two runners-up.
+    private static let maximumCandidateCount = 3
+
+    /// The runners-up, cleaned and deduplicated, strongest first.
+    ///
+    /// A candidate that trims to nothing, or that equals the winning text, carries no information
+    /// and is dropped — offering the user a chip identical to the value already in the field would
+    /// just be noise.
+    private static func alternatives(from candidates: [VNRecognizedText],
+                                     winner: String) -> [String] {
+        var results: [String] = []
+        for candidate in candidates.dropFirst() {
+            let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty, text != winner, !results.contains(text) else { continue }
+            results.append(text)
+        }
+        return results
+    }
+
+    /// Copies Vision's normalised rectangle across unchanged.
+    ///
+    /// Vision reports a 0…1 rectangle with a **bottom-left** origin and `ScanBoundingBox` is
+    /// documented to store exactly that, so there is no flipping here — flipping, if any, belongs
+    /// to the view that draws it. A null, infinite, or non-finite rectangle becomes `nil` rather
+    /// than a set of coordinates the ranking layer would then have to defend itself against.
+    private static func normalizedBox(from rect: CGRect) -> ScanBoundingBox? {
+        guard !rect.isNull, !rect.isInfinite else { return nil }
+        let x = Double(rect.origin.x)
+        let y = Double(rect.origin.y)
+        let width = Double(rect.size.width)
+        let height = Double(rect.size.height)
+        guard x.isFinite, y.isFinite, width.isFinite, height.isFinite else { return nil }
+        return ScanBoundingBox(x: x, y: y, width: width, height: height)
     }
 
     /// Barcode detection on a still image — the fallback path when live scanning is unavailable

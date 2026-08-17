@@ -14,38 +14,65 @@ enum CoreCreditSchemaV1: VersionedSchema {
     }
 }
 
+/// Version 2.0.0 of the CoreCredit persistent schema.
+///
+/// The only difference from V1 is on `CoreItem`, which gained two **optional** attributes:
+/// `scannedBarcodeValue` and `scannedBarcodeSymbology`. They hold the raw payload a scanner
+/// reported, kept deliberately apart from the confirmed `partNumber`.
+///
+/// Nothing was renamed, retyped, made non-optional, or removed, and no model type was added or
+/// dropped — so the same seven types are listed here as in V1.
+enum CoreCreditSchemaV2: VersionedSchema {
+    static var versionIdentifier: Schema.Version { Schema.Version(2, 0, 0) }
+
+    static var models: [any PersistentModel.Type] {
+        [ShopProfile.self, Vendor.self, StorageBin.self, CoreItem.self,
+         ReturnBatch.self, Attachment.self, CoreEvent.self]
+    }
+}
+
 /// Migration plan for the CoreCredit store.
 ///
-/// V1 is the initial schema, so `stages` is empty — there is nothing to migrate *from*.
+/// ## V1 -> V2
 ///
-/// ## Adding a V2
+/// V1 -> V2 **adds only optional attributes** (`CoreItem.scannedBarcodeValue` and
+/// `CoreItem.scannedBarcodeSymbology`). An added optional attribute is exactly the kind of change
+/// SwiftData can infer on its own, so a `.lightweight` stage is sufficient: **no data is rewritten**
+/// and no row is touched. Every existing store — including the ones already on TestFlight devices —
+/// opens in place, with the two new attributes reading back as `nil` for every previously saved row.
 ///
-/// 1. Copy the current model definitions into a new `enum CoreCreditSchemaV2: VersionedSchema`
-///    with `versionIdentifier` `Schema.Version(2, 0, 0)`, then make the change (new property,
+/// ## Adding a V3
+///
+/// 1. Copy the current model definitions into a new `enum CoreCreditSchemaV3: VersionedSchema`
+///    with `versionIdentifier` `Schema.Version(3, 0, 0)`, then make the change (new property,
 ///    renamed property, new model type).
 /// 2. Append it to `schemas` **in ascending version order**: `[CoreCreditSchemaV1.self,
-///    CoreCreditSchemaV2.self]`. SwiftData walks this list in order to find a migration path.
+///    CoreCreditSchemaV2.self, CoreCreditSchemaV3.self]`. SwiftData walks this list in order to
+///    find a migration path.
 /// 3. Add the matching stage to `stages`, again in ascending order:
 ///
 ///    ```swift
-///    static let migrateV1toV2 = MigrationStage.lightweight(
-///        fromVersion: CoreCreditSchemaV1.self,
-///        toVersion: CoreCreditSchemaV2.self
+///    static let migrateV2toV3 = MigrationStage.lightweight(
+///        fromVersion: CoreCreditSchemaV2.self,
+///        toVersion: CoreCreditSchemaV3.self
 ///    )
-///    static var stages: [MigrationStage] { [migrateV1toV2] }
+///    static var stages: [MigrationStage] { [migrateV1toV2, migrateV2toV3] }
 ///    ```
 ///
 /// A **lightweight** stage covers the changes SwiftData can infer on its own: adding a property
 /// that has a default value, adding an optional property, adding a whole new model type, or
 /// deleting a property. Every stored property in this schema either has a default in its
-/// declaration or is optional, specifically so that V1 -> V2 can stay lightweight.
+/// declaration or is optional, specifically so that each step can stay lightweight.
 ///
 /// Anything that needs data to be rewritten — splitting one property into two, changing a
 /// property's type, backfilling a value that has no sensible default — requires
 /// `MigrationStage.custom(fromVersion:toVersion:willMigrate:didMigrate:)` instead, where the
 /// `didMigrate` closure fetches the migrated objects and fixes them up.
 enum CoreCreditMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [CoreCreditSchemaV1.self] }
+    static var schemas: [any VersionedSchema.Type] { [CoreCreditSchemaV1.self, CoreCreditSchemaV2.self] }
 
-    static var stages: [MigrationStage] { [] }
+    /// Additive and optional only, so nothing here rewrites data.
+    static var stages: [MigrationStage] {
+        [.lightweight(fromVersion: CoreCreditSchemaV1.self, toVersion: CoreCreditSchemaV2.self)]
+    }
 }

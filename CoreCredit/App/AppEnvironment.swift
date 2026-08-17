@@ -93,6 +93,11 @@ final class AppEnvironment {
     let exports: ExportCoordinator
     let textRecognizer: any TextRecognizing
 
+    /// The local-only record of the most recent scanning session, shown on the Scanner Diagnostics
+    /// screen. Nothing it holds is ever uploaded, and it stores no image bytes — see
+    /// `ScanDiagnostics.swift`. It starts empty and stays empty until a scanner opens a session.
+    let scanDiagnostics: ScanDiagnosticsRecorder
+
     // MARK: - Observable state
 
     /// Why the requested store could not be opened, when a fallback store is in use. `nil` on a
@@ -157,6 +162,10 @@ final class AppEnvironment {
         } else {
             self.textRecognizer = VisionTextRecognizer()
         }
+
+        // Diagnostics ---------------------------------------------------------------------
+        // In memory, on this device, for the owner to read. No permission, no file, no network.
+        self.scanDiagnostics = ScanDiagnosticsRecorder(dateProvider: clock)
 
         self.storeLoadWarning = loadFailure
     }

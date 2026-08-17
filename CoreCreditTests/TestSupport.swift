@@ -89,12 +89,12 @@ struct TestItem: CoreItemRepresenting {
 
 // MARK: - Store helpers
 
-/// A `ModelContext` over a fresh in-memory container built from the shipping V1 schema.
+/// A `ModelContext` over a fresh in-memory container built from the current (V2) schema.
 ///
 /// The returned context keeps its container alive, so callers only need to hold the context.
 @MainActor
 func makeInMemoryContext() throws -> ModelContext {
-    let schema = Schema(versionedSchema: CoreCreditSchemaV1.self)
+    let schema = Schema(versionedSchema: CoreCreditSchemaV2.self)
     let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try ModelContainer(
         for: schema,

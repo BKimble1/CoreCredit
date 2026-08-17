@@ -116,6 +116,7 @@ struct CoreItemService {
                             bin: bin,
                             now: now)
         apply(draft, to: item, amount: amount, vendor: vendor, bin: bin, calendar: calendar)
+        let scannedPayload = applyScannedBarcode(from: draft, to: item)
         item.createdAt = now
         item.touch(now)
         context.insert(item)
@@ -127,6 +128,10 @@ struct CoreItemService {
                     reference: item.invoiceReference,
                     fromStatus: nil,
                     toStatus: item.status)
+
+        recordScannedBarcodeEvent(payload: scannedPayload,
+                                  symbology: draft.scannedBarcodeSymbology,
+                                  on: item)
 
         try persist()
         return item
@@ -147,6 +152,7 @@ struct CoreItemService {
         }
 
         apply(draft, to: item, amount: amount, vendor: vendor, bin: bin, calendar: calendar)
+        let scannedPayload = applyScannedBarcode(from: draft, to: item)
         item.touch(dateProvider.now)
 
         appendEvent(.edited,
@@ -156,6 +162,10 @@ struct CoreItemService {
                     reference: item.invoiceReference,
                     fromStatus: nil,
                     toStatus: nil)
+
+        recordScannedBarcodeEvent(payload: scannedPayload,
+                                  symbology: draft.scannedBarcodeSymbology,
+                                  on: item)
 
         try persist()
     }
@@ -432,6 +442,10 @@ struct CoreItemService {
     }
 
     /// Builds an editable draft from a stored item, for the editor screen.
+    ///
+    /// The scanned payload travels with the rest of the values. Without it the draft would report
+    /// "no payload", and `applyScannedBarcode(from:to:)` reads exactly that as "nothing to record"
+    /// — so a payload stored earlier would be invisible in the editor and impossible to correct.
     func draft(for item: CoreItem) -> CoreItemDraft {
         CoreItemDraft(existingID: item.id,
                       partName: item.partName,
@@ -444,7 +458,9 @@ struct CoreItemService {
                       receivedDate: item.receivedDate,
                       usesCustomDueDate: item.usesCustomDueDate,
                       customDueDate: item.dueDate,
-                      notes: item.notes)
+                      notes: item.notes,
+                      scannedBarcodeValue: item.scannedBarcodeValue,
+                      scannedBarcodeSymbology: item.scannedBarcodeSymbology)
     }
 
     // MARK: - Private
@@ -470,6 +486,56 @@ struct CoreItemService {
         let windowDays = vendor?.defaultReturnWindowDays
             ?? AppConfiguration.defaultVendorReturnWindowDays
         item.dueDate = draft.resolvedDueDate(vendorWindowDays: windowDays, calendar: calendar)
+    }
+
+    /// Copies a scanned payload from the draft onto the item, verbatim, and returns it.
+    ///
+    /// Two rules make this safe:
+    ///
+    /// 1. The payload is written **only** to `scannedBarcodeValue`. `partNumber` stays exactly
+    ///    what `apply` put there — the value the user confirmed — so a scan can never overwrite it.
+    /// 2. A draft with no payload writes nothing at all, so re-saving such an item cannot erase a
+    ///    payload recorded earlier.
+    /// 3. A payload identical to the one already on the item is **not** news. `draft(for:)` now
+    ///    carries the stored payload into the editor — which is what makes it correctable — so an
+    ///    ordinary edit-and-save hands the same bytes straight back. Reporting that as a fresh
+    ///    scan would stamp a "Scanned barcode recorded" entry on the timeline every single save.
+    ///
+    /// Returns `nil` when there was nothing new to record, which is also the signal not to append
+    /// an event.
+    private func applyScannedBarcode(from draft: CoreItemDraft, to item: CoreItem) -> String? {
+        guard let payload = draft.scannedBarcodeValue else { return nil }
+        guard !payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+
+        let isUnchanged = item.scannedBarcodeValue == payload
+            && item.scannedBarcodeSymbology == draft.scannedBarcodeSymbology
+
+        item.scannedBarcodeValue = payload
+        item.scannedBarcodeSymbology = draft.scannedBarcodeSymbology
+
+        return isUnchanged ? nil : payload
+    }
+
+    /// Appends the timeline entry for a newly recorded scan. A no-op when `payload` is `nil`.
+    ///
+    /// Goes through `appendEvent` like every other event, so the event is inserted into the same
+    /// context and saved by the caller's single `persist()`.
+    private func recordScannedBarcodeEvent(payload: String?, symbology: String?, on item: CoreItem) {
+        guard let payload = payload else { return }
+
+        var detail = "Scanned barcode recorded: " + payload + "."
+        if let symbology = symbology,
+           !symbology.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            detail += " Symbology " + symbology + "."
+        }
+
+        appendEvent(.edited,
+                    to: item,
+                    detail: detail,
+                    amount: nil,
+                    reference: "",
+                    fromStatus: nil,
+                    toStatus: nil)
     }
 
     private func fetching<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) throws -> [T] {
