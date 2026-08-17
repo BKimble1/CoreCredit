@@ -52,6 +52,9 @@ workflows:
           echo "Running unit tests on simulator $DEVICE_ID"
           xcrun simctl list devices available | grep -E "^ +iPhone" | tail -n 1
 
+          LOG="$CM_BUILD_DIR/xcodebuild-tests.log"
+          STATUS=0
+
           xcodebuild test \
             -project CoreCredit.xcodeproj \
             -scheme CoreCredit \
@@ -61,7 +64,26 @@ workflows:
             -only-testing:CoreCreditTests \
             -resultBundlePath "$CM_BUILD_DIR/CoreCreditTests.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
-            | tee "$CM_BUILD_DIR/xcodebuild-tests.log"
+            | tee "$LOG" || STATUS=$?
+
+          # Reprint every failure at the very end.
+          #
+          # The log runs to tens of thousands of lines and the CI view shows only its tail, which
+          # is whichever tests happened to finish last — usually passes. Without this, a red build
+          # says "3 issues" and hides all three. Swift Testing marks them with U+2718 and XCTest
+          # with "error:", so both are collected.
+          echo ""
+          echo "================= TEST FAILURE SUMMARY ================="
+          if grep -qE $'✘|recorded an issue|error:' "$LOG"; then
+            grep -nE $'✘|recorded an issue|error:|Fatal error' "$LOG" \
+              | grep -vE 'passed after' \
+              | head -n 100
+          else
+            echo "No recorded issues found in the log."
+          fi
+          echo "==============================================="
+          echo "xcodebuild exit status: $STATUS"
+          exit $STATUS
 
     artifacts:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/CoreCredit.app
