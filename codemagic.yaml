@@ -151,6 +151,34 @@ workflows:
           xcode-project use-profiles \
             --custom-export-options='{"testFlightInternalTestingOnly": true}'
 
+          # Report what was actually installed.
+          #
+          # The archive error only ever says a target "requires a provisioning profile". It never
+          # says which profiles exist, so "the widget's profile was never created" and "the
+          # configuration is wrong" look identical. This makes the difference visible.
+          echo ""
+          echo "=========== INSTALLED PROVISIONING PROFILES ==========="
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          if ls "$PROFILE_DIR"/*.mobileprovision >/dev/null 2>&1; then
+            for profile in "$PROFILE_DIR"/*.mobileprovision; do
+              plist=$(security cms -D -i "$profile" 2>/dev/null || echo "")
+              name=$(printf '%s' "$plist" | plutil -extract Name raw - 2>/dev/null || echo "?")
+              appid=$(printf '%s' "$plist" \
+                | plutil -extract Entitlements.application-identifier raw - 2>/dev/null || echo "?")
+              echo "  $appid    ($name)"
+            done
+          else
+            echo "  none installed"
+          fi
+          echo ""
+          echo "  The archive has to sign both of these:"
+          echo "    com.blakekimble.corecredit"
+          echo "    com.blakekimble.corecredit.widget"
+          echo "  Each needs a profile listed above, prefixed with the team id 7GNFT94A9L."
+          echo "  A missing widget line means its App ID and profile do not exist yet —"
+          echo "  see docs/HANDOFF.md section 2, item 0."
+          echo "======================================================="
+
       - name: Set unique build number
         script: |
           set -e
