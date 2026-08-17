@@ -1,0 +1,13 @@
+* text=auto eol=lf
+
+*.swift      text eol=lf
+*.md         text eol=lf
+*.json       text eol=lf
+*.storekit   text eol=lf
+*.xcprivacy  text eol=lf
+*.pbxproj    text eol=lf merge=union
+*.xcscheme   text eol=lf
+
+*.png        binary
+*.jpg        binary
+*.pdf        binary
