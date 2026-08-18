@@ -229,6 +229,43 @@ struct PhotoAssistSheet: View {
                 .foregroundStyle(Palette.textSecondary)
         }
         .accessibilityIdentifier(A11y.PhotoAssist.photo(index))
+        // Reordering and re-tagging through a menu rather than a drag. A drag in a horizontal strip
+        // of 84pt thumbnails is a poor target with one hand on a part, and it is unreachable with
+        // VoiceOver; a menu is both, and it says out loud what each action does.
+        .contextMenu {
+            ForEach(PhotoAssistShot.allCases) { shot in
+                Button {
+                    session?.setShot(shot, for: photo.id)
+                } label: {
+                    Label("This is the " + shot.displayName.localizedLowercase,
+                          systemImage: shot.symbolName)
+                }
+            }
+
+            Divider()
+
+            Button {
+                session?.move(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
+            } label: {
+                Label("Move earlier", systemImage: "arrow.left")
+            }
+            .disabled(index == 0)
+
+            Button {
+                session?.move(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
+            } label: {
+                Label("Move later", systemImage: "arrow.right")
+            }
+            .disabled(index >= (session?.photos.count ?? 0) - 1)
+
+            Divider()
+
+            Button(role: .destructive) {
+                session?.remove(photo.id)
+            } label: {
+                Label("Remove", systemImage: "trash")
+            }
+        }
     }
 
     // MARK: - Capture

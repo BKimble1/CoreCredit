@@ -197,11 +197,17 @@ final class AppEnvironment {
             if let scenario = launchOptions.photoAssistScenario {
                 self.textRecognizer = ScriptedPhotoRecognizer(scenario: scenario, fallback: stub)
                 self.imageClassifier = ScriptedPhotoClassifier(scenario: scenario)
-                self.depthProvider = scenario.reportsSceneDepth
-                    ? StubDepthProvider(isSceneDepthSupported: true,
-                                        summary: DepthSummary(subjectDistanceMetres: 0.4,
-                                                              confidence: 0.9))
-                    : UnsupportedDepthProvider()
+                // if/else rather than a ternary: the two branches are different concrete types
+                // being stored into an existential, which is exactly the shape that produces
+                // "result values in '? :' expression have mismatching types".
+                if scenario.reportsSceneDepth {
+                    self.depthProvider = StubDepthProvider(
+                        isSceneDepthSupported: true,
+                        summary: DepthSummary(subjectDistanceMetres: 0.4, confidence: 0.9)
+                    )
+                } else {
+                    self.depthProvider = UnsupportedDepthProvider()
+                }
             } else {
                 self.textRecognizer = stub
                 self.imageClassifier = StubImageClassifier()

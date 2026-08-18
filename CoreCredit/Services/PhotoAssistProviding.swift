@@ -64,6 +64,24 @@ struct ClassifiedLabel: Equatable, Sendable, Identifiable {
 /// Deliberately narrow: it answers "what is this a picture of?" and nothing else. Everything this
 /// app is allowed to do with the answer is decided in `PhotoAssistFusion`, which will only ever let
 /// it become a `.partName`.
+///
+/// ## This protocol is the seam a better model would arrive through
+///
+/// A multimodal model that can read a photograph of a part would slot in here, as a second
+/// conformance chosen at construction time in `AppEnvironment`, with no change to the fusion rules,
+/// the review sheet, or the entitlement gate. That is the point of the protocol: the rules about
+/// what a photograph is *allowed to claim* live in the domain layer and would still apply, however
+/// clever the thing producing the labels became.
+///
+/// It is a seam and not an implementation for a plain reason: this code was written on a machine
+/// with no macOS SDK to inspect, so whether Apple's multimodal Foundation Models image APIs are
+/// available in the installed production SDK could not be established. The brief's own instruction
+/// for that case is to build the seam and ship Vision, which is what this is. Adding an
+/// availability-gated provider would mean guessing at an API surface that cannot be checked, and a
+/// guess that fails to compile costs a release cycle to discover.
+///
+/// Nothing user-facing calls this "Apple Intelligence", and nothing should until such a provider
+/// actually ships.
 protocol ImageClassifying: Sendable {
 
     /// Labels for one image, strongest first. Never throws for an unrecognisable image — an empty
@@ -141,9 +159,12 @@ struct DepthSummary: Equatable, Sendable {
 struct StubImageClassifier: ImageClassifying {
 
     var labels: [ClassifiedLabel]
-    var error: (any Error)?
 
-    init(labels: [ClassifiedLabel] = [], error: (any Error)? = nil) {
+    /// Constrained to `Sendable` because `ImageClassifying` is: a `Sendable`-conforming struct
+    /// storing a bare `any Error` is a warning today and an error under Swift 6 language mode.
+    var error: (any Error & Sendable)?
+
+    init(labels: [ClassifiedLabel] = [], error: (any Error & Sendable)? = nil) {
         self.labels = labels
         self.error = error
     }
