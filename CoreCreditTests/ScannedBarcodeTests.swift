@@ -90,7 +90,7 @@ struct ScannedBarcodeTests {
         draft.scannedBarcodeSymbology = "VNBarcodeSymbologyCode128"
 
         let item = try service.createItem(from: draft, vendor: vendor, bin: nil)
-        let eventsBefore = item.events?.count ?? 0
+        let identifiersBefore = Set((item.events ?? []).map(\.id))
 
         try service.clearScannedBarcode(item)
 
@@ -99,11 +99,17 @@ struct ScannedBarcodeTests {
         #expect(item.partNumber == "17-4420", "Clearing the evidence must not clear the number.")
 
         // The append-only timeline is the reason this goes through the service at all.
+        //
+        // The appended event is found by its own identifier rather than by being the latest
+        // timestamp. Every service call in these tests reads the same frozen instant from the
+        // injected clock, so creating the core and clearing its barcode stamp identical
+        // timestamps, and `events` is an unordered SwiftData relationship — "the most recent one"
+        // is not a question this data can answer. Identity is exact whatever the clock does.
         let events = item.events ?? []
-        #expect(events.count == eventsBefore + 1)
-        let latest = try #require(events.max(by: { $0.timestamp < $1.timestamp }))
-        #expect(latest.type == .edited)
-        #expect(latest.detail.contains("17-4420-XYZ"),
+        #expect(events.count == identifiersBefore.count + 1)
+        let appended = try #require(events.first { identifiersBefore.contains($0.id) == false })
+        #expect(appended.type == .edited)
+        #expect(appended.detail.contains("17-4420-XYZ"),
                 "The audit entry has to say what was removed, or it is not evidence of anything.")
     }
 
