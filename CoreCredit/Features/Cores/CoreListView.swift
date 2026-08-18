@@ -155,6 +155,14 @@ struct CoreListView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        // `.contain` is what makes the identifier queryable. An identifier applied to a bare List
+        // is attached to the collection view UIKit builds underneath, and does not reliably surface
+        // as an element a test can find — which is why every `requireExists(Cores.list)` in the UI
+        // suite failed the first time that suite was ever executed, and, worse, why every
+        // `requireAbsent(Cores.list)` passed without proving anything at all. Marking the list as an
+        // accessibility container publishes it under its own identifier and leaves the rows inside
+        // individually addressable.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(A11y.Cores.list)
     }
 

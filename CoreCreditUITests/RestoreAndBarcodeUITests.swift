@@ -33,7 +33,12 @@ final class RestoreAndBarcodeUITests: XCTestCase {
 
         XCTContext.runActivity(named: "Data & export offers a restore") { _ in
             tapTab(A11yID.Tab.settings, in: app)
-            tapWhenHittable(button(app, labelContaining: "Data & export"),
+            // By identifier, not by label. A NavigationLink row in a SwiftUI List is not reliably
+            // matched by `app.buttons`, and its label is composed from the row's title, value, and
+            // hint — so a label query is matching against text that exists to be read aloud, not
+            // to be searched. Every other row on this screen is reached by identifier; this one had
+            // simply never been given one.
+            tapWhenHittable(control(app, A11yID.Settings.data),
                             "the Data & export row",
                             in: app)
 

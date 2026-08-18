@@ -168,6 +168,7 @@ enum A11yID {
         static let diagnostics = "settings.diagnostics"
         static let notifications = "settings.notifications"
         static let appearance = "settings.appearance"
+        static let data = "settings.data"
         static let legal = "settings.legal"
     }
 

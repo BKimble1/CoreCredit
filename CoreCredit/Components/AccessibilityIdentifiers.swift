@@ -177,6 +177,9 @@ enum A11y {
         /// The Appearance row in the Settings list. The screen it pushes is `Appearance.root`.
         static let appearance = "settings.appearance"
         /// The Legal row in the Settings list. The screen it pushes is `Legal.root`.
+        /// The Data & export row in the Settings list. The screen it pushes owns the
+        /// restore flow, whose identifiers live in `Data`.
+        static let data = "settings.data"
         static let legal = "settings.legal"
     }
 
