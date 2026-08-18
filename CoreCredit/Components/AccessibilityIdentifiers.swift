@@ -96,6 +96,45 @@ enum A11y {
 
     /// The confirmation step. Shared by the live scanner, the photo read, and the document scan, so
     /// these identifiers resolve on whichever of the three is in front.
+    /// AI Photo Assist — the Pro-only, on-device multi-photo assistant reached from Scan core.
+    ///
+    /// Reached from `Scan.root`; it is a sheet over the scanner, not a navigation destination, and
+    /// there is deliberately no tab, dashboard card, or widget action that opens it.
+    enum PhotoAssist {
+        /// The compact secondary action on the Scan core surface that opens the assistant.
+        /// Present on both tiers: on Free it opens the paywall instead, and says so.
+        static let open = "photoAssist.open"
+        /// The lock shown beside `open` for a shop that is not on Pro.
+        static let locked = "photoAssist.locked"
+        /// The assistant's own sheet.
+        static let root = "photoAssist.root"
+        /// Multi-select import from Photos.
+        static let importPhotos = "photoAssist.importPhotos"
+        /// Take a photo with the camera.
+        static let takePhoto = "photoAssist.takePhoto"
+        /// Adds the scripted fixture photographs. UI testing only — the button does not exist in a
+        /// shipping build, because `LaunchOptions.photoAssistScenario` can only be set by a launch
+        /// argument.
+        static let addSamples = "photoAssist.addSamples"
+        /// The optional automatic-capture switch.
+        static let autoCapture = "photoAssist.autoCapture"
+        /// Runs the analysis over every gathered photograph.
+        static let analyze = "photoAssist.analyze"
+        /// Progress while analysis runs.
+        static let progress = "photoAssist.progress"
+        /// Shown when nothing identified the part.
+        static let noMatch = "photoAssist.noMatch"
+        /// The status line naming which senses this device actually has.
+        static let capability = "photoAssist.capability"
+        /// One gathered photograph. Suffixed with the photograph's index.
+        static let photoPrefix = "photoAssist.photo."
+        /// Removes one gathered photograph. Suffixed with the photograph's index.
+        static let removePrefix = "photoAssist.remove."
+
+        static func photo(_ index: Int) -> String { photoPrefix + String(index) }
+        static func remove(_ index: Int) -> String { removePrefix + String(index) }
+    }
+
     enum ScanReview {
         static let root = "scanReview.root"
         static let apply = "scanReview.apply"

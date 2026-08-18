@@ -174,6 +174,8 @@ struct ScanSheet: View {
     @State private var manualEntry: String = ""
     @State private var scannerError: String?
     @State private var isRequestingAccess = false
+    @State private var isShowingPhotoAssist = false
+    @State private var paywallTrigger: PaywallTrigger?
 
     /// The accepted read currently held on screen. Non-`nil` means the viewfinder is paused.
     @State private var frozen: FrozenScan?
@@ -230,6 +232,8 @@ struct ScanSheet: View {
                     }
 
                     manualEntrySection
+
+                    photoAssistSection
                 }
                 .padding(Spacing.l)
                 .frame(maxWidth: ScanSheet.contentMaxWidth)
@@ -243,6 +247,15 @@ struct ScanSheet: View {
             .navigationTitle(ScanCaptureCopy.title)
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier(A11y.Scan.root)
+            .sheet(isPresented: $isShowingPhotoAssist) {
+                PhotoAssistSheet { review in
+                    isShowingPhotoAssist = false
+                    onCandidates(review)
+                }
+            }
+            .sheet(item: $paywallTrigger) { trigger in
+                PaywallView(trigger: trigger)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -505,6 +518,80 @@ struct ScanSheet: View {
     // MARK: - Manual entry
 
     /// Always present, in every state. This is the path that never fails.
+    /// The one secondary action on this surface: read a set of photographs instead of aiming at a
+    /// symbol.
+    ///
+    /// Deliberately compact, and deliberately below manual entry. The primary way to enter a core
+    /// is still to point the camera at a barcode or type the number in, and both of those stay free
+    /// for everybody. This is an assistant for the awkward cases — a rubbed-out label, a core
+    /// charge buried in an invoice — and it is part of Pro.
+    ///
+    /// A free shop sees the row, with a lock and a plain sentence about what it does. Hiding a
+    /// paid feature entirely means somebody never learns it exists; showing it as a dead control
+    /// with no explanation is worse. Tapping opens the paywall, which says the same thing again.
+    private var photoAssistSection: some View {
+        SectionCard {
+            Button {
+                if let trigger = EntitlementPolicy.photoAssistTrigger(
+                    tier: appEnvironment.subscriptions.entitlement.tier
+                ) {
+                    paywallTrigger = trigger
+                } else {
+                    isManualEntryFocused = false
+                    isShowingPhotoAssist = true
+                }
+            } label: {
+                photoAssistLabel
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(A11y.PhotoAssist.open)
+            .accessibilityHint(Text(isPhotoAssistUnlocked
+                                    ? "Opens the photo assistant. Nothing is saved until you review it."
+                                    : "Part of Pro. Opens the upgrade options."))
+        }
+    }
+
+    private var isPhotoAssistUnlocked: Bool {
+        EntitlementPolicy.canUsePhotoAssist(tier: appEnvironment.subscriptions.entitlement.tier)
+    }
+
+    private var photoAssistLabel: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Palette.accent)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                HStack(spacing: Spacing.s) {
+                    Text("AI Photo Assist")
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+                    BetaBadge()
+                    if isPhotoAssistUnlocked == false {
+                        Image(systemName: "lock.fill")
+                            .imageScale(.small)
+                            .foregroundStyle(Palette.textSecondary)
+                            .accessibilityIdentifier(A11y.PhotoAssist.locked)
+                    }
+                }
+                Text(isPhotoAssistUnlocked
+                     ? "Read a part, a label, and an invoice from photos on this device."
+                     : "Part of Pro. Reads photos on this device; scanning and typing stay free.")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.textSecondary)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: Spacing.minimumTapTarget)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(isPhotoAssistUnlocked
+                                 ? "AI Photo Assist, beta"
+                                 : "AI Photo Assist, beta, locked. Part of Pro."))
+    }
+
     private var manualEntrySection: some View {
         SectionCard(title: manualEntryTitle, systemImage: "keyboard") {
             VStack(alignment: .leading, spacing: Spacing.m) {

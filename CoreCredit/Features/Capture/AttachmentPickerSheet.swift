@@ -391,8 +391,11 @@ struct AttachmentPickerSheet: View {
 /// `UIImagePickerController` is used rather than a bespoke `AVCaptureSession` on purpose: this is a
 /// single still photograph, the system UI already handles focus, flash, and retake, and there is no
 /// custom capture behaviour worth the code it would cost.
+///
+/// Internal rather than private because AI Photo Assist gathers still photographs too, and a second
+/// copy of this would be a second place for the camera-availability guard below to be got wrong.
 @MainActor
-private struct CameraCaptureView: UIViewControllerRepresentable {
+struct CameraCaptureView: UIViewControllerRepresentable {
 
     let onImage: (UIImage) -> Void
     let onCancel: () -> Void

@@ -105,6 +105,25 @@ enum A11yID {
     }
 
     /// The confirmation step every capture path ends on.
+    enum PhotoAssist {
+        static let open = "photoAssist.open"
+        static let locked = "photoAssist.locked"
+        static let root = "photoAssist.root"
+        static let importPhotos = "photoAssist.importPhotos"
+        static let takePhoto = "photoAssist.takePhoto"
+        static let addSamples = "photoAssist.addSamples"
+        static let autoCapture = "photoAssist.autoCapture"
+        static let analyze = "photoAssist.analyze"
+        static let progress = "photoAssist.progress"
+        static let noMatch = "photoAssist.noMatch"
+        static let capability = "photoAssist.capability"
+        static let photoPrefix = "photoAssist.photo."
+        static let removePrefix = "photoAssist.remove."
+
+        static func photo(_ index: Int) -> String { photoPrefix + String(index) }
+        static func remove(_ index: Int) -> String { removePrefix + String(index) }
+    }
+
     enum ScanReview {
         static let root = "scanReview.root"
         static let apply = "scanReview.apply"
