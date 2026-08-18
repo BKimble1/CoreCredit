@@ -110,7 +110,7 @@ struct HowItWorksDisclosure: View {
         HStack(alignment: .top, spacing: Spacing.m) {
             Text(String(step.id))
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(Palette.onColor(for: .readyToReturn))
+                .foregroundStyle(Palette.onAccent)
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(Palette.accent))
                 .accessibilityHidden(true)

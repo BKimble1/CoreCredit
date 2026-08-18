@@ -130,7 +130,7 @@ struct OnboardingView: View {
         HStack(alignment: .top, spacing: Spacing.m) {
             Text(String(number))
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(Palette.onColor(for: .readyToReturn))
+                .foregroundStyle(Palette.onAccent)
                 .frame(width: 28, height: 28)
                 .background(Circle().fill(Palette.accent))
                 .accessibilityHidden(true)

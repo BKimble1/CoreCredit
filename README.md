@@ -93,6 +93,15 @@ always validated by `CoreStatusMachine` first.
 `LaunchOptions`. There is no Redux, no Combine pipeline, no coordinator layer, and no DI
 framework; feature state is `@Observable`, persistence is `@Query`/`ModelContext`.
 
+**The bright scheme is the app icon.** `Palette.accent` is `#0053FD` — the icon's own blue, which
+happens to carry text on white (5.74:1) *and* take white text on itself (5.74:1), so one value
+serves as both a label and a fill. The light ground is that hue washed almost to white. Amber is no
+longer the action colour; it survives as "ready to return" only, private behind `color(for:)`.
+CoreCredit **opens in Light** and the appearance is changed at **Settings → Appearance** — the one
+place in the app that forces a `ColorScheme`. Every surface separation and contrast ratio, in both
+schemes and with Increase Contrast, is measured by `CoreCreditTests/PaletteThemeTests.swift` rather
+than eyeballed, because this repository is built on a machine that cannot take a screenshot.
+
 **Capture is one entry point over two engines.** The Quick Scan widget, the App Shortcut and the
 Action Button, the Dashboard's Scan core button, and the intake form's own all open the same sheet,
 titled **Scan core**, with a Live / Document selector at the top. Live is

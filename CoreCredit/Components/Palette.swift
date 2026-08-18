@@ -18,10 +18,17 @@ import UIKit
 ///
 /// This is a shop tool, not a fintech dashboard. The rules are deliberately narrow:
 ///
-/// - **Amber** (`accent`) is the *only* warning colour, and it means "ready to return".
+/// - **Blue** (`accent`) is the app's own colour, taken from the icon. It marks the thing you can
+///   act on — the filled button, the link, the focused field — and nothing else.
+/// - **Amber** is the *only* warning colour, and it means "ready to return". It is reachable only
+///   through `color(for:)`, so it can never be borrowed for a button.
 /// - **Green** (`positive`) appears *only* on confirmed credits.
 /// - **Red** (`danger`) appears *only* on overdue and disputed states.
 /// - Everything else is graphite, slate, or steel.
+///
+/// Action and status used to be the same token: `accent` was both the primary button *and*
+/// "ready to return". Splitting them is what let the light scheme be built out of the app icon
+/// without spending the one colour that means a core is staged to go back.
 ///
 /// Colour never carries meaning on its own. Every status is also drawn with its SF Symbol and its
 /// text label — see `StatusBadge`.
@@ -57,10 +64,11 @@ enum Palette {
 
     /// Screen background: the ground everything sits on.
     ///
-    /// Cool grey in light — the value iOS uses behind an inset-grouped list, so a `SectionCard` on
-    /// it reads the way a settings row does rather than like a floating panel. Near-black navy in
-    /// dark, and deliberately *darker* than a card so the card is the thing that comes forward.
-    static let background = Palette.adaptive(light: 0xEDEFF3, dark: 0x080B12)
+    /// In light it is the icon's blue washed almost all the way out — the same hue as `accent`,
+    /// two per cent of the way from white — so the whole bright scheme reads as one family rather
+    /// than as blue buttons dropped onto neutral grey. Near-black navy in dark, and deliberately
+    /// *darker* than a card so the card is the thing that comes forward.
+    static let background = Palette.adaptive(light: 0xE7EDFA, dark: 0x080B12)
 
     /// Default card / list-row background.
     ///
@@ -75,13 +83,13 @@ enum Palette {
     /// The name is historical: in dark it sits above `surface` and in light it sits very slightly
     /// below it, which is the direction iOS itself moves a field well in each appearance. Either
     /// way it is the token for "an input lives here", never for a second card.
-    static let surfaceElevated = Palette.adaptive(light: 0xF1F3F7, dark: 0x222B3B)
+    static let surfaceElevated = Palette.adaptive(light: 0xEEF2FB, dark: 0x222B3B)
 
     /// One-pixel separators between rows. No longer used as a card border — see `surface` — and
     /// deliberately faint: a separator's job is to group, and a strong line between every row of a
     /// ledger is a cage. For the edge of something a person types into, use `fieldBorder`.
     static let hairline = Palette.adaptive(
-        light: 0xD9DDE4, lightHighContrast: 0xA9B0BC,
+        light: 0xD3DCEC, lightHighContrast: 0xA3AFC6,
         dark: 0x2E3747, darkHighContrast: 0x51607A
     )
 
@@ -97,23 +105,54 @@ enum Palette {
     /// error states still override this with `accent` / `danger` *and* a thicker stroke, so neither
     /// is carried by colour alone.
     static let fieldBorder = Palette.adaptive(
-        light: 0x848D9C, lightHighContrast: 0x5C6675,
+        light: 0x7F8CA6, lightHighContrast: 0x56637D,
         dark: 0x62728F, darkHighContrast: 0x8B9BB8
     )
 
     // MARK: Text
 
-    static let textPrimary = Palette.adaptive(light: 0x0E1420, dark: 0xF4F7FC)
+    static let textPrimary = Palette.adaptive(light: 0x0B1220, dark: 0xF4F7FC)
 
     static let textSecondary = Palette.adaptive(
-        light: 0x5B6575, lightHighContrast: 0x3E4756,
+        light: 0x55617A, lightHighContrast: 0x3A455C,
         dark: 0xA9B4C6, darkHighContrast: 0xCCD5E1
     )
 
     // MARK: Semantic
 
-    /// Restrained amber. Warnings and "ready to return" only — never decoration.
-    static let accent = Palette.adaptive(light: 0x8A4F00, dark: 0xF5B23C)
+    /// **The app's own blue — `#0053FD`, lifted straight out of the icon.**
+    ///
+    /// This is the action colour: the filled primary button, a link, a focused field, an active
+    /// filter. It is *not* a status, and `color(for:)` never returns it.
+    ///
+    /// The light value is the icon's background exactly, unmodified, because it happens to be one
+    /// of the rare vivid colours that carries text on white (5.74:1) *and* takes white text on
+    /// itself (5.74:1) — so the same value works as a label and as a fill. The dark value is
+    /// lifted, because the icon's blue on a near-black card is too dim to read.
+    ///
+    /// **`AccentColor.colorset` must match this**, or the system tint on switches and navigation
+    /// links will disagree with everything drawn in code. `PaletteThemeTests` holds them together.
+    static let accent = Palette.adaptive(
+        light: 0x0053FD, lightHighContrast: 0x0040C4,
+        dark: 0x5B93FF, darkHighContrast: 0x8AB8FF
+    )
+
+    /// A readable foreground on a solid `accent` fill — white in light, near-black in dark.
+    static let onAccent = contrastForeground
+
+    // MARK: Launch screen
+
+    /// Asset catalog name of the flat colour iOS paints before any Swift runs. It holds the
+    /// **light** value of `accent` — the icon's own blue — so the app opens in its own colour
+    /// rather than on a white flash. `LaunchScreenTests` holds the two together.
+    ///
+    /// Deliberately fixed in both appearances: the launch screen is the app introducing itself,
+    /// not a surface being read, and a brand that changed colour by time of day would be a
+    /// different app twice a day.
+    static let launchBackgroundAssetName = "LaunchBackground"
+
+    /// Asset catalog name of the white mark, on a transparent square canvas.
+    static let launchMarkAssetName = "LaunchMark"
 
     /// Green. Confirmed credits only.
     static let positive = Palette.adaptive(light: 0x1F7A45, dark: 0x3FBE7B)
@@ -126,7 +165,7 @@ enum Palette {
 
     /// Deliberately low-energy grey for written-off records.
     static let muted = Palette.adaptive(
-        light: 0x6B7280, lightHighContrast: 0x515966,
+        light: 0x69748C, lightHighContrast: 0x505B72,
         dark: 0x8A94A3, darkHighContrast: 0xA6AFBC
     )
 
@@ -139,7 +178,7 @@ enum Palette {
         case .awaitingCore:
             return neutral
         case .readyToReturn:
-            return accent
+            return readyAmber
         case .returnedAwaitingCredit:
             return steel
         case .credited:
@@ -174,6 +213,11 @@ enum Palette {
     }
 
     // MARK: Private tokens
+
+    /// Restrained amber, reserved for `readyToReturn`. Private, and reachable only through
+    /// `color(for:)`, so "a core is staged to go back" cannot be borrowed to decorate a button —
+    /// which is exactly what happened while this and `accent` were one token.
+    private static let readyAmber = Palette.adaptive(light: 0x8A4F00, dark: 0xF5B23C)
 
     /// Cool steel, reserved for `returnedAwaitingCredit`. It has to read as "in flight" without
     /// borrowing amber (which means "act now") or green (which means "money arrived"), so it is
@@ -310,4 +354,25 @@ private struct PaletteSpecimen: View {
 #Preview("Palette — dark") {
     PaletteSpecimen()
         .preferredColorScheme(.dark)
+}
+
+// MARK: - Appearance
+
+extension Palette {
+
+    /// The `ColorScheme` to force for a chosen appearance, or `nil` to let the device decide.
+    ///
+    /// Lives here rather than on `AppearancePreference` because `Domain/` imports only Foundation
+    /// and `ColorScheme` is SwiftUI's. This is the single place in the app that forces an
+    /// appearance, and `CoreCreditApp` is its only caller.
+    static func colorScheme(for preference: AppearancePreference) -> ColorScheme? {
+        switch preference {
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        case .system:
+            return nil
+        }
+    }
 }

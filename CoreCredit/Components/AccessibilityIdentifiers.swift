@@ -170,8 +170,17 @@ enum A11y {
         /// The Notifications row in the Settings list. The screen it pushes is
         /// `Notifications.root`.
         static let notifications = "settings.notifications"
+        /// The Appearance row in the Settings list. The screen it pushes is `Appearance.root`.
+        static let appearance = "settings.appearance"
         /// The Legal row in the Settings list. The screen it pushes is `Legal.root`.
         static let legal = "settings.legal"
+    }
+
+    /// Light / Dark / Match device. One row per `AppearancePreference`, keyed on its raw value so
+    /// a test can name the option it wants without depending on the order they are listed in.
+    enum Appearance {
+        static let root = "appearance.root"
+        static func option(_ rawValue: String) -> String { "appearance.option." + rawValue }
     }
 
     /// The scanner diagnostics screen that row pushes.

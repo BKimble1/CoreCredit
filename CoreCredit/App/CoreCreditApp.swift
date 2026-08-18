@@ -16,42 +16,38 @@ import SwiftUI
 ///
 /// # The load-in screen
 ///
-/// `LaunchSplashHost` is an overlay, so the app is built and laid out underneath it from the first
-/// moment and nothing waits on it — including a deep link, which `MainTabView` consumes on appear
-/// behind the splash exactly as it would have without one. It is skipped entirely under
-/// `-uiTesting`. See `LaunchSplashView.swift` for how it hands over from the static launch screen.
+/// There is no SwiftUI splash. `UILaunchScreen` in `Config/CoreCredit-Info.plist` paints the
+/// brand blue and the white mark before a single line of Swift runs, which is the whole job —
+/// the app is never seen opening on a white flash. A second, animated layer was tried on top of
+/// it and taken out again: handing over from a static image to a live view a frame later showed,
+/// and a launch screen that draws attention to itself has failed at the one thing it is for.
+///
+/// # Appearance
+///
+/// Applied here, at the root, above the branch that chooses between the store-failure screen,
+/// onboarding, and the tab bar — so a shop's choice holds even on a launch where SwiftData never
+/// opened. Defaults to Light and is changed in Settings → Appearance; see `AppearancePreference`
+/// for why this app has the switch at all when most should just follow the system.
 @main
 struct CoreCreditApp: App {
 
     /// Owned here so it survives every view update for the life of the process.
     @State private var appEnvironment = AppEnvironment(launchOptions: LaunchOptions.parse())
 
-    /// Whether the load-in screen should be on screen right now.
-    ///
-    /// Read live rather than decided once: a real cold-start `corecredit://` URL arrives through
-    /// `onOpenURL` *after* this scene exists, and somebody who tapped the Quick Scan widget wants
-    /// a viewfinder rather than a logo. `LaunchSplashHost` latches the answer once it turns false,
-    /// so consuming the link cannot bring the splash back.
-    private var showsLaunchSplash: Bool {
-        appEnvironment.launchOptions.disableAnimations == false
-            && appEnvironment.deepLinks.pending == nil
-    }
-
     var body: some Scene {
         WindowGroup {
-            LaunchSplashHost(isEnabled: showsLaunchSplash) {
-                RootView()
-            }
-            .environment(appEnvironment)
-            .modelContainerIfAvailable(appEnvironment.container)
-            // Recorded, never acted on here. On a cold start this fires while `RootView` is still
-            // choosing between the store-failure screen, onboarding, and the shell, so the router
-            // holds the link and `MainTabView` consumes it once there is somewhere to go — behind
-            // the load-in screen, which delays nothing. A URL this app does not understand is
-            // ignored, which is what the discarded `Bool` says.
-            .onOpenURL { url in
-                _ = appEnvironment.deepLinks.handle(url)
-            }
+            RootView()
+                .preferredColorScheme(Palette.colorScheme(for: appEnvironment.appearance.preference))
+                .environment(appEnvironment)
+                .modelContainerIfAvailable(appEnvironment.container)
+                // Recorded, never acted on here. On a cold start this fires while `RootView` is
+                // still choosing between the store-failure screen, onboarding, and the shell, so
+                // the router holds the link and `MainTabView` consumes it once there is somewhere
+                // to go. A URL this app does not understand is ignored, which is what the
+                // discarded `Bool` says.
+                .onOpenURL { url in
+                    _ = appEnvironment.deepLinks.handle(url)
+                }
         }
     }
 }

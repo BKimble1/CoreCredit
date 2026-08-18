@@ -52,11 +52,23 @@ What it changed that a person has to look at:
   camera.** It did not before, which means the Simulator and unsupported hardware were being handed
   a `VNDocumentCameraViewController` that cannot run there. That path was previously unreachable
   from the main scan entry; it is reachable now, which is why the check was added.
-- **The app has a load-in screen.** `UILaunchScreen` paints the brand blue and the white mark before
-  any Swift runs — that is what removes the white flash — and `LaunchSplashView` fades the same
-  picture, gradient-lit, out of the way. `INFOPLIST_KEY_UILaunchScreen_Generation` was removed from
-  both app build configurations; **it must stay off**, because it merges an empty dictionary over
-  the real one and the only symptom is the flash coming back. See `docs/CONTRACTS.md` §7b.
+- **The app has a load-in screen** — one layer, not two. `UILaunchScreen` paints the brand blue and
+  the white mark before any Swift runs, which removes the white flash and is the whole job. A second
+  animated SwiftUI layer was built on top of it and then taken out again: the handover from a static
+  image to a live view a frame later was visible on device. Do not add one back.
+  `INFOPLIST_KEY_UILaunchScreen_Generation` was removed from both app build configurations;
+  **it must stay off**, because it merges an empty dictionary over the real one and the only symptom
+  is the flash coming back. See `docs/CONTRACTS.md` §7b.
+- **The light scheme is built out of the app icon, and there is an appearance switch.** The icon's
+  blue `#0053FD` is now `Palette.accent` — the action colour for every filled button, link, and
+  focused field — and the light ground is that hue washed almost to white, so the bright scheme
+  reads as one family instead of blue buttons on neutral grey. Amber survives as "ready to return"
+  only, private behind `color(for:)`. The app **defaults to Light** and is switched at
+  **Settings → Appearance** (`AppearancePreference`, stored in `UserDefaults`, applied with the one
+  `preferredColorScheme` in the app). This overrides the original brief's "follow the system
+  setting, never force an appearance" at the owner's explicit request: the bright scheme is the one
+  built for a shop floor, and a phone left on Dark for reading in bed is not a statement about a
+  parts counter.
 
 ### Both appearances are retuned, and a bug that was caught by being asked about
 

@@ -1603,15 +1603,30 @@ enum Palette {
     static let fieldBorder: Color
     static let textPrimary: Color
     static let textSecondary: Color
-    static let accent: Color              // restrained amber — warnings / "ready to return"
+    /// **The app's own blue, `#0053FD`, lifted straight out of the app icon.** The ACTION colour:
+    /// filled buttons, links, focused fields, active filters. It is NOT a status, and
+    /// `color(for:)` never returns it. `AccentColor.colorset` must match it in all four
+    /// resolutions (light, dark, and each with Increase Contrast).
+    static let accent: Color
+    static let onAccent: Color            // readable foreground on a solid `accent` fill
     static let positive: Color            // green — confirmed credits ONLY
     static let danger: Color              // red — overdue / disputed ONLY
     static let neutral: Color             // graphite — awaiting / returned
     static let muted: Color               // written off
 
+    // Asset names the static launch screen paints. `launchBackground` holds `accent`'s LIGHT value.
+    static let launchBackgroundAssetName: String   // "LaunchBackground"
+    static let launchMarkAssetName: String         // "LaunchMark"
+
     static func color(for status: CoreStatus) -> Color
     static func onColor(for status: CoreStatus) -> Color   // readable foreground on that color
+    static func colorScheme(for: AppearancePreference) -> ColorScheme?  // nil == follow the device
 }
+
+// Amber — "ready to return" — is PRIVATE and reachable only through `color(for:)`. It used to be
+// `accent`, doing double duty as the primary-button colour; splitting them is what let the light
+// scheme be rebuilt out of the app icon without spending the one colour that means a core is
+// staged to go back. `PaletteThemeTests` asserts no status colour ever equals `accent` again.
 
 // Typography.swift
 enum Typography {
@@ -1893,39 +1908,14 @@ Launch arguments consumed by `LaunchOptions.parse`:
 
 Two layers, because one cannot do the job.
 
-1. **The static launch screen.** `UILaunchScreen` in `Config/CoreCredit-Info.plist`, naming the
-   `LaunchBackground` colour and the `LaunchMark` image. iOS paints this the instant the process
-   starts, before any Swift runs; it is the only thing that can remove the white flash, and it can
-   draw a colour and an image and nothing else.
-2. **`LaunchSplashView`.** The same mark at the same proportion over a gradient centred on the same
-   colour, faded away by `LaunchSplashHost` once the app is up.
+There is **one** layer: `UILaunchScreen` in `Config/CoreCredit-Info.plist`, naming the
+`LaunchBackground` colour and the `LaunchMark` image. iOS paints it the instant the process starts,
+before any Swift runs, which is the whole job — the app is never seen opening on a white flash.
 
-```swift
-enum LaunchPalette {
-    static let backgroundAssetName = "LaunchBackground"
-    static let markAssetName = "LaunchMark"
-    static let top: Color        // lifted
-    static let middle: Color     // #0053FD — the icon's blue, and the whole static screen
-    static let bottom: Color     // deepened
-}
-
-struct LaunchSplashView: View {
-    init()
-    /// The mark's longest side as a fraction of the screen's short side. Baked into the asset too.
-    static let markFraction: CGFloat   // 0.34
-    static let gradient: LinearGradient
-}
-
-enum LaunchSplash {
-    static let settleDuration: TimeInterval   // 0.28
-    static let dwellDuration: TimeInterval    // 0.34
-    static let fadeDuration: TimeInterval     // 0.30
-}
-
-struct LaunchSplashHost<Content: View>: View {
-    init(isEnabled: Bool, @ViewBuilder content: () -> Content)
-}
-```
+A second, animated SwiftUI layer over it (a gradient and a settling mark) was built and then
+**removed**: handing over from a static image to a live view one frame later was visible on device,
+and a launch screen that draws attention to itself has failed at the only thing it is for. Do not
+add one back. If the launch needs to feel better, make the *first real screen* cheaper to build.
 
 **Rules that are load-bearing, and tested in `CoreCreditTests/LaunchScreenTests.swift` because every
 one of them fails silently:**
@@ -1933,14 +1923,14 @@ one of them fails silently:**
 - `INFOPLIST_KEY_UILaunchScreen_Generation` must stay **off**. It merges an *empty* `UILaunchScreen`
   dictionary on top of the partial Info.plist and replaces the real one with nothing. No warning, no
   error — the app just opens on a white flash again.
-- `LaunchPalette.middle` must equal the `LaunchBackground` asset, in both appearances. That equality
-  is the whole reason the handover between the two layers is invisible.
-- `LaunchMark` must be a **square canvas** with the mark occupying `markFraction` of it, centred.
-  Both layers size it by the screen's short side; a tight crop would land at different sizes in each.
-- The host is an `.overlay`, never a `ZStack` layer — see §7a rule 1. Nothing waits on it, and a
-  deep link cancels it outright, because somebody who tapped the Quick Scan widget wants a
-  viewfinder rather than a logo.
-- It is skipped under `-uiTesting`, so **no UI test exercises it.**
+- The `LaunchBackground` asset must equal the **light** value of `Palette.accent`, so the app opens
+  in its own colour rather than in one it then changes out of. It is fixed in both appearances: a
+  launch screen is the app introducing itself, not a surface being read.
+- `LaunchMark` must be a **square canvas** with the mark centred and its padding baked in. The
+  launch screen fits the canvas to the screen; a tight crop would be stretched across the width.
+- The mark is the white artwork lifted out of `AppIcon.png` with a real alpha channel — not the
+  icon. What fills the screen is blue with a mark on it, never a rounded square floating in the
+  middle.
 
 ---
 

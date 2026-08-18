@@ -155,6 +155,19 @@ struct SettingsView: View {
     private var dataSection: some View {
         Section {
             NavigationLink {
+                AppearanceSettingsView()
+            } label: {
+                SettingsRow(
+                    title: "Appearance",
+                    value: appearanceSummary,
+                    symbol: appEnvironment.appearance.preference.symbolName,
+                    hint: "Whether CoreCredit uses the bright scheme, the dark one, or whichever "
+                        + "the phone is set to."
+                )
+            }
+            .accessibilityIdentifier(A11y.Settings.appearance)
+
+            NavigationLink {
                 DataSettingsView()
             } label: {
                 SettingsRow(
@@ -255,6 +268,10 @@ struct SettingsView: View {
 
     private var planSummary: String {
         appEnvironment.subscriptions.entitlement.tier.displayName
+    }
+
+    private var appearanceSummary: String {
+        appEnvironment.appearance.preference.displayName
     }
 
     /// Whether there is anything to look at, without hinting that the app keeps a scan history —

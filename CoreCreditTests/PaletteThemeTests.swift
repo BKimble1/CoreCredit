@@ -39,7 +39,7 @@ struct PaletteThemeTests {
     // MARK: - Fixtures
 
     /// The appearances the app actually ships in, including the accessibility variants.
-    private static let schemes: [(name: String, traits: UITraitCollection)] = [
+    fileprivate static let schemes: [(name: String, traits: UITraitCollection)] = [
         ("light", UITraitCollection(userInterfaceStyle: .light)),
         ("dark", UITraitCollection(userInterfaceStyle: .dark)),
         ("light + Increase Contrast", UITraitCollection(traitsFrom: [
@@ -149,7 +149,39 @@ struct PaletteThemeTests {
                 #expect(ratio >= 4.5,
                         "Foreground on a solid \(status.rawValue) fill is "
                             + "\(PaletteThemeTests.rounded(ratio)):1 in \(scheme.name). "
-                            + "PrimaryButtonLabel is amber-filled with this on top of it.")
+                            + "StatusBadge and the status tiles fill with this colour.")
+            }
+        }
+    }
+
+    @Test("Text on a solid accent fill is readable — the primary button's own contrast")
+    @MainActor
+    func textOnASolidAccentFillIsReadable() {
+        // Every filled control in the app is `accent` with `onAccent` on top: Save core, Add core,
+        // Apply Selected Suggestions, the numbered step circles. This is that pair, measured.
+        for scheme in PaletteThemeTests.schemes {
+            let ratio = PaletteThemeTests.contrast(Palette.onAccent, Palette.accent, in: scheme.traits)
+            #expect(ratio >= 4.5,
+                    "The primary button's label is \(PaletteThemeTests.rounded(ratio)):1 on its own "
+                        + "fill in \(scheme.name).")
+        }
+    }
+
+    @Test("The action colour is not a status colour, and cannot be mistaken for one")
+    @MainActor
+    func theActionColourIsNotAStatusColour() {
+        // These used to be one token: `accent` was the primary button *and* "ready to return".
+        // Splitting them is what let the light scheme be rebuilt out of the app icon without
+        // spending the colour that means a core is staged to go back. If they ever resolve to the
+        // same value again, amber has quietly become a button colour a second time.
+        for scheme in PaletteThemeTests.schemes {
+            for status in CoreStatus.allCases {
+                let statusColour = PaletteThemeTests.components(Palette.color(for: status),
+                                                               in: scheme.traits)
+                let action = PaletteThemeTests.components(Palette.accent, in: scheme.traits)
+                #expect(statusColour != action,
+                        "\(status.rawValue) resolves to the same colour as the action accent in "
+                            + "\(scheme.name).")
             }
         }
     }
@@ -200,6 +232,25 @@ struct PaletteThemeTests {
         }
     }
 
+    // MARK: - The system tint agrees with the code
+
+    @Test("AccentColor.colorset matches Palette.accent, so the system tint agrees with the app")
+    @MainActor
+    func theAssetCatalogAccentMatchesTheCodeAccent() throws {
+        // The tint on a Toggle, a NavigationLink chevron, and a system control is read from the
+        // asset catalog and cannot be supplied in code; everything drawn by hand reads
+        // `Palette.accent`. They are two copies of one decision, and nothing but a test notices
+        // when they stop agreeing — the app simply ends up with two slightly different blues in it.
+        let asset = try #require(UIColor(named: "AccentColor"))
+
+        for scheme in PaletteThemeTests.schemes {
+            let fromCatalog = PaletteThemeTests.componentsOf(asset, in: scheme.traits)
+            let fromCode = PaletteThemeTests.components(Palette.accent, in: scheme.traits)
+            #expect(PaletteThemeTests.isSameColour(fromCatalog, fromCode),
+                    "AccentColor.colorset and Palette.accent disagree in \(scheme.name).")
+        }
+    }
+
     // MARK: - Both appearances are actually designed
 
     @Test("Light and dark are different schemes, not one scheme rendered twice")
@@ -239,10 +290,27 @@ struct PaletteThemeTests {
     // MARK: - Measurement
 
     @MainActor
-    private static func components(_ color: Color, in traits: UITraitCollection) -> [CGFloat] {
+    fileprivate static func components(_ color: Color, in traits: UITraitCollection) -> [CGFloat] {
+        componentsOf(UIColor(color), in: traits)
+    }
+
+    @MainActor
+    fileprivate static func componentsOf(_ color: UIColor,
+                                         in traits: UITraitCollection) -> [CGFloat] {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-        UIColor(color).resolvedColor(with: traits).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        color.resolvedColor(with: traits).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         return [red, green, blue, alpha]
+    }
+
+    /// Small tolerance: the asset catalog round-trips its components through a stored sRGB
+    /// representation and a hand-written `Color` does not, so the last bit of a channel is not
+    /// something to hold anybody to.
+    fileprivate static func isSameColour(_ lhs: [CGFloat], _ rhs: [CGFloat]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        for (left, right) in zip(lhs, rhs) where abs(left - right) > 0.01 {
+            return false
+        }
+        return true
     }
 
     /// WCAG 2.1 relative luminance.

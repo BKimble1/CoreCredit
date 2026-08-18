@@ -17,10 +17,9 @@
 //     merge an **empty** dictionary on top of the one in `Config/CoreCredit-Info.plist` and silently
 //     replace it with nothing.
 //  2. Both named assets exist in the catalog.
-//  3. The mark is a square canvas, because both layers size it by the screen's short side and a
-//     non-square canvas would land at different sizes in each.
-//  4. The gradient's midpoint really is the flat colour the static screen paints. That equality is
-//     what makes the handover between the two layers invisible.
+//  3. The mark is a square canvas, so it is centred rather than stretched.
+//  4. The colour the launch screen paints really is the app's own accent — the icon's blue. If
+//     those drift, the app opens in one colour and then becomes another one.
 //
 //  These read the *app* bundle: `CoreCreditTests` is app-hosted (`TEST_HOST` is `CoreCredit.app`),
 //  so `Bundle.main` here is the built app and its asset catalog and merged Info.plist are the real
@@ -33,7 +32,7 @@ import Testing
 import UIKit
 @testable import CoreCredit
 
-@Suite("The load-in screen is wired up, and its two layers agree with each other")
+@Suite("The load-in screen is wired up, and it is painted in the app's own colour")
 struct LaunchScreenTests {
 
     // MARK: - The Info.plist survived its merge
@@ -48,8 +47,8 @@ struct LaunchScreenTests {
                 + "settings: it merges an empty dictionary over Config/CoreCredit-Info.plist."
         )
 
-        #expect(launchScreen["UIColorName"] as? String == LaunchPalette.backgroundAssetName)
-        #expect(launchScreen["UIImageName"] as? String == LaunchPalette.markAssetName)
+        #expect(launchScreen["UIColorName"] as? String == Palette.launchBackgroundAssetName)
+        #expect(launchScreen["UIImageName"] as? String == Palette.launchMarkAssetName)
     }
 
     @Test("The URL scheme is still in the same merged Info.plist")
@@ -68,74 +67,61 @@ struct LaunchScreenTests {
     @Test("Both launch assets resolve out of the shipping asset catalog")
     @MainActor
     func bothLaunchAssetsResolve() throws {
-        let mark = UIImage(named: LaunchPalette.markAssetName)
+        let mark = UIImage(named: Palette.launchMarkAssetName)
         #expect(mark != nil,
-                "LaunchMark is missing. The static launch screen would paint the background and "
-                    + "no mark, and LaunchSplashView would render an empty image.")
+                "LaunchMark is missing. The launch screen would paint the background and no mark.")
 
-        let background = UIColor(named: LaunchPalette.backgroundAssetName)
+        let background = UIColor(named: Palette.launchBackgroundAssetName)
         #expect(background != nil,
                 "LaunchBackground is missing. The static launch screen would fall back to a plain "
                     + "system background — a white flash in light appearance, which is the exact "
                     + "thing this screen exists to remove.")
     }
 
-    @Test("The mark's canvas is square, so both layers place it identically")
+    @Test("The mark's canvas is square, so it is centred rather than stretched")
     @MainActor
     func theMarkCanvasIsSquare() throws {
-        let mark = try #require(UIImage(named: LaunchPalette.markAssetName))
+        let mark = try #require(UIImage(named: Palette.launchMarkAssetName))
 
-        // The static launch screen aspect-fits this canvas; `LaunchSplashView` draws it at the
-        // screen's short side. Both land the mark in the same place only while the canvas is
-        // square and the mark is centred in it with the padding baked in.
+        // The launch screen fits this canvas to the screen. A square canvas with the mark centred
+        // and the padding baked in is what keeps the mark centred and correctly sized; a tight
+        // crop would be stretched across the full width.
         #expect(mark.size.width == mark.size.height,
                 "LaunchMark must be a square canvas, not a tight crop of the mark.")
         #expect(mark.size.width > 0)
     }
 
-    // MARK: - The two layers agree
+    // MARK: - It is the app's own colour
 
-    @Test("The gradient's midpoint is exactly the colour the static screen paints flat")
+    @Test("The launch screen is painted in the app's own accent, the icon's blue")
     @MainActor
-    func theGradientMidpointMatchesTheStaticScreen() throws {
-        let asset = try #require(UIColor(named: LaunchPalette.backgroundAssetName))
-        let midpoint = UIColor(LaunchPalette.middle)
+    func theLaunchColourIsTheAppsAccent() throws {
+        let asset = try #require(UIColor(named: Palette.launchBackgroundAssetName))
 
+        // Compared in light, where `accent` holds the icon's value exactly. `accent` lifts in dark
+        // so it can be read on a dark card; the launch screen does not, because it is the app
+        // introducing itself rather than a surface being read — a brand that changed colour by
+        // time of day would be a different app twice a day.
         let light = UITraitCollection(userInterfaceStyle: .light)
-        let dark = UITraitCollection(userInterfaceStyle: .dark)
+        let assetComponents = LaunchScreenTests.components(of: asset, in: light)
+        let accentComponents = LaunchScreenTests.components(of: UIColor(Palette.accent), in: light)
 
-        // Both appearances, because a launch screen has no reading surface to adapt for: the brand
-        // is the brand, and a colour that shifted in dark mode would make the handover visible on
-        // exactly half of the devices it runs on.
-        for (name, traits) in [("light", light), ("dark", dark)] {
-            let assetComponents = LaunchScreenTests.components(of: asset, in: traits)
-            let midComponents = LaunchScreenTests.components(of: midpoint, in: traits)
-            #expect(LaunchScreenTests.isSameColour(assetComponents, midComponents),
-                    "In \(name) appearance the LaunchBackground asset \(assetComponents) and the "
-                        + "gradient midpoint \(midComponents) have drifted apart, so the static "
-                        + "launch screen and the splash no longer meet on the same colour.")
-        }
+        #expect(LaunchScreenTests.isSameColour(assetComponents, accentComponents),
+                "The LaunchBackground asset and the app's accent have drifted apart, so the app "
+                    + "opens in one colour and then becomes a different one.")
     }
 
-    @Test("The load-in is short, and its parts add up to less than a second")
-    func theLoadInIsShort() {
-        // A launch screen nobody complains about is one nobody notices. If these ever add up to
-        // something a person would describe as "waiting", the reason to have it has gone.
-        let total = LaunchSplash.settleDuration + LaunchSplash.dwellDuration + LaunchSplash.fadeDuration
-        #expect(total < 1.0, "The whole load-in is \(total)s, which is long enough to feel like a wait.")
-
-        for duration in [LaunchSplash.settleDuration, LaunchSplash.dwellDuration, LaunchSplash.fadeDuration] {
-            #expect(duration > 0)
-        }
-    }
-
-    @Test("The mark fraction is a plausible splash proportion")
-    func theMarkFractionIsSane() {
-        // Baked into the asset as well as read here — see `LaunchSplashView.markFraction`. The
-        // bound is wide on purpose: this catches a decimal point in the wrong place, not a taste
-        // disagreement.
-        #expect(LaunchSplashView.markFraction > 0.15)
-        #expect(LaunchSplashView.markFraction < 0.6)
+    @Test("There is one launch layer, not two")
+    @MainActor
+    func thereIsNoSecondLaunchLayer() throws {
+        // A second, animated SwiftUI layer over the static screen was tried and removed: handing
+        // over from an image to a live view a frame later was visible, and a launch screen that
+        // draws attention to itself has failed at the one thing it is for. The static screen does
+        // the whole job, so this only has to hold its two assets in place.
+        let raw = Bundle.main.object(forInfoDictionaryKey: "UILaunchScreen") as? [String: Any]
+        let launchScreen = try #require(raw)
+        #expect(launchScreen["UIImageName"] as? String == Palette.launchMarkAssetName)
+        #expect(UIImage(named: Palette.launchMarkAssetName) != nil)
     }
 
     // MARK: - Helpers

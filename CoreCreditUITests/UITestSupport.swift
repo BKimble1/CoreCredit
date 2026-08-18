@@ -165,7 +165,14 @@ enum A11yID {
         static let vendorSave = "settings.vendorSave"
         static let diagnostics = "settings.diagnostics"
         static let notifications = "settings.notifications"
+        static let appearance = "settings.appearance"
         static let legal = "settings.legal"
+    }
+
+    /// Light / Dark / Match device.
+    enum Appearance {
+        static let root = "appearance.root"
+        static func option(_ rawValue: String) -> String { "appearance.option." + rawValue }
     }
 
     enum Diagnostics {
