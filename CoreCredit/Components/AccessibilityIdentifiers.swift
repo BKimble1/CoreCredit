@@ -114,6 +114,10 @@ enum A11y {
         static let recordCredit = "detail.recordCredit"
         static let exportPacket = "detail.exportPacket"
         static let binTag = "detail.binTag"
+        /// The scanned-barcode card's two actions. The card exists only on a core that actually
+        /// carries a payload, so a query resolving to nothing is a statement about the record.
+        static let copyBarcode = "detail.copyBarcode"
+        static let clearBarcode = "detail.clearBarcode"
     }
 
     enum Returns {
@@ -181,6 +185,15 @@ enum A11y {
     enum Appearance {
         static let root = "appearance.root"
         static func option(_ rawValue: String) -> String { "appearance.option." + rawValue }
+    }
+
+    /// The Data & export screen's restore flow. The preflight and its two actions exist only
+    /// after a valid backup file has been chosen, so a query resolving to nothing is a statement
+    /// about where the flow has got to.
+    enum Data {
+        static let restore = "data.restore"
+        static let restorePreflight = "data.restorePreflight"
+        static let restoreCancel = "data.restoreCancel"
     }
 
     /// The scanner diagnostics screen that row pushes.

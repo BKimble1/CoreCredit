@@ -123,6 +123,8 @@ enum A11yID {
         static let status = "detail.status"
         static let markReady = "detail.markReady"
         static let recordCredit = "detail.recordCredit"
+        static let copyBarcode = "detail.copyBarcode"
+        static let clearBarcode = "detail.clearBarcode"
     }
 
     enum Returns {
@@ -173,6 +175,13 @@ enum A11yID {
     enum Appearance {
         static let root = "appearance.root"
         static func option(_ rawValue: String) -> String { "appearance.option." + rawValue }
+    }
+
+    /// The Data & export screen's restore flow.
+    enum Data {
+        static let restore = "data.restore"
+        static let restorePreflight = "data.restorePreflight"
+        static let restoreCancel = "data.restoreCancel"
     }
 
     enum Diagnostics {
