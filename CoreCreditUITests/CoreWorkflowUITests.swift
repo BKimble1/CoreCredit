@@ -7,9 +7,10 @@
 //      create vendor -> add core -> mark ready -> create return batch
 //      -> record receipt/reference -> mark credited -> verify dashboard zero
 //
-//  Everything here is manual entry. The editor's "Scan barcode" button is never touched, no photo
-//  is ever attached, and the subscription engine is the in-memory stub — so the suite depends on
-//  neither camera permission nor live StoreKit.
+//  Everything here is manual entry. The editor's "Scan core" action is never touched, no photo is
+//  ever attached, and the subscription engine is the in-memory stub — so the suite depends on
+//  neither camera permission nor live StoreKit. The capture surface has its own suite in
+//  `CaptureAndLayoutUITests`, which reaches it without a camera either.
 //
 
 import XCTest
