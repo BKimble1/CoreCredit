@@ -568,7 +568,7 @@ private struct BatchDetailFieldWell<Content: View>: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
         }
     }

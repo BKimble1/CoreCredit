@@ -259,7 +259,7 @@ struct AttachmentPickerSheet: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                            .strokeBorder(isCaptionFocused ? Palette.accent : Palette.hairline,
+                            .strokeBorder(isCaptionFocused ? Palette.accent : Palette.fieldBorder,
                                           lineWidth: isCaptionFocused ? 2 : 1)
                     )
                     .accessibilityLabel(Text("Photo caption"))

@@ -449,7 +449,7 @@ private struct OnboardingTextField: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
                 .accessibilityLabel(Text(title))
                 .modifier(OptionalAccessibilityIdentifier(identifier: identifier))

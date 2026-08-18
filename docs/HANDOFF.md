@@ -58,15 +58,29 @@ What it changed that a person has to look at:
   both app build configurations; **it must stay off**, because it merges an empty dictionary over
   the real one and the only symptom is the flash coming back. See `docs/CONTRACTS.md` §7b.
 
-### One thing to know when the difference looks smaller than expected
+### Both appearances are retuned, and a bug that was caught by being asked about
 
-The appearance half of this pass is **almost entirely light-mode**. `Palette`'s dark values are
-byte-for-byte what they were: only `surface`, `hairline`, and `surfaceElevated` changed, and only
-their *light* halves. In dark appearance what changed is the card outlines coming off, the radii
-going 12 → 10, and the padding tightening — and against a dark background the outline that came off
-was already low-contrast. **A dark-mode device will look far more like the old build than a
-light-mode one does.** That is a consequence of treating light as the primary bright-shop-floor
-case, not a sign the change did not land.
+The first cut of this pass moved **only the light halves** of `Palette`. Dark was byte-for-byte
+unchanged — while the card outlines were removed in *both* appearances. That left dark-mode cards
+with nothing separating them from the background at all: 1.099:1, which is a card you cannot see.
+It did not fail, did not warn, and looked from a dark-mode device exactly like no work had been
+done.
+
+Dark now has its own retune, to the same relationship light has: a deeper ground (`#080B12`) and a
+clearly lifted card (`#18202E`), giving **1.204:1** — better separation than light's 1.151:1.
+`surfaceElevated`, `hairline`, `textPrimary`, and `textSecondary` moved with it.
+
+The same measurement found a second, pre-existing defect: `hairline` at 1.36:1 was doing duty as
+both a row separator *and* the edge of every text field, and WCAG 1.4.11 wants 3:1 on the boundary
+that identifies a control. `Palette.fieldBorder` now carries that job at 3.35:1 (light) and 3.36:1
+(dark) across twelve input sites; `hairline` stays faint for separators.
+
+**`CoreCreditTests/PaletteThemeTests.swift` measures all of it** — surface separation, 4.5:1 for
+every foreground and every status colour on a card, 4.5:1 for text on a solid status fill, 3:1 for
+the field border, Increase Contrast never making anything worse, and every token genuinely
+differing between the two schemes — in four appearances (light, dark, and each with Increase
+Contrast). That suite exists because a screenshot would have caught the original bug in one second
+and there is no screenshot: this repository is built on a machine with no simulator.
 
 ### What was actually verified
 

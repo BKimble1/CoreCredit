@@ -26,49 +26,88 @@ import UIKit
 /// Colour never carries meaning on its own. Every status is also drawn with its SF Symbol and its
 /// text label — see `StatusBadge`.
 ///
+/// # Both appearances are designed, not derived
+///
+/// Light is the primary case — a bright shop floor, a phone on a parts counter under fluorescent
+/// tube lighting — but dark is a first-class scheme with its own values rather than an inversion of
+/// light. The **relationship** is what is shared, and it is the thing to preserve when a value
+/// changes:
+///
+/// | | `background` (the ground) | `surface` (a card) | `surfaceElevated` (a well *in* a card) |
+/// |---|---|---|---|
+/// | Light | cool grey | **white — lifted** | slightly grey — **recessed** |
+/// | Dark | near-black navy | **lifted navy — lifted** | lighter navy — **raised** |
+///
+/// A card is separated from the ground by its own fill, in both appearances, which is why no card
+/// in this app is drawn with an outline. A well inside a card moves in whichever direction iOS
+/// itself moves a field well in that appearance — down in light, up in dark. Change one of these
+/// and the separation has to survive: `PaletteThemeTests` measures it in both schemes rather than
+/// trusting the eye of whoever edited the hex.
+///
 /// # Contrast
 ///
-/// Each light-mode status colour clears 4.5:1 against white, and each dark-mode status colour
-/// clears 4.5:1 against `background`, so the tinted pill treatment used by `StatusBadge` stays
-/// legible. `textSecondary`, `hairline`, and `muted` additionally darken (light) or brighten
-/// (dark) when the system's Increase Contrast setting is on.
+/// Every status colour clears 4.5:1 against `surface` — the card it is actually drawn on — in both
+/// appearances, so the tinted pill treatment used by `StatusBadge` stays legible. So do
+/// `textPrimary` and `textSecondary`. `textSecondary`, `hairline`, and `muted` additionally darken
+/// (light) or brighten (dark) when the system's Increase Contrast setting is on. All of it is
+/// measured in `PaletteThemeTests`, because "it looked fine on my screen" is not a contrast check.
 enum Palette {
 
     // MARK: Surfaces
 
-    /// Screen background: near-black navy in dark, cool off-white in light.
+    /// Screen background: the ground everything sits on.
     ///
-    /// Light is the bright-shop-floor case and is treated as the primary one. The value is the
-    /// cool grey iOS uses behind an inset-grouped list, so a `SectionCard` sitting on it reads the
-    /// way a settings row does rather than like a floating panel.
-    static let background = Palette.adaptive(light: 0xEDEFF3, dark: 0x0B0E14)
+    /// Cool grey in light — the value iOS uses behind an inset-grouped list, so a `SectionCard` on
+    /// it reads the way a settings row does rather than like a floating panel. Near-black navy in
+    /// dark, and deliberately *darker* than a card so the card is the thing that comes forward.
+    static let background = Palette.adaptive(light: 0xEDEFF3, dark: 0x080B12)
 
     /// Default card / list-row background.
     ///
-    /// White in light, so the separation from `background` comes from the surface itself and a
-    /// card needs no outline drawn round it. Cards are no longer stroked anywhere in the app.
-    static let surface = Palette.adaptive(light: 0xFFFFFF, dark: 0x141924)
+    /// **This is the token that replaced every card outline in the app**, so its separation from
+    /// `background` is load-bearing in *both* appearances: white against cool grey in light, and a
+    /// clearly lifted navy against near-black in dark. Removing the outlines without lifting this
+    /// in dark would have left dark-mode cards indistinguishable from the ground.
+    static let surface = Palette.adaptive(light: 0xFFFFFF, dark: 0x18202E)
 
     /// A well *inside* a surface — text fields, steppers, the inline vendor and bin forms.
     ///
     /// The name is historical: in dark it sits above `surface` and in light it sits very slightly
     /// below it, which is the direction iOS itself moves a field well in each appearance. Either
     /// way it is the token for "an input lives here", never for a second card.
-    static let surfaceElevated = Palette.adaptive(light: 0xF1F3F7, dark: 0x1E2532)
+    static let surfaceElevated = Palette.adaptive(light: 0xF1F3F7, dark: 0x222B3B)
 
-    /// One-pixel separators. No longer used as a card border — see `surface`.
+    /// One-pixel separators between rows. No longer used as a card border — see `surface` — and
+    /// deliberately faint: a separator's job is to group, and a strong line between every row of a
+    /// ledger is a cage. For the edge of something a person types into, use `fieldBorder`.
     static let hairline = Palette.adaptive(
         light: 0xD9DDE4, lightHighContrast: 0xA9B0BC,
-        dark: 0x2B3341, darkHighContrast: 0x4A5566
+        dark: 0x2E3747, darkHighContrast: 0x51607A
+    )
+
+    /// The edge of a text field, a picker row, or any other well a person is meant to act on.
+    ///
+    /// Separate from `hairline` for a measured reason. WCAG 1.4.11 asks for **3:1** on the visual
+    /// information needed to identify a user-interface component, and a field's edge is exactly
+    /// that here: `surfaceElevated` differs from `surface` by only about 1.1:1, so the fill alone
+    /// does not say "this is an input" — the border does. `hairline` reaches 1.36:1, which is right
+    /// for a separator and not nearly enough for a control.
+    ///
+    /// These clear 3:1 against `surface` in both appearances (3.35:1 light, 3.36:1 dark). Focus and
+    /// error states still override this with `accent` / `danger` *and* a thicker stroke, so neither
+    /// is carried by colour alone.
+    static let fieldBorder = Palette.adaptive(
+        light: 0x848D9C, lightHighContrast: 0x5C6675,
+        dark: 0x62728F, darkHighContrast: 0x8B9BB8
     )
 
     // MARK: Text
 
-    static let textPrimary = Palette.adaptive(light: 0x0E1420, dark: 0xF2F5FA)
+    static let textPrimary = Palette.adaptive(light: 0x0E1420, dark: 0xF4F7FC)
 
     static let textSecondary = Palette.adaptive(
         light: 0x5B6575, lightHighContrast: 0x3E4756,
-        dark: 0xA3AEC0, darkHighContrast: 0xC7D0DD
+        dark: 0xA9B4C6, darkHighContrast: 0xCCD5E1
     )
 
     // MARK: Semantic
@@ -141,8 +180,8 @@ enum Palette {
     /// kept private rather than exposed as a general-purpose token.
     private static let steel = Palette.adaptive(light: 0x2F5D7C, dark: 0x7FB0D0)
 
-    /// White on light fills, near-black on dark fills.
-    private static let contrastForeground = Palette.adaptive(light: 0xFFFFFF, dark: 0x0B0E14)
+    /// White on light fills, near-black on dark fills. Tracks `background` in each appearance.
+    private static let contrastForeground = Palette.adaptive(light: 0xFFFFFF, dark: 0x080B12)
 
     // MARK: Construction
 
@@ -172,4 +211,103 @@ enum Palette {
         let blue = CGFloat(hex & 0xFF) / 255.0
         return UIColor(red: red, green: green, blue: blue, alpha: 1.0)
     }
+}
+
+// MARK: - Previews
+
+/// Every surface and every status, so both appearances can be judged side by side.
+///
+/// The two previews below are the fastest way to check the thing this palette is built on: a card
+/// has to be visible against the ground *without* an outline, in light and in dark. If a card ever
+/// looks like it is floating on nothing in one of them, `surface` and `background` have drifted too
+/// close together — and `PaletteThemeTests` will say so in numbers.
+private struct PaletteSpecimen: View {
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.l) {
+                Text("Surfaces")
+                    .font(Typography.sectionTitle)
+                    .foregroundStyle(Palette.textPrimary)
+
+                // A card, drawn exactly as the app draws one: a fill, and nothing else.
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    Text("A card on the ground")
+                        .font(Typography.rowTitle)
+                        .foregroundStyle(Palette.textPrimary)
+
+                    Text("No outline. The fill is the whole separation.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+
+                    // A well inside it, with the border a real field gets.
+                    Text("A field well inside the card")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .padding(Spacing.m)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                                .fill(Palette.surfaceElevated)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                                .strokeBorder(Palette.fieldBorder, lineWidth: 1)
+                        )
+
+                    Divider().overlay(Palette.hairline)
+
+                    Text("A row separator, deliberately quieter than a field edge")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                }
+                .padding(Spacing.l)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                        .fill(Palette.surface)
+                )
+
+                Text("Status")
+                    .font(Typography.sectionTitle)
+                    .foregroundStyle(Palette.textPrimary)
+
+                VStack(alignment: .leading, spacing: Spacing.s) {
+                    ForEach(CoreStatus.allCases) { status in
+                        HStack(spacing: Spacing.m) {
+                            StatusBadge(status: status)
+                            Spacer(minLength: Spacing.s)
+                            Text(status.displayName)
+                                .font(Typography.caption)
+                                .foregroundStyle(Palette.color(for: status))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(Spacing.l)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                        .fill(Palette.surface)
+                )
+
+                Button { } label: {
+                    PrimaryButtonLabel("The one filled control", systemImage: "checkmark")
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(Spacing.l)
+        }
+        .background(Palette.background)
+    }
+}
+
+#Preview("Palette — light") {
+    PaletteSpecimen()
+        .preferredColorScheme(.light)
+}
+
+#Preview("Palette — dark") {
+    PaletteSpecimen()
+        .preferredColorScheme(.dark)
 }

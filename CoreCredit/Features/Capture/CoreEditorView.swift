@@ -680,7 +680,7 @@ struct CoreEditorView: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                            .strokeBorder(focusedField == .notes ? Palette.accent : Palette.hairline,
+                            .strokeBorder(focusedField == .notes ? Palette.accent : Palette.fieldBorder,
                                           lineWidth: focusedField == .notes ? 2 : 1)
                     )
                     .accessibilityLabel(Text("Notes"))
@@ -1024,7 +1024,7 @@ private struct EditorField: View {
 
     private var borderColor: Color {
         if hasError { return Palette.danger }
-        return focusedField == field ? Palette.accent : Palette.hairline
+        return focusedField == field ? Palette.accent : Palette.fieldBorder
     }
 
     /// Error and focus both thicken the border, so neither state depends on colour alone.
@@ -1071,7 +1071,7 @@ private struct PlainEntryField: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
                 .accessibilityLabel(Text(title))
         }
@@ -1122,7 +1122,7 @@ private struct PickerRowLabel: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(hasError ? Palette.danger : Palette.hairline,
+                .strokeBorder(hasError ? Palette.danger : Palette.fieldBorder,
                               lineWidth: hasError ? 2 : 1)
         )
         .contentShape(Rectangle())

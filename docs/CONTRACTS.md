@@ -1588,11 +1588,19 @@ by `PaywallView` — one reader for all three routes, identified by `A11y.Legal.
 
 ```swift
 // Palette.swift
+//
+// Both appearances are designed, not derived. The RELATIONSHIP is what must survive an edit:
+// a card is lifted from the ground by its own fill in each scheme (no card is drawn with an
+// outline anywhere in this app), and a well moves the way iOS moves a field well in that
+// scheme — down in light, up in dark. `CoreCreditTests/PaletteThemeTests.swift` measures it.
 enum Palette {
-    static let background: Color          // near-black navy in dark, off-white in light
-    static let surface: Color
-    static let surfaceElevated: Color
-    static let hairline: Color
+    static let background: Color          // the ground: cool grey in light, near-black navy in dark
+    static let surface: Color             // a card. Separates from `background` WITHOUT a border.
+    static let surfaceElevated: Color     // a well inside a card
+    static let hairline: Color            // row separators only — deliberately faint (1.36:1)
+    /// The edge of a text field or picker row. WCAG 1.4.11 wants 3:1 on the boundary that
+    /// identifies a control, and `hairline` is nowhere near it. 3.35:1 light, 3.36:1 dark.
+    static let fieldBorder: Color
     static let textPrimary: Color
     static let textSecondary: Color
     static let accent: Color              // restrained amber — warnings / "ready to return"

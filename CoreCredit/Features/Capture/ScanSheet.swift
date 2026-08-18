@@ -530,7 +530,7 @@ struct ScanSheet: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                            .strokeBorder(isManualEntryFocused ? Palette.accent : Palette.hairline,
+                            .strokeBorder(isManualEntryFocused ? Palette.accent : Palette.fieldBorder,
                                           lineWidth: isManualEntryFocused ? 2 : 1)
                     )
                     .accessibilityIdentifier(A11y.Scan.manualEntry)
