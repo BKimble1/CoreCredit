@@ -623,18 +623,23 @@ enum DisputePacketBuilder {
     /// Builds the compact portfolio report: the `RiskSummary` totals, then one row per core.
     ///
     /// - Throws: `ExportError.renderingFailed` when the renderer produces no bytes.
+    /// - Parameters:
+    ///   - generatedAt: The moment the report is a snapshot of. "Overdue" is judged against it.
+    ///   - calendar: The app's injected calendar. **Required, not defaulted.** This function used
+    ///     to reach for `Calendar.current` here, which made it the one place in the codebase where
+    ///     a date-sensitive result depended on ambient state: the totals were computed from the
+    ///     injected clock and the red tinting of overdue rows was not, so the same report could
+    ///     disagree with itself across a time-zone boundary. A default value would have hidden
+    ///     that again at every call site that forgot to pass one.
     static func makeLedgerPDFData(items: [CoreItemExportSnapshot],
                                   shop: ShopProfileSnapshot,
                                   summary: RiskSummary,
-                                  generatedAt: Date) throws -> Data {
+                                  generatedAt: Date,
+                                  calendar: Calendar) throws -> Data {
 
         let currencyCode = shop.currencyCode
         let shortFormatter = makeFormatter(dateFormat: "d MMM yyyy")
         let stampFormatter = makeFormatter(dateFormat: "d MMM yyyy 'at' h:mm a")
-
-        // The report is a snapshot taken at `generatedAt`, so "overdue" is judged against that
-        // moment on the device's own calendar.
-        let calendar = Calendar.current
 
         let documentTitle = "Core Ledger Report"
         let format = UIGraphicsPDFRendererFormat()

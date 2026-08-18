@@ -166,7 +166,8 @@ final class ExportCoordinator {
                 items: snapshots,
                 shop: shop,
                 summary: summary,
-                generatedAt: generatedAt
+                generatedAt: generatedAt,
+                calendar: dateProvider.calendar
             )
             presentedDocument = try ExportFileStore.write(data, baseName: name, kind: .pdf)
         } catch {

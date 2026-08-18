@@ -1,12 +1,36 @@
 workflows:
   corecredit-simulator-build:
-    name: CoreCredit Simulator Build
-    max_build_duration: 60
+    name: CoreCredit Simulator Build and Test
+    # Raised from 60: this workflow now runs the UI suite as well, which drives a full simulator
+    # session per test rather than executing pure functions.
+    max_build_duration: 120
+
+    # A gate has to actually run to be a gate. Before this block existed the workflow had no
+    # trigger at all, so it only ever ran when somebody remembered to press the button — which is
+    # how a UI suite reaches release day having never executed once. Every branch and every pull
+    # request builds and tests now. Nothing here signs or publishes anything.
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: '*'
+          include: true
+          source: true
+      cancel_previous_builds: true
 
     environment:
       xcode: 26.4
 
     scripts:
+      # Runs first because it costs two seconds and catches the class of mistake that would
+      # otherwise be found twenty minutes later by a failing UI test, or not at all: a drifted
+      # accessibility identifier, a non-additive SwiftData change, a placeholder support URL, a
+      # launch screen quietly disabled, a legal page edited by hand instead of regenerated.
+      - name: Verify repository invariants
+        script: |
+          python3 scripts/verify_repository.py
+
       - name: Verify Xcode project
         script: |
           xcodebuild -version
@@ -32,8 +56,7 @@ workflows:
       # destination and cannot run a test bundle. The device is *discovered* rather than named,
       # because the runner's simulator set changes with every Xcode image — hard-coding a model
       # fails the day that model is dropped. Any iPhone will do; these are unit tests with no
-      # device-specific behaviour. Unit tests only: the UI tests drive a full simulator session
-      # and belong in a longer job.
+      # device-specific behaviour.
       - name: Run the unit test suite
         script: |
           set -o pipefail
@@ -92,11 +115,71 @@ workflows:
           echo "xcodebuild exit status: $STATUS"
           exit $STATUS
 
+      # The UI suite. It used to be excluded from every workflow, which meant seven files of
+      # assertions written against real accessibility identifiers had never been evaluated even
+      # once — "compiled but never executed". This step is what stops that recurring.
+      #
+      # It is a separate step rather than a second `-only-testing` on the one above so that a UI
+      # failure is distinguishable from a unit failure in the log at a glance, and so the unit
+      # suite's result bundle survives even when the UI run dies.
+      #
+      # Every UI test launches with `-uiTesting`, so the store is in memory, the subscription
+      # engine is a stub, the notification scheduler is a recorder, and animations are off. No test
+      # touches the camera, live StoreKit, or a real notification.
+      - name: Run the UI test suite
+        script: |
+          set -o pipefail
+
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -E "^ +iPhone" \
+            | tail -n 1 \
+            | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")
+
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No available iPhone simulator was found on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Running UI tests on simulator $DEVICE_ID"
+
+          LOG="$CM_BUILD_DIR/xcodebuild-uitests.log"
+          STATUS=0
+
+          xcodebuild test \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=$DEVICE_ID" \
+            -only-testing:CoreCreditUITests \
+            -resultBundlePath "$CM_BUILD_DIR/CoreCreditUITests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$LOG" || STATUS=$?
+
+          echo ""
+          echo "=============== UI TEST FAILURE SUMMARY ==============="
+          echo "--- Recorded test issues ---"
+          grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
+          echo "--- XCTest failures ---"
+          grep -aE "^.*: error: .*failed" "$LOG" | head -n 40 || echo "(none)"
+          echo "--- Timed-out waits (the usual shape of a UI failure here) ---"
+          grep -a "Timed out after" "$LOG" | head -n 30 || echo "(none)"
+          echo "--- Run summary ---"
+          grep -a "Test run with" "$LOG" | tail -n 5 || echo "(none)"
+          echo "======================================================"
+          echo "xcodebuild exit status: $STATUS"
+
+          # Not tolerated. A failing UI test is a broken product or a broken test, and the brief
+          # for this app forbids weakening, skipping, or quarantining one to get a green build.
+          exit $STATUS
+
     artifacts:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/Products/Debug-iphonesimulator/CoreCredit.app
       - $CM_BUILD_DIR/xcodebuild.log
       - $CM_BUILD_DIR/xcodebuild-tests.log
+      - $CM_BUILD_DIR/xcodebuild-uitests.log
       - $CM_BUILD_DIR/CoreCreditTests.xcresult
+      - $CM_BUILD_DIR/CoreCreditUITests.xcresult
 
   # Signed build for internal TestFlight testing. No credentials are stored here:
   # App Store Connect auth comes from the Codemagic "CoreCredit App Store"
@@ -138,6 +221,13 @@ workflows:
         APP_STORE_APPLE_ID: "6802336957"
 
     scripts:
+      # The same gate as the test workflow. A signed build that ships a placeholder support URL is
+      # an App Review rejection, and this is the cheapest possible place to catch one.
+      - name: Verify repository invariants
+        script: |
+          set -e
+          python3 scripts/verify_repository.py
+
       - name: Verify Xcode project
         script: |
           set -e
