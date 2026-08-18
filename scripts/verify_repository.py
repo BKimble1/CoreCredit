@@ -23,6 +23,15 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Named rather than written inline: ten of this repository's Swift files are still CRLF, and the
+# checks below quote Swift's own triple-quote delimiter. Both are miserable to read as escapes
+# buried in a regex, and easy to mangle when this file is edited by a script rather than by hand.
+LF = chr(10)
+CRLF = chr(13) + LF
+QUOTE3 = chr(34) * 3
+TRIPLE_QUOTE_AT_END = QUOTE3 + r"\s*$"
+TRIPLE_QUOTE_AT_START = r"^\s*" + QUOTE3
+
 FAILURES = []
 NOTES = []
 
@@ -546,6 +555,92 @@ def check_testing_name_collisions():
              % ", ".join(collisions))
 
 
+def check_multiline_string_literals():
+    """A multi-line literal indented less than its closing delimiter does not compile.
+
+    Swift measures indentation from the line carrying the closing delimiter and strips exactly
+    that much from every content line. A content line with less than that is an error:
+    *insufficient indentation of line in multi-line string literal*.
+
+    This exists because sixteen of these were produced mechanically when the over-long #expect
+    messages were re-wrapped. A generator that gets the padding wrong breaks every one of them at
+    once, and the compiler is twenty minutes away on a build machine.
+    """
+    offenders, checked = [], 0
+    for path in swift_sources("CoreCredit", "CoreCreditTests", "CoreCreditUITests"):
+        source = io.open(path, encoding="utf-8", newline="").read()
+        lines = source.replace(CRLF, LF).split(LF)
+        index = 0
+        while index < len(lines):
+            if re.search(TRIPLE_QUOTE_AT_END, lines[index]):
+                closer = index + 1
+                while closer < len(lines) and not re.match(TRIPLE_QUOTE_AT_START, lines[closer]):
+                    closer += 1
+                if closer >= len(lines):
+                    offenders.append("%s:%d (unterminated)"
+                                     % (os.path.relpath(path, ROOT), index + 1))
+                    break
+                close_indent = len(lines[closer]) - len(lines[closer].lstrip())
+                for number in range(index + 1, closer):
+                    content = lines[number]
+                    if content.strip() and len(content) - len(content.lstrip()) < close_indent:
+                        offenders.append("%s:%d" % (os.path.relpath(path, ROOT), number + 1))
+                checked += 1
+                index = closer
+            index += 1
+    if offenders:
+        fail("multiline-literals",
+             "a multi-line string literal is indented less than its closing delimiter: "
+             + ", ".join(offenders))
+    else:
+        note("multi-line literals: %d checked, all indented past their closing delimiter" % checked)
+
+
+# Using one of these without importing its module is a compile error. SwiftUI and UIKit both
+# re-export Foundation, so importing either satisfies the Foundation entries.
+MODULE_SYMBOLS = {
+    "SwiftData": [r"\bModelContext\b", r"\bModelContainer\b", r"\bFetchDescriptor\b",
+                  r"\bModelConfiguration\b", r"@Model\b"],
+    "Testing": [r"#expect\(", r"#require\(", r"@Test\b", r"@Suite\b"],
+    "XCTest": [r"\bXCTAssert", r"\bXCUIApplication\b", r"\bXCTestCase\b", r"\bXCTContext\b"],
+    "UIKit": [r"\bUIColor\b", r"\bUIImage\b", r"\bUIPasteboard\b", r"\bUIApplication\b"],
+    "Foundation": [r"\bUserDefaults\b", r"\bJSONDecoder\b", r"\bJSONEncoder\b"],
+}
+
+IMPLIED_IMPORTS = {
+    "SwiftUI": {"Foundation", "CoreGraphics", "UIKit"},
+    "UIKit": {"Foundation", "CoreGraphics"},
+    "XCTest": {"Foundation"},
+    "SwiftData": {"Foundation"},
+}
+
+
+def check_module_imports():
+    """Every file that uses a module's symbols imports that module."""
+    offenders = []
+    for path in swift_sources("CoreCredit", "CoreCreditTests", "CoreCreditUITests"):
+        text = io.open(path, encoding="utf-8", newline="").read().replace(CRLF, LF)
+        body = LF.join(line.split("//")[0] for line in text.split(LF))
+        imports = set(re.findall(r"^\s*(?:@testable\s+)?import\s+(\w+)", text, re.M))
+        for name in list(imports):
+            imports |= IMPLIED_IMPORTS.get(name, set())
+        for module, patterns in MODULE_SYMBOLS.items():
+            if module in imports:
+                continue
+            for pattern in patterns:
+                match = re.search(pattern, body)
+                if match:
+                    offenders.append("%s:%d uses %s without importing %s"
+                                     % (os.path.relpath(path, ROOT),
+                                        body[:match.start()].count(LF) + 1,
+                                        match.group(0).strip(), module))
+                    break
+    if offenders:
+        fail("module-imports", "; ".join(offenders))
+    else:
+        note("module imports: every file imports the modules whose symbols it uses")
+
+
 def check_project_file():
     text = read("CoreCredit.xcodeproj", "project.pbxproj")
     if text.count("{") != text.count("}"):
@@ -572,6 +667,8 @@ def main():
     check_banned_swift_constructs()
     check_test_comment_literals()
     check_testing_name_collisions()
+    check_multiline_string_literals()
+    check_module_imports()
     check_project_file()
 
     print("CoreCredit repository invariants")
