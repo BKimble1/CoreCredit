@@ -1,5 +1,50 @@
 # CoreCredit — handoff
 
+## 0. AI Photo Assist (Beta) — added 2026-08-18, on `claude/ai-photo-assist-beta`
+
+A Pro-only, entirely on-device multi-photo assistant inside the existing Scan core surface. Branched
+from `ux/final-polish-pass` rather than from `main`, because the unified Scan core surface it
+attaches to exists only on that branch — `main` (51c0d119) predates it.
+
+### What was executed, and what it proves
+
+| Check | How | Result |
+|---|---|---|
+| 17 repository invariants | `python scripts/verify_repository.py` | **all 17 hold** |
+| Exhaustive-switch guard (new, invariant 17) | reverted the `PaywallView` fix on purpose | **caught it**, named the file, line, enum, and missing case |
+| Every exhaustive switch over 42 enums | invariant 17 | **complete**, zero false positives |
+| Brace/paren balance, string- and comment-aware | custom Swift scanner | **pass** on every changed file |
+| Every type referenced by the nine new files | symbol audit against 354 app declarations | **resolves** — the four unknowns are `CFData`, `UIViewRepresentable.Context`, the `@Observable` macro, and `UInt8` |
+| Every `A11yID` path used by the UI target | cross-check against `UITestSupport` | **resolves** |
+| Identifier mirror | invariant script | **103 shared identifiers agree** |
+
+### What was NOT executed, and is therefore not claimed
+
+| Thing | State |
+|---|---|
+| Compiling any of it | **not done** — still no Swift toolchain on this machine |
+| `PhotoAssistFusionTests`, `PhotoAssistSessionTests`, `PhotoAssistEntitlementTests` | **written, never run** |
+| `PhotoAssistUITests` | **written, never run** |
+| Vision text, barcode, classification, or feature-print accuracy | **never run on any hardware** |
+| ARKit depth and automatic capture | **never run on any hardware, and never compiled** — every ARKit path is `#if`-compiled out on the Simulator, which is the only place CI builds |
+| Camera, Photos import, memory under six full-size images | **never run** |
+
+### The honest shape of the risk
+
+The deterministic half — fusion, capping, conflict detection, precedence, limits, duplicate
+rejection, staleness, and the Pro gate — is pure, is covered by tests, and is the half where a bug
+would put a wrong number in a shop's ledger.
+
+The half that has never executed is the half that touches hardware. Within that, **the ARKit code
+is the single riskiest thing in this change**: it is excluded from the Simulator build, so CI can
+neither break on it nor vouch for it, and the first build that compiles it will be a signed device
+archive. If a TestFlight build fails where a simulator build passed, look there first.
+
+Recognition quality is not a promise anyone can make from a keyboard. `docs/DEVICE_ACCEPTANCE.md`
+§14 is the checklist, and every line of it is unchecked.
+
+---
+
 ## 1. The one thing to know first
 
 This repository is authored on a Windows machine with **no Swift toolchain** — `swift`, `swiftc`,

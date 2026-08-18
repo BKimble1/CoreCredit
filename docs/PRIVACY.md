@@ -60,12 +60,45 @@ server.
 
 ---
 
+## AI Photo Assist
+
+Added as a Pro feature. It changes nothing in this document's answers, and the reason is worth
+stating precisely rather than assuring.
+
+- **Photographs never leave the device.** They are held in memory for the life of one assist
+  session and are released when the sheet closes. Nothing is uploaded, and nothing is written to
+  the store by the assistant — it produces suggestions for an unsaved form, and only the form's own
+  Save writes anything.
+- **No photo-library permission is requested.** Importing uses `PhotosPicker`, which runs out of
+  process; the app receives only the images the user picked and never gains library access.
+- **The camera is requested only on the tap that needs it**, exactly as before this feature existed.
+  Nothing is requested at launch or during onboarding.
+- **Recognition is Apple's Vision framework, on-device.** Text, barcodes, image classification, and
+  feature prints all run locally. No prompt, no image, no recognised text, and no diagnostic is sent
+  anywhere, because the app makes no network requests of its own at all.
+- **Depth, where the hardware has it,** is read from ARKit scene depth during the capture screen's
+  own session and is discarded when that screen closes. No measurement is displayed, stored, or
+  written into a note.
+- **Automatic capture is bounded to the capture screen.** The AR session starts when that view is
+  created and is paused when it is torn down; a paused session delivers no frames, so nothing is
+  collected in the background.
+- **No new data is collected**, so the privacy manifest and the App Store Connect answers below are
+  unchanged.
+
+---
+
 ## Third-party SDKs
 
 **None.** The app links only Apple frameworks: SwiftUI, Observation, SwiftData, Vision,
-VisionKit, Core Image, ImageIO, UserNotifications, PDFKit, StoreKit, PhotosUI, AVFoundation
-(camera authorization only), UIKit, and Foundation. There is no analytics SDK, no advertising
-SDK, no crash reporter, and no dependency manager.
+VisionKit, ARKit and SceneKit (AI Photo Assist's optional depth and automatic capture, on
+devices that have a LiDAR scanner), Core Image, ImageIO, UserNotifications, PDFKit, StoreKit,
+PhotosUI, AVFoundation (camera authorization only), UIKit, and Foundation. There is no
+analytics SDK, no advertising SDK, no crash reporter, and no dependency manager.
+
+There is no Core ML model bundled with the app, no model downloaded at runtime, and no use of
+Private Cloud Compute or any hosted model. AI Photo Assist's "AI" is Apple's on-device Vision
+framework — the same one the document scanner already used — running on this device's own
+silicon.
 
 ---
 

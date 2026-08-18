@@ -2103,3 +2103,126 @@ is used, falling back to a locally constructed default for display only.
 | photo | `camera` |
 | export | `square.and.arrow.up` |
 | QR tag | `qrcode` |
+
+---
+
+## 10. AI Photo Assist (Beta) — cross-layer signatures
+
+Pro-only, entirely on-device. Full behavioural rules live in `docs/SCAN_CONTRACTS.md` §13; this
+section is the API surface other layers may depend on.
+
+### Domain — `CoreCredit/Domain/` (Foundation only)
+
+```swift
+enum PhotoAssistShot: String, CaseIterable, Codable, Sendable, Identifiable {
+    case part, label, invoice
+    var displayName: String { get }
+    var guidance: String { get }
+    var symbolName: String { get }
+}
+
+struct PhotoAssistObservation: Equatable, Sendable {
+    var imageIndex: Int
+    var shot: PhotoAssistShot?
+    var candidate: ScanCandidate
+}
+
+struct PhotoAssistFusionResult: Equatable, Sendable {
+    var candidates: [ScanCandidate]
+    var conflictedKinds: [ScanCandidateKind]
+    var hasConfidentIdentification: Bool
+    static let empty: PhotoAssistFusionResult
+}
+
+enum PhotoAssistFusion {
+    static let maximumImages = 6
+    static let reviewRequiredCeiling = 0.79
+    static let singleValuedKinds: Set<ScanCandidateKind>
+    static let noConfidentMatchMessage: String
+    static func fuse(_ observations: [PhotoAssistObservation]) -> PhotoAssistFusionResult
+    static func isAdmissible(_ candidate: ScanCandidate) -> Bool
+    static func identifies(_ candidates: [ScanCandidate]) -> Bool
+}
+```
+
+Additions to existing domain types: `ScanCandidateKind.partName` (fills `CoreItemField.partName`),
+`ScanSource.photoBarcode`, `ScanSource.imageClassification`, `PaywallTrigger.photoAssist`,
+`EntitlementPolicy.canUsePhotoAssist(tier:)`, `EntitlementPolicy.photoAssistTrigger(tier:)`.
+
+**Adding a case to any of these enums requires updating every exhaustive switch over it.**
+Invariant 17 in `scripts/verify_repository.py` fails the build when one is missed — it was added
+after `.photoAssist` silently broke `PaywallView.freeLimit`, two layers away.
+
+### Services — `CoreCredit/Services/`
+
+```swift
+protocol ImageClassifying: Sendable {
+    func classify(imageData: Data) async throws -> [ClassifiedLabel]
+}
+
+protocol ImageFingerprinting: Sendable {
+    func fingerprint(imageData: Data) async throws -> ImageFingerprint
+    func distance(_ left: ImageFingerprint, _ right: ImageFingerprint) throws -> Double
+}
+
+protocol DepthCaptureProviding: Sendable {
+    var isSceneDepthSupported: Bool { get }
+    func currentDepthSummary() async -> DepthSummary?
+}
+
+struct ClassifiedLabel: Equatable, Sendable, Identifiable { var identifier: String; var confidence: Double }
+struct ImageFingerprint: Equatable, Sendable { var data: Data }
+struct DepthSummary: Equatable, Sendable {
+    var subjectDistanceMetres: Double
+    var confidence: Double
+    var looksLikeHeldObject: Bool { get }
+}
+```
+
+Implementations: `VisionImageClassifier`, `VisionImageFingerprinter`, `ARKitDepthProvider` (real);
+`StubImageClassifier`, `StubImageFingerprinter`, `StubDepthProvider`, `UnsupportedDepthProvider`
+(deterministic). Text and barcodes go through the **existing** `TextRecognizing`; there is no second
+recogniser.
+
+### App shell — `CoreCredit/App/AppEnvironment.swift`
+
+Three new injected properties, chosen by `LaunchOptions` exactly as `textRecognizer` already was:
+
+```swift
+let imageClassifier: any ImageClassifying
+let imageFingerprinter: any ImageFingerprinting
+let depthProvider: any DepthCaptureProviding
+```
+
+`LaunchOptions.photoAssistScenario: PhotoAssistScenario?` (`-uiTestPhotoAssist`) substitutes
+scripted recognisers; ignored unless `isUITesting`.
+
+### Features — `CoreCredit/Features/Capture/`
+
+```swift
+@MainActor @Observable final class PhotoAssistSession {
+    init(recognizer: any TextRecognizing,
+         classifier: any ImageClassifying,
+         fingerprinter: any ImageFingerprinting,
+         depth: any DepthCaptureProviding = UnsupportedDepthProvider())
+
+    private(set) var photos: [Photo]
+    private(set) var phase: Phase
+    func add(_ data: Data, shot: PhotoAssistShot?) async -> AddOutcome
+    func remove(_ id: UUID)
+    func analyze() async
+    func cancel()
+    func reviewSession() -> ScanReviewSession?
+}
+
+struct PhotoAssistSheet: View {
+    init(onReviewReady: @escaping (ScanReviewSession) -> Void)
+}
+```
+
+`PhotoAssistSession` **is never given a `ModelContext`.** Its entire output is a
+`ScanReviewSession`, which the host feeds to the existing `ScanReviewSheet`. `CoreItemService`
+remains the only mutation path, reached only by the editor's own Save.
+
+`ARPhotoCaptureView` and everything else ARKit is compiled out under
+`targetEnvironment(simulator)`; `ARPhotoCapture.isSupported` is the single question the UI asks.

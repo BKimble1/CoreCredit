@@ -80,6 +80,15 @@ filtering (`CoreItemQuery`) are all plain functions over a `CoreItemRepresenting
 Both the SwiftData `CoreItem` and the `Codable` `CoreItemExportSnapshot` conform, so every
 calculation is unit-testable with no store and no rendering.
 
+**AI is Apple's, on this device, and cannot decide anything.** AI Photo Assist (Pro) reads up
+to six photographs with Vision — text, barcodes, image classification, feature prints — and ARKit
+scene depth where the hardware has it. There is no bundled Core ML model, no downloaded model, no
+hosted model, and no Private Cloud Compute. `PhotoAssistFusion` is pure `Foundation` and merges what
+the recognisers saw into `ScanCandidate`s; a photograph may propose a part *name* but never a part
+number, a vendor, a reference, or an amount of money, and a core charge is never pre-ticked. The
+output is the same `ScanReviewSession` a live scan produces, so it lands in the same review sheet
+and still requires the form's own Save.
+
 **Time is injected.** Nothing in a calculation calls `Date()` or `Calendar.current`; they take
 a `DateProvider`. `SystemDateProvider` in the app, `FixedDateProvider` in tests. That is what
 makes due-date and aging-bucket boundaries deterministic.

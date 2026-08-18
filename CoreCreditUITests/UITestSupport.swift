@@ -273,6 +273,8 @@ enum LaunchFlag {
     static let storeKitFailure = "-uiTestStoreKitFailure"
     static let scannerPayload = "-uiTestScannerPayload"
     static let skipOnboarding = "-uiTestSkipOnboarding"
+    /// Scripts what AI Photo Assist "sees". Values: success, conflict, noMatch, depth.
+    static let photoAssist = "-uiTestPhotoAssist"
 
     /// Delivers a `corecredit://` URL at launch, as though the system had opened it.
     static let deepLink = "-uiTestDeepLink"

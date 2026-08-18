@@ -501,3 +501,100 @@ and `ModelContainerFactory` building `Schema(versionedSchema: CoreCreditSchemaV2
 Existing TestFlight stores must open unchanged. `CoreItemDraft` gains matching optional fields;
 `CoreItemService.createItem`/`update` persist them. The confirmed part number stays in
 `partNumber` — the raw payload must never overwrite it.
+
+---
+
+## 13. AI Photo Assist (Beta) — `Domain/PhotoAssistFusion.swift`, `Features/Capture/PhotoAssist*`
+
+A Pro-only, entirely on-device assistant that reads up to six photographs and proposes values for
+an unsaved `CoreItemDraft`. It adds one thing to the scan layer — fusion *across* images — and
+reuses everything else.
+
+### What it reuses rather than reimplements
+
+| Concern | Owner | Notes |
+|---|---|---|
+| Text out of an image | `TextRecognizing.recognizeLines(in:)` | Vision impl + stub already existed |
+| Symbols out of an image | `TextRecognizing.recognizeBarcodes(in:)` | ditto |
+| Text → candidates | `OCRSuggestionExtractor.candidates(from:source:)` | every ranking and negative-keyword rule |
+| Symbol → candidates | `BarcodePayloadClassifier.candidates(for:)` | including "a UPC never becomes a part number" |
+| Money | `Money.parse` under `en_US_POSIX` | `Int64` cents, no `Double` |
+| Confidence bands | `ScanConfidenceBand` | High / Medium / Low, `.high` alone pre-selects |
+| Review | `ScanReviewSession` → `ScanReviewSheet` | no second, competing form |
+
+### Vocabulary added
+
+- `ScanCandidateKind.partName` — what a part *is*, in words. The only kind image classification may
+  produce. Fills `CoreItemField.partName`.
+- `ScanSource.photoBarcode` — a symbol decoded from a still. Displays as "Barcode".
+- `ScanSource.imageClassification` — Apple's general classifier. Displays as "Image".
+- `PaywallTrigger.photoAssist`, `EntitlementPolicy.canUsePhotoAssist(tier:)`.
+
+### Fusion rules — `PhotoAssistFusion.fuse(_:) -> PhotoAssistFusionResult`
+
+Pure: no clock, no randomness, no I/O. Same input, same output, always.
+
+1. **A photograph of a part cannot know a number.** A candidate whose `source` is
+   `.imageClassification` is admitted only when its `kind` is `.partName`. Every other kind is
+   dropped — not down-ranked, not shown unticked. Enforced in fusion, not trusted to the classifier,
+   which has no idea what it is not allowed to say.
+2. **Money is never pre-ticked.** Any `.coreAmount` is capped to
+   `PhotoAssistFusion.reviewRequiredCeiling` (`0.79`), just below the `.high` band that
+   `isSafeToPreselect` reads. Capping never disturbs the parsed cents.
+3. **Disagreement is shown, not resolved.** Two distinct values for a single-valued kind mark that
+   kind conflicted: every candidate of it is capped below pre-selection and its `reason` names the
+   other reading. `.barcode`, `.date`, and `.unknown` are excluded — a part and its box legitimately
+   carry different symbols.
+4. **Corroboration is reported, never rewarded.** A value found in several photographs gains the
+   sentence "Read from N photos" and *no* score. Agreement between photographs of one label mostly
+   means the label was legible twice.
+5. **Precedence is by source, not by score.** Barcode > OCR > classification, regardless of the
+   numbers each reports.
+6. **Identifiers are compared exactly; prose is compared loosely.** `03-1887` and `031887` are a
+   genuine conflict. `NAPA` and `Napa` are not.
+7. **`hasConfidentIdentification`** is true only for a `.partNumber` or `.barcode` at `.medium` or
+   better. A part *name* never counts. When false, the screen shows
+   `PhotoAssistFusion.noConfidentMatchMessage` rather than dressing a shrug up as a suggestion.
+
+Nothing in this layer can produce a bin, a status, a returned state, a credit, a return eligibility,
+a received date, or a due date — there is no `ScanCandidateKind` that maps to any of them, and
+`PhotoAssistFusionTests` asserts that the set of fillable fields stays disjoint from them.
+
+### Depth — `DepthCaptureProviding`
+
+LiDAR is an enhancement, never the identification engine. It answers exactly one question: *was
+something held up to the camera, or is this the far wall?* It adjusts the `reason` sentence on a
+classification candidate and **nothing else** — never a score, never a measurement shown to anybody,
+never an approximate dimension written into a note.
+
+- Capability comes from `ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth)`, asked of
+  the framework, never inferred from a device name.
+- `UnsupportedDepthProvider` is the default and is what every simulator and every non-LiDAR iPhone
+  uses. The feature is identical without depth; `PhotoAssistSessionTests` asserts the two paths
+  produce the same candidate kinds.
+- All ARKit code is compiled out entirely under `targetEnvironment(simulator)`.
+
+### Session — `PhotoAssistSession`
+
+- At most `PhotoAssistFusion.maximumImages` (6) photographs.
+- A near-identical view is refused by feature-print distance
+  (`PhotoAssistSession.duplicateDistanceThreshold`).
+- Every mutation bumps a generation; an analysis whose generation is stale discards its own results,
+  so deleting a photo mid-analysis cannot repopulate the review afterwards.
+- Analysis is sequential and off the main actor, so six full-size Vision passes are never alive at
+  once.
+- **The session is never given a `ModelContext` and cannot reach one.** It produces a
+  `ScanReviewSession` and nothing else.
+
+### Entitlement
+
+Pro-only, on either the monthly or the annual product. There is no second paywall and no third
+product identifier. The free tier is **not** narrowed: its rule is still that free is limited only in
+creating new unresolved cores, and existing records are still never gated. Manual entry, Live scan,
+and Document scan remain free.
+
+### UI test seam
+
+`-uiTestPhotoAssist <success|conflict|noMatch|depth>` scripts what the recognisers report, and is
+ignored unless `-uiTesting` is also set. Everything downstream of that seam — fusion, capping,
+conflict detection, the review sheet — is the real implementation. Only the pixels are fake.

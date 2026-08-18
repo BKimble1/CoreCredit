@@ -49,6 +49,22 @@ is offered in the **United States** storefront only.
 The Privacy Policy and Terms of Use are also readable **inside the app**, with no connection, at
 Settings → Legal. The published pages are generated from the same text, so the two cannot differ.
 
+**AI Photo Assist (Beta) — what the "AI" is, and where it runs**
+
+A Pro feature. The reviewer will see it on the Scan core screen, marked Beta, with a lock on the
+free tier.
+
+- It runs **entirely on the device**, using Apple's **Vision** framework for text, barcodes, and
+  image classification, and **ARKit** scene depth on devices with a LiDAR scanner.
+- There is **no bundled Core ML model, no model downloaded at runtime, no server, no API key, and
+  no use of Private Cloud Compute.** The app makes no network requests of its own at all.
+- **No photo-library permission is requested**: importing uses `PhotosPicker`, which runs out of
+  process. The camera is requested only on the tap that opens it.
+- It **suggests**; it never saves. Every value lands in an unsaved form for the user to review, and
+  the form's own Save is still the only thing that writes a record.
+- It is deliberately **not** described as Apple Intelligence, and does not use the Foundation Models
+  framework.
+
 **What CoreCredit does**
 
 CoreCredit is a record-keeping tool for independent auto-repair shops. When a shop buys a

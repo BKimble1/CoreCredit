@@ -173,6 +173,99 @@ The one workflow that crosses process boundaries and cannot be simulated end to 
 | 13.11 | Evidence photos are **absent** after restore, as the app said they would be | ☐ |
 | 13.12 | Restoring onto a **second device** reproduces the ledger | ☐ |
 
+## 14. AI Photo Assist (Beta) — Pro only
+
+Everything below is **unperformed**. None of it can be: this feature was written on a machine with
+no Swift compiler, and its recognition quality, its camera behaviour, and its LiDAR path have never
+run on hardware of any kind. The automated suite covers the deterministic half — fusion, capping,
+conflict detection, limits, duplicate rejection, staleness, and the Pro gate — and can say nothing
+whatever about whether a photograph of a greasy alternator in a badly lit shop actually reads.
+
+Run **section 14 in full on one LiDAR-capable iPhone or iPad and one iPhone without a LiDAR
+scanner.** The two devices take genuinely different paths.
+
+### 14.1 The gate
+
+| # | Check | Pass |
+|---|---|---|
+| 14.1.1 | On **Free**, the row is visible on Scan core, shows a lock, and explains itself | ☐ |
+| 14.1.2 | Tapping it on Free opens the paywall, not the feature | ☐ |
+| 14.1.3 | Closing that paywall leaves the capture sheet open and unchanged | ☐ |
+| 14.1.4 | A sandbox **monthly** purchase unlocks it | ☐ |
+| 14.1.5 | A sandbox **annual** purchase unlocks it | ☐ |
+| 14.1.6 | A sandbox subscription **expiring** re-locks it, and locks nothing else | ☐ |
+| 14.1.7 | On Free, manual entry, Live scan, and Document scan all still work | ☐ |
+
+### 14.2 Gathering photographs
+
+| # | Check | Pass |
+|---|---|---|
+| 14.2.1 | *Choose from Photos* opens the picker with **no** photo-library permission prompt | ☐ |
+| 14.2.2 | Several photos can be selected in one pass | ☐ |
+| 14.2.3 | *Take photo* prompts for the camera **only on that tap**, never before | ☐ |
+| 14.2.4 | Declining the camera leaves importing and manual entry fully usable | ☐ |
+| 14.2.5 | The seventh photo is refused with a message naming the limit | ☐ |
+| 14.2.6 | Two shots of the same view are refused as a duplicate | ☐ |
+| 14.2.7 | Removing a thumbnail frees a slot, and a new photo can be added | ☐ |
+| 14.2.8 | Removing a photo after a read clears the stale suggestions | ☐ |
+
+### 14.3 Automatic capture — LiDAR/ARKit device only
+
+| # | Check | Pass |
+|---|---|---|
+| 14.3.1 | The Auto control appears on this device, and **not** on the non-LiDAR one | ☐ |
+| 14.3.2 | Holding steady collects a frame; moving does not | ☐ |
+| 14.3.3 | "Hold steady" / "Captured" and the running count are all shown | ☐ |
+| 14.3.4 | One steady hand does **not** fill all six slots (cooldown + duplicate rejection) | ☐ |
+| 14.3.5 | Collection stops at six | ☐ |
+| 14.3.6 | Switching Auto off ends the session immediately | ☐ |
+| 14.3.7 | Closing the sheet ends it; backgrounding the app collects nothing | ☐ |
+| 14.3.8 | A photo captured in portrait is **not** analysed sideways | ☐ |
+
+### 14.4 Recognition quality — the part nobody can promise
+
+| # | Check | Pass |
+|---|---|---|
+| 14.4.1 | A printed parts label reads correctly in ordinary shop light | ☐ |
+| 14.4.2 | **Low light**: it either reads or says it could not — never a confident wrong answer | ☐ |
+| 14.4.3 | A **reflective or dirty** metal casting does not produce a fabricated part number | ☐ |
+| 14.4.4 | A **part-only** photo, with no label, offers a part *name* and no number | ☐ |
+| 14.4.5 | A **box panel** photo reads its barcode, and the UPC does not become a part number | ☐ |
+| 14.4.6 | An invoice with **several amounts** picks the core charge, not the total, tax, or freight | ☐ |
+| 14.4.7 | The core charge arrives **unticked**, every time | ☐ |
+| 14.4.8 | **Conflicting** photos of two different part numbers show both, ticked neither | ☐ |
+| 14.4.9 | A vendor name matches an existing vendor; an unknown one is not silently created | ☐ |
+| 14.4.10 | Nothing suggests a bin, a status, a due date, or a credit | ☐ |
+
+### 14.5 Depth
+
+| # | Check | Pass |
+|---|---|---|
+| 14.5.1 | LiDAR device: the capability line mentions the depth scanner | ☐ |
+| 14.5.2 | Non-LiDAR device: it reads "Standard camera analysis" and everything still works | ☐ |
+| 14.5.3 | A part held at arm's length and the same part across the room produce the **same** suggestions, differing only in the explanation | ☐ |
+| 14.5.4 | No measurement appears anywhere, and none is written into notes | ☐ |
+
+### 14.6 Memory and repetition
+
+| # | Check | Pass |
+|---|---|---|
+| 14.6.1 | Six full-resolution photographs analyse without the app being killed | ☐ |
+| 14.6.2 | Ten sessions back to back do not degrade or leak | ☐ |
+| 14.6.3 | Closing mid-analysis returns to the scanner promptly, with no spinner left behind | ☐ |
+| 14.6.4 | Repeated open/close of Auto capture does not leave the camera running | ☐ |
+
+### 14.7 Accessibility
+
+| # | Check | Pass |
+|---|---|---|
+| 14.7.1 | VoiceOver reads the guided shots, and says which are added | ☐ |
+| 14.7.2 | VoiceOver announces analysis progress | ☐ |
+| 14.7.3 | Each suggestion is announced with its confidence **and** where it came from | ☐ |
+| 14.7.4 | Every thumbnail's remove action is reachable and at least 44pt | ☐ |
+| 14.7.5 | Largest accessibility type size: nothing clips on any of these screens | ☐ |
+| 14.7.6 | Light, Dark, and Match Device all render correctly | ☐ |
+
 ---
 
 ## Known limits to confirm rather than fix
@@ -189,8 +282,9 @@ These are deliberate. Confirm the behaviour matches the documentation rather tha
 ## Sign-off
 
 A build may go to TestFlight with this incomplete. It may **not** go to public App Store review
-with sections 1–4, 6, 7, 9, or 13 unchecked: those are the paths where a failure costs a shop money
-or data rather than convenience.
+with sections 1–4, 6, 7, 9, 13, or 14 unchecked: those are the paths where a failure costs a shop
+money or data rather than convenience. Section 14 is listed here because a fabricated part number or a
+mis-read core charge is a wrong number in a ledger somebody reconciles against a vendor.
 
 ```
 Sections completed: ______   Blocking failures: ______
