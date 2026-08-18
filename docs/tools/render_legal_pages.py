@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""Render the public legal/support pages from the documents that ship inside the app.
+
+    python3 docs/tools/render_legal_pages.py
+
+CoreCredit shows its Privacy Policy and Terms of Use natively, on device, with no network
+connection: the text is compiled in as JSON under `CoreCredit/Resources/Legal/`. App Store Connect
+also needs those documents at a public URL, which means a second copy exists — and a second copy
+maintained by hand is a second copy that drifts.
+
+So the JSON is the single source of truth and the HTML is generated from it. If the in-app wording
+changes, re-run this and commit both. `LegalDocumentTests` checks the JSON; this script guarantees
+the published copy says exactly the same thing.
+
+The support page has no in-app JSON counterpart — `LegalSupportView` builds it natively from
+`AppConfiguration` — so its content lives in this file, next to the constants it shares.
+
+Output is plain static HTML: no external stylesheet, no web font, no image, no script, no cookie,
+no analytics, no tracker. That is a promise the Privacy Policy makes, and it has to be true of the
+page making it.
+"""
+
+import html
+import io
+import json
+import os
+
+# ----------------------------------------------------------------- owner-supplied constants
+
+COMPANY = "Idlery Services LLC"
+EMAIL = "idlery.apps@gmail.com"
+COPYRIGHT = "Copyright 2026 Idlery Services LLC"
+APP_NAME = "CoreCredit"
+
+SITE_ROOT = "https://bkimble1.github.io/CoreCredit-Legal"
+SUPPORT_URL = SITE_ROOT + "/support"
+PRIVACY_URL = SITE_ROOT + "/privacy"
+TERMS_URL = SITE_ROOT + "/terms"
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+LEGAL_JSON = os.path.join(REPO_ROOT, "CoreCredit", "Resources", "Legal")
+OUTPUT = os.path.join(REPO_ROOT, "docs", "legal-public")
+
+# ----------------------------------------------------------------- shared page furniture
+
+STYLE = """
+    :root {
+      color-scheme: light dark;
+      --ink: #0b1220;
+      --ink-soft: #55617a;
+      --ground: #e7edfa;
+      --card: #ffffff;
+      --rule: #d3dcec;
+      --accent: #0053fd;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #f4f7fc;
+        --ink-soft: #a9b4c6;
+        --ground: #080b12;
+        --card: #18202e;
+        --rule: #2e3747;
+        --accent: #5b93ff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0 1rem 4rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 1.0625rem;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--ground);
+      -webkit-text-size-adjust: 100%;
+    }
+    .wrap { max-width: 44rem; margin: 0 auto; }
+    a { color: var(--accent); }
+    a:focus-visible, .skip:focus { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .skip {
+      position: absolute; left: -9999px; top: 0;
+      background: var(--card); color: var(--ink); padding: 0.75rem 1rem; border-radius: 0.5rem;
+    }
+    .skip:focus { left: 0.5rem; top: 0.5rem; z-index: 10; }
+    header { padding: 2.5rem 0 1.25rem; }
+    .eyebrow {
+      font-size: 0.8125rem; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--ink-soft); margin: 0 0 0.5rem;
+    }
+    h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 0.75rem; }
+    h2 { font-size: 1.25rem; line-height: 1.3; margin: 2.25rem 0 0.5rem; }
+    .meta { font-size: 0.9375rem; color: var(--ink-soft); margin: 0; }
+    .summary {
+      background: var(--card); border-radius: 0.625rem;
+      padding: 1.125rem 1.25rem; margin: 1.5rem 0 0;
+    }
+    .summary p { margin: 0; }
+    main { background: var(--card); border-radius: 0.625rem; padding: 0.5rem 1.25rem 1.5rem; }
+    main p { margin: 0 0 1rem; }
+    main ul { margin: 0 0 1rem; padding-left: 1.25rem; }
+    main li { margin: 0 0 0.5rem; }
+    nav.pages { margin: 1.25rem 0 0; font-size: 0.9375rem; }
+    nav.pages a { display: inline-block; margin-right: 1rem; }
+    footer {
+      margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+      font-size: 0.9375rem; color: var(--ink-soft);
+    }
+    footer p { margin: 0 0 0.5rem; }
+    code { font-size: 0.9375em; }
+"""
+
+
+def page(title, eyebrow, heading, meta, summary, body_html, description):
+    """One complete, self-contained HTML document."""
+    nav = (
+        '<nav class="pages" aria-label="Legal documents">'
+        '<a href="/CoreCredit-Legal/">Home</a>'
+        '<a href="/CoreCredit-Legal/support">Support</a>'
+        '<a href="/CoreCredit-Legal/privacy">Privacy</a>'
+        '<a href="/CoreCredit-Legal/terms">Terms</a>'
+        "</nav>"
+    )
+    summary_html = (
+        '<div class="summary"><p>%s</p></div>' % html.escape(summary) if summary else ""
+    )
+    meta_html = '<p class="meta">%s</p>' % html.escape(meta) if meta else ""
+    return """<!DOCTYPE html>
+<!--
+  %s for %s, published by %s.
+
+  Generated by docs/tools/render_legal_pages.py from the documents that ship inside the app, so
+  the published wording and the on-device wording cannot drift apart. Do not edit by hand.
+
+  No external stylesheet, web font, image, script, cookie, analytics, or tracker of any kind.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="index, follow">
+    <meta name="description" content="%s">
+    <title>%s</title>
+    <style>%s</style>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+    <div class="wrap">
+      <header>
+        <p class="eyebrow">%s</p>
+        <h1>%s</h1>
+        %s
+        %s
+        %s
+      </header>
+      <main id="content">
+%s
+      </main>
+      <footer>
+        <p>%s is published by %s.</p>
+        <p>Questions: <a href="mailto:%s">%s</a></p>
+        <p>%s. Version 1 is offered on the App Store in the United States only.</p>
+      </footer>
+    </div>
+  </body>
+</html>
+""" % (
+        html.escape(title), APP_NAME, COMPANY,
+        html.escape(description),
+        html.escape(title),
+        STYLE,
+        html.escape(eyebrow),
+        html.escape(heading),
+        meta_html,
+        summary_html,
+        nav,
+        body_html,
+        APP_NAME, COMPANY,
+        EMAIL, EMAIL,
+        COPYRIGHT,
+    )
+
+
+def linkify(text):
+    """Turns bare URLs and the support address into real links, escaping everything else."""
+    escaped = html.escape(text)
+    for url in (SUPPORT_URL, PRIVACY_URL, TERMS_URL):
+        escaped = escaped.replace(url, '<a href="%s">%s</a>' % (url, url))
+    escaped = escaped.replace(EMAIL, '<a href="mailto:%s">%s</a>' % (EMAIL, EMAIL))
+    return escaped
+
+
+def render_document(identifier, filename, description):
+    """Renders one in-app JSON document as a public page, section for section."""
+    path = os.path.join(LEGAL_JSON, identifier + ".json")
+    doc = json.load(io.open(path, encoding="utf-8"))
+
+    parts = []
+    for section in doc["sections"]:
+        parts.append("        <h2>%s</h2>" % html.escape(section["heading"]))
+        for paragraph in section["paragraphs"]:
+            parts.append("        <p>%s</p>" % linkify(paragraph))
+
+    document = page(
+        title="%s - %s" % (doc["title"], APP_NAME),
+        eyebrow=APP_NAME,
+        heading=doc["title"],
+        meta="Version %s. Effective %s." % (doc["version"], doc["effectiveDate"]),
+        summary=doc["summary"],
+        body_html="\n".join(parts),
+        description=description,
+    )
+    io.open(os.path.join(OUTPUT, filename), "w", encoding="utf-8", newline="\n").write(document)
+    return filename, len(doc["sections"])
+
+
+SUPPORT_SECTIONS = [
+    ("Getting help", [
+        "Email <a href=\"mailto:%s\">%s</a>. That address reaches the people who make %s, and it "
+        "is the only support channel - there is no phone line and no support portal to sign into."
+        % (EMAIL, EMAIL, APP_NAME),
+        "It helps to include the app version (Settings &rarr; About), the device and iOS version, "
+        "and what you expected to happen. Please do not email screenshots containing a customer's "
+        "personal details.",
+    ]),
+    ("Things you can do without waiting for a reply", [
+        "<strong>A scan will not read.</strong> Every field can be typed by hand. On the Scan core "
+        "screen there is always a manual-entry field, in every state, including when the camera is "
+        "unavailable or access was declined.",
+        "<strong>A core went back but the money has not arrived.</strong> That is deliberate. A "
+        "core stays counted in Money at risk until a real vendor credit is recorded against it. "
+        "Returning it does not settle it.",
+        "<strong>A credit came back short.</strong> Record the credit you actually received. The "
+        "app moves the core to Disputed, shows the shortfall, and can export a dispute packet.",
+        "<strong>You have reached the free limit.</strong> The free tier allows five unresolved "
+        "cores at once. Credited and written-off cores do not count, so settling one frees a slot. "
+        "Nothing you have already logged is ever hidden or locked.",
+        "<strong>You want your data out.</strong> Settings &rarr; Data &amp; export writes a "
+        "spreadsheet (CSV) and a portable JSON backup through the standard share sheet.",
+        "<strong>You need to move to a new device or undo a mistake.</strong> Settings &rarr; Data "
+        "&amp; export &rarr; Restore from backup reads a backup file this app wrote. A restore "
+        "replaces everything currently on the device - it is not a merge - and it does not bring "
+        "back evidence photos, which are not stored in the backup file.",
+    ]),
+    ("What CoreCredit is", [
+        "%s is a local-first ledger for parts-core charges: what a vendor is holding, when it has "
+        "to go back, and whether the credit ever actually arrived." % APP_NAME,
+        "It is not accounting, tax, financial, or legal advice, not a repair-order or inventory "
+        "system, and not a guarantee that any vendor will accept a return or issue a credit.",
+    ]),
+    ("Your data", [
+        "Everything you enter stays on your device. There is no account, no sign-in, no %s server, "
+        "and no analytics, advertising, or tracking of any kind. Nothing is sold or shared." % APP_NAME,
+        "The full details are in the <a href=\"%s\">Privacy Policy</a>." % PRIVACY_URL,
+    ]),
+    ("Subscriptions", [
+        "%s Pro is an auto-renewable subscription sold through Apple. Payment is charged to your "
+        "Apple Account, it renews automatically unless you turn renewal off at least 24 hours "
+        "before the period ends, and you can cancel or manage it at any time in Settings on your "
+        "device under your Apple Account." % APP_NAME,
+        "Restore Purchases is in Settings &rarr; Subscription and on the upgrade screen. Refunds "
+        "are handled by Apple, not by %s." % COMPANY,
+        "Prices are shown in the app exactly as Apple reports them for your storefront.",
+    ]),
+    ("Reporting a problem or a privacy request", [
+        "Email <a href=\"mailto:%s\">%s</a>. Because %s holds none of your data, a deletion "
+        "request is something you carry out yourself: Settings &rarr; Data &amp; export &rarr; "
+        "Erase, or delete the app, which removes its container and everything in it."
+        % (EMAIL, EMAIL, COMPANY),
+    ]),
+]
+
+INDEX_SECTIONS = [
+    ("Documents", [
+        '<ul>'
+        '<li><a href="%s">Support</a> - how to get help, and what to try first.</li>'
+        '<li><a href="%s">Privacy Policy</a> - what the app stores, and what it does not.</li>'
+        '<li><a href="%s">Terms of Use</a> - the agreement covering the app.</li>'
+        '</ul>' % (SUPPORT_URL, PRIVACY_URL, TERMS_URL),
+    ]),
+    ("About this site", [
+        "This site publishes the support and legal pages for %s, the iOS app published by %s. It "
+        "hosts nothing else." % (APP_NAME, COMPANY),
+        "The Privacy Policy and Terms of Use here are generated from the same text the app shows "
+        "on device, so the two cannot say different things.",
+    ]),
+]
+
+
+def render_static(filename, title, heading, summary, sections, description):
+    parts = []
+    for heading_text, paragraphs in sections:
+        parts.append("        <h2>%s</h2>" % html.escape(heading_text))
+        for paragraph in paragraphs:
+            parts.append("        <p>%s</p>" % paragraph)
+    document = page(
+        title=title,
+        eyebrow=APP_NAME,
+        heading=heading,
+        meta="",
+        summary=summary,
+        body_html="\n".join(parts),
+        description=description,
+    )
+    io.open(os.path.join(OUTPUT, filename), "w", encoding="utf-8", newline="\n").write(document)
+    return filename, len(sections)
+
+
+def main():
+    if not os.path.isdir(OUTPUT):
+        os.makedirs(OUTPUT)
+
+    written = [
+        render_document("privacy-policy", "privacy.html",
+                        "How CoreCredit handles your information: it stays on your device."),
+        render_document("terms-of-use", "terms.html",
+                        "The terms covering use of the CoreCredit iOS app."),
+        render_static(
+            "support.html",
+            "Support - %s" % APP_NAME,
+            "Support",
+            "Email %s. There is no account to recover and no server to be down - %s runs entirely "
+            "on your device." % (EMAIL, APP_NAME),
+            SUPPORT_SECTIONS,
+            "How to get help with CoreCredit, and what to try first.",
+        ),
+        render_static(
+            "index.html",
+            "%s - Support and Legal" % APP_NAME,
+            "%s" % APP_NAME,
+            "Support and legal documents for %s, a local-first parts-core and vendor-credit "
+            "ledger for repair shops." % APP_NAME,
+            INDEX_SECTIONS,
+            "Support and legal documents for the CoreCredit iOS app.",
+        ),
+    ]
+
+    print("rendered into docs/legal-public/:")
+    for filename, count in written:
+        size = os.path.getsize(os.path.join(OUTPUT, filename))
+        print("  %-14s %6d bytes  %d sections" % (filename, size, count))
+
+
+if __name__ == "__main__":
+    main()

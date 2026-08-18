@@ -105,9 +105,25 @@
     {
       "heading": "Limits on responsibility",
       "paragraphs": [
-        "To the fullest extent the law allows, the developer is not responsible for a missed vendor deadline, a credit that was never issued, a figure entered or recognised incorrectly, lost records, or any business loss arising from your use of the app.",
-        "The app is a record of what you entered. Decisions about money, deadlines, disputes, and vendors remain yours.",
-        "The governing law and the place where disputes are handled must be stated here before public release: [TO BE SUPPLIED BY OWNER - governing law and venue]."
+        "To the fullest extent the law allows, Idlery Services LLC is not liable for indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, lost revenue, lost business, or lost or corrupted data, arising out of or relating to CoreCredit - even if the possibility of those damages was known.",
+        "To the fullest extent the law allows, the total liability of Idlery Services LLC for any claim relating to CoreCredit is limited to the amount you paid for the app and its subscription in the twelve months before the claim arose.",
+        "Some jurisdictions do not allow some of these exclusions or limits. Where that is the case, the exclusions and limits above apply only as far as that jurisdiction allows, and nothing here removes a right you have that cannot be waived.",
+        "Nothing in these terms limits liability for fraud, or for anything else that cannot be limited by law."
+      ]
+    },
+    {
+      "heading": "Governing law and where disputes are heard",
+      "paragraphs": [
+        "These terms are governed by the laws of the State of Ohio, without regard to its conflict-of-laws rules.",
+        "Any dispute arising out of or relating to these terms or to CoreCredit is to be brought exclusively in the state or federal courts located in Butler County, Ohio, and you and Idlery Services LLC each consent to the personal jurisdiction of those courts.",
+        "If a court decides that any part of these terms cannot be enforced, the rest stays in force."
+      ]
+    },
+    {
+      "heading": "Where CoreCredit is offered",
+      "paragraphs": [
+        "Version 1 of CoreCredit is offered on the App Store in the United States only.",
+        "If you use it elsewhere, you do so on your own initiative and you are responsible for complying with any local law that applies to you."
       ]
     },
     {
@@ -133,9 +149,10 @@
     {
       "heading": "Who provides CoreCredit, and how to get in touch",
       "paragraphs": [
-        "The person or company that provides CoreCredit must be named here before the app is offered publicly: [TO BE SUPPLIED BY OWNER - legal name of the developer or company, and a postal address if one is required].",
-        "A support contact must be published before public release: [TO BE SUPPLIED BY OWNER - support email address and support page address].",
-        "Until those are supplied, the app does not display a support address, because it would not reach anyone."
+        "CoreCredit is provided by Idlery Services LLC.",
+        "Questions, problems, and requests go to idlery.apps@gmail.com. The support page is published at https://bkimble1.github.io/CoreCredit-Legal/support and these terms at https://bkimble1.github.io/CoreCredit-Legal/terms.",
+        "No postal address is published for support. Email is the support channel.",
+        "Copyright 2026 Idlery Services LLC. All rights reserved."
       ]
     }
   ]
