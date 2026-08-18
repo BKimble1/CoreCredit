@@ -553,7 +553,7 @@ private struct PaywallContent: View {
     private var freeLimit: Int? {
         switch trigger {
         case .freeLimitReached(let limit): return limit
-        case .voluntary: return nil
+        case .voluntary, .photoAssist: return nil
         }
     }
 }

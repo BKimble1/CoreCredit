@@ -303,6 +303,13 @@ final class CoreEditorModel {
                 draft.partNumber = value
                 applied.append("part number")
 
+            case .partName:
+                // What the part is, in words. The only field a photograph of the part itself can
+                // support, and it is still only filled because the user ticked it.
+                guard value.isEmpty == false else { continue }
+                draft.partName = value
+                applied.append("part name")
+
             case .barcode:
                 // The value as the user confirmed it — the review sheet carries their edit in
                 // `normalizedValue`, and a technician who corrected a misread digit must not have

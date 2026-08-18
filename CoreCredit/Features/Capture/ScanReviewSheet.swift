@@ -464,7 +464,8 @@ enum ScanCandidateTarget {
             return "Kept as the scanned barcode"
         case .date, .unknown:
             return "Nowhere yet — pick a field"
-        case .partNumber, .invoiceNumber, .repairOrder, .vendorName, .coreAmount, .returnReference:
+        case .partNumber, .partName, .invoiceNumber, .repairOrder, .vendorName, .coreAmount,
+             .returnReference:
             guard let field = kind.coreItemField else { return "Nowhere yet — pick a field" }
             return "Goes into " + field.displayName
         }
@@ -613,7 +614,7 @@ private struct ScanCandidateRowView: View {
         switch row.targetKind {
         case .coreAmount:
             return .decimalPad
-        case .vendorName, .unknown, .date:
+        case .vendorName, .partName, .unknown, .date:
             return .default
         case .partNumber, .barcode, .invoiceNumber, .repairOrder, .returnReference:
             return .numbersAndPunctuation
@@ -624,7 +625,7 @@ private struct ScanCandidateRowView: View {
         switch row.targetKind {
         case .coreAmount:
             return .never
-        case .vendorName:
+        case .vendorName, .partName:
             return .words
         case .date, .unknown:
             return .sentences

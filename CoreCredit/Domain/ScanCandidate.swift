@@ -34,6 +34,15 @@ enum ScanCandidateKind: String, CaseIterable, Codable, Sendable, Identifiable {
     /// A manufacturer part number, e.g. `03-1887`.
     case partNumber
 
+    /// What the part *is*, in ordinary words — "Alternator", "Brake caliper".
+    ///
+    /// The only kind image classification is ever allowed to produce, and it is deliberately the
+    /// vaguest one in this enum. A photograph can support "this looks like an alternator". It
+    /// cannot support a part number, a vendor, a reference, or an amount of money, and no
+    /// confidence score makes it able to: those live on labels and invoices, as text, and are read
+    /// as text or not at all.
+    case partName
+
     /// The raw payload of a scanned symbol, kept verbatim so it can be stored alongside — never
     /// instead of — the confirmed part number.
     case barcode
@@ -65,6 +74,7 @@ enum ScanCandidateKind: String, CaseIterable, Codable, Sendable, Identifiable {
     var displayName: String {
         switch self {
         case .partNumber: return "Part number"
+        case .partName: return "Part name"
         case .barcode: return "Barcode value"
         case .invoiceNumber: return "Invoice number"
         case .repairOrder: return "Repair order"
@@ -80,6 +90,7 @@ enum ScanCandidateKind: String, CaseIterable, Codable, Sendable, Identifiable {
     var symbolName: String {
         switch self {
         case .partNumber: return "number"
+        case .partName: return "shippingbox"
         case .barcode: return "barcode"
         case .invoiceNumber: return "doc.text"
         case .repairOrder: return "wrench.and.screwdriver"
@@ -103,6 +114,7 @@ enum ScanCandidateKind: String, CaseIterable, Codable, Sendable, Identifiable {
     var coreItemField: CoreItemField? {
         switch self {
         case .partNumber: return .partNumber
+        case .partName: return .partName
         case .barcode: return nil
         case .invoiceNumber: return .invoiceReference
         case .repairOrder: return .repairOrderReference
@@ -133,6 +145,16 @@ enum ScanSource: String, Codable, Sendable, Identifiable {
     /// A single still image picked from the photo library or taken with the camera.
     case photoOCR
 
+    /// A symbol decoded from a still photograph rather than from the live viewfinder.
+    /// Distinct from `.liveBarcode` because the evidence is a file the user still has.
+    case photoBarcode
+
+    /// Apple Vision’s general image classifier looking at the part itself.
+    ///
+    /// The weakest source in this enum, and the only one that never sees text. It may support
+    /// `.partName` and nothing else.
+    case imageClassification
+
     var id: String { rawValue }
 
     var displayName: String {
@@ -140,7 +162,9 @@ enum ScanSource: String, Codable, Sendable, Identifiable {
         case .liveBarcode: return "Live barcode scan"
         case .liveText: return "Live text scan"
         case .documentOCR: return "Scanned document"
-        case .photoOCR: return "Photo"
+        case .photoOCR: return "Photo text"
+        case .photoBarcode: return "Barcode"
+        case .imageClassification: return "Image"
         }
     }
 }

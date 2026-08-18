@@ -100,6 +100,14 @@ final class AppEnvironment {
     let exports: ExportCoordinator
     let textRecognizer: any TextRecognizing
 
+    // AI Photo Assist. Three optional senses a photograph can offer that a document scan cannot:
+    // what the object is, whether two photographs show the same thing, and how far away it is.
+    // Every one of them has an implementation that does nothing, and the feature is required to
+    // work when all three are that implementation — on an iPhone with no LiDAR, and in a simulator.
+    let imageClassifier: any ImageClassifying
+    let imageFingerprinter: any ImageFingerprinting
+    let depthProvider: any DepthCaptureProviding
+
     /// The local-only record of the most recent scanning session, shown on the Scanner Diagnostics
     /// screen. Nothing it holds is ever uploaded, and it stores no image bytes — see
     /// `ScanDiagnostics.swift`. It starts empty and stays empty until a scanner opens a session.
@@ -179,12 +187,32 @@ final class AppEnvironment {
 
         // Capture ------------------------------------------------------------------------
         if launchOptions.isUITesting {
-            self.textRecognizer = StubTextRecognizer(
+            let stub = StubTextRecognizer(
                 lines: AppEnvironment.stubRecognizerLines(for: launchOptions),
                 barcodes: AppEnvironment.stubRecognizerBarcodes(for: launchOptions)
             )
+            // A photo-assist scenario scripts what each fixture photograph contains. Everything
+            // downstream — fusion, capping, conflict detection, the review sheet — is the real
+            // implementation; only the pixels are fake, and only under `-uiTesting`.
+            if let scenario = launchOptions.photoAssistScenario {
+                self.textRecognizer = ScriptedPhotoRecognizer(scenario: scenario, fallback: stub)
+                self.imageClassifier = ScriptedPhotoClassifier(scenario: scenario)
+                self.depthProvider = scenario.reportsSceneDepth
+                    ? StubDepthProvider(isSceneDepthSupported: true,
+                                        summary: DepthSummary(subjectDistanceMetres: 0.4,
+                                                              confidence: 0.9))
+                    : UnsupportedDepthProvider()
+            } else {
+                self.textRecognizer = stub
+                self.imageClassifier = StubImageClassifier()
+                self.depthProvider = UnsupportedDepthProvider()
+            }
+            self.imageFingerprinter = StubImageFingerprinter()
         } else {
             self.textRecognizer = VisionTextRecognizer()
+            self.imageClassifier = VisionImageClassifier()
+            self.imageFingerprinter = VisionImageFingerprinter()
+            self.depthProvider = ARKitDepthProvider()
         }
 
         // Diagnostics ---------------------------------------------------------------------

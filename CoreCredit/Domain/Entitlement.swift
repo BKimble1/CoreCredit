@@ -69,12 +69,21 @@ enum PaywallTrigger: Equatable, Sendable, Identifiable {
     /// The user opened the paywall themselves from Settings.
     case voluntary
 
+    /// The user tapped AI Photo Assist on the free tier.
+    ///
+    /// This trigger does not represent anything being taken away. Photographs were not an input to
+    /// this app before the assistant existed, and manual entry, Live scan, and Document scan all
+    /// remain open on the free tier exactly as they were.
+    case photoAssist
+
     var id: String {
         switch self {
         case .freeLimitReached(let limit):
             return "freeLimitReached-\(limit)"
         case .voluntary:
             return "voluntary"
+        case .photoAssist:
+            return "photoAssist"
         }
     }
 
@@ -84,6 +93,8 @@ enum PaywallTrigger: Equatable, Sendable, Identifiable {
             return "You've reached the free limit of \(limit) open cores"
         case .voluntary:
             return "Upgrade to Pro"
+        case .photoAssist:
+            return "AI Photo Assist is part of Pro"
         }
     }
 
@@ -95,6 +106,10 @@ enum PaywallTrigger: Equatable, Sendable, Identifiable {
         case .voluntary:
             return "Unlimited open cores, dispute packets, CSV and backup exports, and return "
                 + "reminders."
+        case .photoAssist:
+            return "Read a part, a label, and an invoice from photos on this device, and review "
+                + "every suggestion before it reaches the form. Scanning and manual entry stay "
+                + "free."
         }
     }
 }
@@ -126,6 +141,26 @@ enum EntitlementPolicy {
     static func blockingTrigger(unresolvedCount: Int, tier: SubscriptionTier) -> PaywallTrigger? {
         if canCreateItem(unresolvedCount: unresolvedCount, tier: tier) { return nil }
         return .freeLimitReached(limit: freeUnresolvedLimit)
+    }
+
+    /// AI Photo Assist is Pro-only, on either the monthly or the annual product.
+    ///
+    /// This does not narrow the free tier. The rule everywhere else in this type is that free is
+    /// limited only in *creating new* unresolved items; the assistant is new capability rather than
+    /// an existing capability being withdrawn, so gating it leaves every free-tier workflow exactly
+    /// where it was. A free shop can still type a core in by hand, scan a barcode live, and scan a
+    /// document — and can still open, edit, and export everything it has already logged.
+    ///
+    /// Deliberately asks only about the tier. Which product paid for that tier, and whether the
+    /// subscription is in its grace period, are `Entitlement`'s business; by the time a tier is
+    /// `.pro` those questions have already been answered.
+    static func canUsePhotoAssist(tier: SubscriptionTier) -> Bool {
+        tier == .pro
+    }
+
+    /// The paywall trigger to present when a free shop taps AI Photo Assist, or `nil` for Pro.
+    static func photoAssistTrigger(tier: SubscriptionTier) -> PaywallTrigger? {
+        canUsePhotoAssist(tier: tier) ? nil : .photoAssist
     }
 
     /// Existing records are never gated — always `true`, for both tiers.

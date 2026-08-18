@@ -96,6 +96,13 @@ struct LaunchOptions: Equatable, Sendable {
     /// Ignored unless `isUITesting` is set, so it can never affect a shipping build.
     var deepLink: String?
 
+    /// Scripts what AI Photo Assist "sees", so its screens can be driven without a camera.
+    ///
+    /// The photo pipeline is deterministic and is unit-tested directly; this exists so the *screens*
+    /// around it — progress, conflict, no-match, applying suggestions — can be reached in a UI test
+    /// without a lens, a photo library, or a LiDAR scanner. Ignored unless `isUITesting` is set.
+    var photoAssistScenario: PhotoAssistScenario?
+
     /// Forces the stubbed notification authorization state under UI testing.
     ///
     /// The denied and not-determined branches of the notification settings screen are otherwise
@@ -114,7 +121,8 @@ struct LaunchOptions: Equatable, Sendable {
          stubScannerPayload: String? = nil,
          skipOnboarding: Bool = false,
          deepLink: String? = nil,
-         notificationAuthorization: NotificationAuthorizationStatus? = nil) {
+         notificationAuthorization: NotificationAuthorizationStatus? = nil,
+         photoAssistScenario: PhotoAssistScenario? = nil) {
         self.isUITesting = isUITesting
         self.useInMemoryStore = useInMemoryStore
         self.seedScenario = seedScenario
@@ -126,6 +134,7 @@ struct LaunchOptions: Equatable, Sendable {
         self.skipOnboarding = skipOnboarding
         self.deepLink = deepLink
         self.notificationAuthorization = notificationAuthorization
+        self.photoAssistScenario = photoAssistScenario
     }
 
     /// A normal launch: on-disk store, real services, no fixtures.
@@ -166,10 +175,11 @@ struct LaunchOptions: Equatable, Sendable {
         static let skipOnboarding = "-uiTestSkipOnboarding"
         static let deepLink = "-uiTestDeepLink"
         static let notificationAuthorization = "-uiTestNotificationAuthorization"
+        static let photoAssist = "-uiTestPhotoAssist"
 
         static let all: Set<String> = [
             uiTesting, seed, tier, storeKitFailure, scannerPayload, skipOnboarding,
-            deepLink, notificationAuthorization
+            deepLink, notificationAuthorization, photoAssist
         ]
     }
 
@@ -183,6 +193,7 @@ struct LaunchOptions: Equatable, Sendable {
         static let skipOnboarding = "UITEST_SKIP_ONBOARDING"
         static let deepLink = "UITEST_DEEP_LINK"
         static let notificationAuthorization = "UITEST_NOTIFICATION_AUTHORIZATION"
+        static let photoAssist = "UITEST_PHOTO_ASSIST"
     }
 
     /// Maps a launch-argument value to an authorization state. An unrecognised value yields
@@ -231,6 +242,12 @@ struct LaunchOptions: Equatable, Sendable {
 
             case Flag.skipOnboarding:
                 options.skipOnboarding = true
+
+            case Flag.photoAssist:
+                if let raw = value(after: index, in: arguments) {
+                    options.photoAssistScenario = PhotoAssistScenario(named: raw)
+                    index += 1
+                }
 
             case Flag.deepLink:
                 if let raw = value(after: index, in: arguments) {
@@ -291,6 +308,9 @@ struct LaunchOptions: Equatable, Sendable {
         }
         if let raw = environment[EnvironmentKey.skipOnboarding], isAffirmative(raw) {
             options.skipOnboarding = true
+        }
+        if let raw = environment[EnvironmentKey.photoAssist], !raw.isEmpty {
+            options.photoAssistScenario = PhotoAssistScenario(named: raw)
         }
     }
 

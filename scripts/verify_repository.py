@@ -641,6 +641,104 @@ def check_module_imports():
         note("module imports: every file imports the modules whose symbols it uses")
 
 
+def check_exhaustive_switches():
+    """A switch with no `default` must name every case of the enum it switches over.
+
+    Adding a case to an enum is the one edit that breaks files nobody opened. Swift catches it
+    instantly; a machine with no Swift catches it twenty minutes later, from a build log, if at all.
+    This found `PaywallView.freeLimit` after `PaywallTrigger` gained `.photoAssist` — a file two
+    layers away from the change, in a feature that had nothing to do with it.
+
+    Both halves are read from source, so the check maintains itself: a new enum is covered the
+    moment it is declared, and a renamed case updates on both sides at once.
+
+    A switch is judged to be *over* an enum when it names at least two of that enum's cases and
+    names nothing that is not one of them. That is deliberately conservative — a switch mixing
+    members of two enums, or matching on tuples, patterns, or associated values by shape, is left
+    alone rather than guessed at.
+    """
+    # Only file-scope enums, and only names that are unique across the app. Several unrelated
+    # screens each declare their own nested `Route`, and without both rules their cases merge into
+    # one impossible union that every one of them then "fails".
+    enums = {}
+    duplicates = set()
+    for path in swift_sources("CoreCredit"):
+        lines = io.open(path, encoding="utf-8", newline="").read().replace(CRLF, LF).split(LF)
+        current, body_depth, depth = None, 0, 0
+        for line in lines:
+            code = line.split("//")[0]
+            match = re.match(r"(?:public\s+|internal\s+)?enum\s+(\w+)\s*[:{]", code)
+            if match and depth == 0 and current is None:
+                current = match.group(1)
+                body_depth = 1
+                if current in enums:
+                    duplicates.add(current)
+                enums.setdefault(current, set())
+            elif current is not None and depth == body_depth:
+                # Only at the enum's own body depth. A `case` deeper than that is inside a
+                # function — a switch in `init(named:)` matching string literals, say — and is
+                # emphatically not a declaration.
+                case_match = re.match(r"\s*case\s+([^:\n=]+)", code)
+                if case_match and '"' not in case_match.group(1):
+                    for name in re.findall(r"\b([A-Za-z_]\w*)", case_match.group(1).split("(")[0]):
+                        if name not in ("case", "let", "var"):
+                            enums[current].add(name)
+            depth += code.count("{") - code.count("}")
+            if current is not None and depth <= 0:
+                current = None
+
+    enums = {name: members for name, members in enums.items()
+             if len(members) >= 2 and name not in duplicates}
+
+    offenders = []
+    for path in swift_sources("CoreCredit", "CoreCreditTests", "CoreCreditUITests"):
+        lines = io.open(path, encoding="utf-8", newline="").read().replace(CRLF, LF).split(LF)
+        for index, line in enumerate(lines):
+            if not re.search(r"\bswitch\b", line):
+                continue
+
+            depth, body, cursor = 0, [], index
+            while cursor < len(lines):
+                body.append(lines[cursor])
+                depth += lines[cursor].count("{") - lines[cursor].count("}")
+                if depth <= 0 and cursor > index:
+                    break
+                cursor += 1
+
+            blob = LF.join(body)
+            # A case label may wrap across lines. Join the continuations, or a complete switch
+            # reads as incomplete.
+            blob = re.sub(r",\s*\n\s+", ", ", blob)
+            # `@unknown default:` is a default. Missing it reads a deliberately future-proofed
+            # mapping over an Apple enum as an incomplete switch over one of ours that happens to
+            # share case names.
+            if re.search(r"^\s*(?:@unknown\s+)?default\s*:", blob, re.M):
+                continue
+
+            named = set()
+            for case_match in re.finditer(r"^\s*case\s+([^:\n]+):", blob, re.M):
+                named |= set(re.findall(r"\.(\w+)", case_match.group(1)))
+            if len(named) < 2:
+                continue
+
+            for enum_name, members in enums.items():
+                overlap = named & members
+                if len(overlap) >= 2 and len(overlap) == len(named):
+                    missing = sorted(members - named)
+                    if missing:
+                        offenders.append(
+                            "%s:%d switch over %s is missing %s"
+                            % (os.path.relpath(path, ROOT), index + 1, enum_name,
+                               ", ".join(missing)))
+
+    if offenders:
+        fail("exhaustive-switches",
+             "a switch with no default does not cover every case: " + "; ".join(offenders))
+    else:
+        note("exhaustive switches: %d enums checked, every default-less switch is complete"
+             % len(enums))
+
+
 def check_project_file():
     text = read("CoreCredit.xcodeproj", "project.pbxproj")
     if text.count("{") != text.count("}"):
@@ -669,6 +767,7 @@ def main():
     check_testing_name_collisions()
     check_multiline_string_literals()
     check_module_imports()
+    check_exhaustive_switches()
     check_project_file()
 
     print("CoreCredit repository invariants")
