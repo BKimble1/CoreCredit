@@ -321,6 +321,25 @@ struct BackupRestoreTests {
         }
     }
 
+    @Test("A newer backup is named as newer even when this build cannot decode its shape at all")
+    @MainActor
+    func aNewerFormatIsNamedEvenWhenItCannotBeDecoded() throws {
+        let context = try makeInMemoryContext()
+        let service = restoreService(context)
+
+        // The realistic version of the case above. A format-2 file will not generally decode into
+        // format 1's shape — that is what makes it format 2 — so the version cannot be read off a
+        // successfully decoded payload. Here every key but the version is deliberately foreign.
+        let data = Data(#"{"formatVersion":2,"ledger":{"cores":[]},"writtenBy":"a later build"}"#.utf8)
+
+        #expect(throws: BackupRestoreError.newerFormat(
+            found: 2,
+            supported: BackupPayload.currentFormatVersion
+        )) {
+            _ = try service.plan(from: data)
+        }
+    }
+
     @Test("An empty backup is refused, so a restore cannot quietly erase a ledger")
     @MainActor
     func anEmptyBackupIsRefused() throws {

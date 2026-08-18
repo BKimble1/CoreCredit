@@ -175,22 +175,33 @@ final class BackupRestoreService {
 
         // Two-step decode so the message can tell the difference between "not JSON at all" and
         // "JSON, but somebody else's". A shop owner who picked the wrong file needs to know which.
-        guard (try? JSONSerialization.jsonObject(with: data)) != nil else {
+        guard let object = try? JSONSerialization.jsonObject(with: data) else {
             throw BackupRestoreError.notJSON
         }
 
+        // The format version is read from the raw JSON, before anything is decoded, because a file
+        // written by a newer build is precisely the file least likely to decode into this build's
+        // shape. Checking it after the decode cannot work: the decode fails first, and a real
+        // backup from a newer version gets reported as "this is not a CoreCredit backup" — which
+        // sends somebody hunting for a corrupted file when what they actually need is to update
+        // the app. `JSONBackupExporter.decode` makes the same check for its own callers, but it
+        // reports it as a rendering failure, and that distinction is lost by the time it gets here.
+        if let root = object as? [String: Any], let declared = root["formatVersion"] as? Int {
+            guard declared <= BackupPayload.currentFormatVersion else {
+                throw BackupRestoreError.newerFormat(found: declared,
+                                                     supported: BackupPayload.currentFormatVersion)
+            }
+            guard declared >= 1 else {
+                throw BackupRestoreError.notACoreCreditBackup
+            }
+        }
+
+        // No version key at all, or one that is not a number, means this is somebody else's JSON.
+        // That falls through to the decode below and is reported as such.
         let payload: BackupPayload
         do {
             payload = try JSONBackupExporter.decode(data)
         } catch {
-            throw BackupRestoreError.notACoreCreditBackup
-        }
-
-        guard payload.formatVersion <= BackupPayload.currentFormatVersion else {
-            throw BackupRestoreError.newerFormat(found: payload.formatVersion,
-                                                 supported: BackupPayload.currentFormatVersion)
-        }
-        guard payload.formatVersion >= 1 else {
             throw BackupRestoreError.notACoreCreditBackup
         }
 
