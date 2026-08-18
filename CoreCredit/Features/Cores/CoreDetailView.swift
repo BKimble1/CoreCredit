@@ -37,15 +37,12 @@ struct CoreDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
+        Group {
             if model.isDeleted {
                 deletedPlaceholder
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: Spacing.xl) {
+                    VStack(alignment: .leading, spacing: Spacing.l) {
                         errorSection
                         headerCard
                         primaryActions
@@ -61,7 +58,19 @@ struct CoreDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A pushed screen still sits inside the tab bar's safe-area inset. The background is
+        // painted behind rather than stacked beside the scroll view, for the same reason it is on
+        // the Dashboard: a `ZStack` holding a safe-area-ignoring child grows past that inset and
+        // takes it away from everything else in the stack.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
+        }
+        // An overlay rather than another stack layer: it covers the screen while an export runs
+        // and must not influence the layout underneath it at any other time.
+        .overlay {
             if model.isAwaitingExport && appEnvironment.exports.inFlight {
                 LoadingOverlay(message: "Building dispute packet…")
             }

@@ -37,17 +37,28 @@ enum Palette {
     // MARK: Surfaces
 
     /// Screen background: near-black navy in dark, cool off-white in light.
+    ///
+    /// Light is the bright-shop-floor case and is treated as the primary one. The value is the
+    /// cool grey iOS uses behind an inset-grouped list, so a `SectionCard` sitting on it reads the
+    /// way a settings row does rather than like a floating panel.
     static let background = Palette.adaptive(light: 0xEDEFF3, dark: 0x0B0E14)
 
     /// Default card / list-row background.
-    static let surface = Palette.adaptive(light: 0xF8F9FB, dark: 0x141924)
+    ///
+    /// White in light, so the separation from `background` comes from the surface itself and a
+    /// card needs no outline drawn round it. Cards are no longer stroked anywhere in the app.
+    static let surface = Palette.adaptive(light: 0xFFFFFF, dark: 0x141924)
 
-    /// A surface sitting on top of `surface` — nested tiles, sheets, text-field wells.
-    static let surfaceElevated = Palette.adaptive(light: 0xFFFFFF, dark: 0x1E2532)
+    /// A well *inside* a surface — text fields, steppers, the inline vendor and bin forms.
+    ///
+    /// The name is historical: in dark it sits above `surface` and in light it sits very slightly
+    /// below it, which is the direction iOS itself moves a field well in each appearance. Either
+    /// way it is the token for "an input lives here", never for a second card.
+    static let surfaceElevated = Palette.adaptive(light: 0xF1F3F7, dark: 0x1E2532)
 
-    /// One-pixel separators and card borders.
+    /// One-pixel separators. No longer used as a card border — see `surface`.
     static let hairline = Palette.adaptive(
-        light: 0xD5D9E0, lightHighContrast: 0xA9B0BC,
+        light: 0xD9DDE4, lightHighContrast: 0xA9B0BC,
         dark: 0x2B3341, darkHighContrast: 0x4A5566
     )
 

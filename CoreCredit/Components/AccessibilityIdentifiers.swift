@@ -60,21 +60,37 @@ enum A11y {
         static let bin = "editor.bin"
         static let invoice = "editor.invoice"
         static let repairOrder = "editor.repairOrder"
+        /// The one Save. It lives in a pinned bar above the safe area rather than in the toolbar,
+        /// so it is reachable without scrolling and stays above the keyboard.
         static let save = "editor.save"
         static let cancel = "editor.cancel"
+        /// "Scan core" — the unified capture entry at the top of the intake form.
         static let scan = "editor.scan"
+        /// The References disclosure header. Folded away while the section is empty, so a test
+        /// that wants the invoice or repair-order field taps this first.
+        static let referencesSection = "editor.referencesSection"
     }
 
-    /// The barcode capture sheet. Every one of these exists in all six availability states, because
-    /// manual entry is present in all six.
+    /// The unified "Scan core" surface.
+    ///
+    /// `root` is Live capture and `documentRoot` is Document capture — one sheet each, never both,
+    /// because switching mode swaps `CoreEditorModel.Route`. Every identifier under `root` exists
+    /// in all six availability states, because manual entry is present in all six.
     enum Scan {
         static let root = "scan.root"
+        /// The Document half of the same surface.
+        static let documentRoot = "scan.documentRoot"
+        /// The Live / Document segmented control, present on both halves.
+        static let modePicker = "scan.modePicker"
+        /// "Open document camera", on the Document half.
+        static let openDocumentCamera = "scan.openDocumentCamera"
         /// The type-it-in field.
         static let manualEntry = "scan.manualEntry"
         /// "Use this number" — accepts whatever is in `manualEntry`.
         static let useManual = "scan.useManual"
         /// "Resume scanning" on a frozen scan.
         static let resume = "scan.resume"
+        /// Cancel. Carried by both halves, so it resolves whichever mode is in front.
         static let cancel = "scan.cancel"
     }
 

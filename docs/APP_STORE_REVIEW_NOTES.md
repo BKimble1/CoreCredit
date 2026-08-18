@@ -14,8 +14,12 @@ Everything above it is context for the owner and should not be submitted.
       Until they exist there, StoreKit returns no products and the paywall shows its retry
       state — a missing product is silent, never an error.
 - [ ] Replace the placeholder support and privacy URLs with live pages.
-- [ ] Add the 1024×1024 app icon.
+- [x] Add the 1024×1024 app icon (`AppIcon.appiconset/AppIcon.png` is real artwork).
 - [ ] Confirm the privacy answers in `docs/PRIVACY.md` still match the shipped build.
+- [ ] Look at the app in **Light and Dark appearance**, at an accessibility text size, on a small
+      iPhone and on an iPad, before submitting. The interface was reworked in a pass that ran on a
+      machine with no Xcode, so no screenshot of the shipped layout exists yet — see
+      `docs/HANDOFF.md` §1.
 
 ---
 
@@ -40,7 +44,9 @@ purchasing.
 2. Go to **Settings → Vendors → +** and add a vendor named `NAPA` with a 30-day return window.
    Save.
 3. Go to **Cores → +**. Enter part name `Alternator`, part number `03-1887`, expected credit
-   `86.50`, invoice `INV-552`, repair order `1024`. Choose vendor `NAPA`. Save.
+   `86.50`, and choose vendor `NAPA`. **References**, **Storage bin**, **Evidence**, and **Notes**
+   are optional and stay folded away until you tap their headings — open **References** if you want
+   to add invoice `INV-552` and repair order `1024`. Tap **Save core** in the bar at the bottom.
 4. The **Dashboard** now shows `$86.50` under "Money at risk", with a due date 30 days out.
 5. Open the item and tap **Mark ready to return**.
 6. Go to **Returns**, tap **Create return batch** on the NAPA group, select the item, enter
@@ -52,17 +58,28 @@ purchasing.
    shortfall, moves the item to **Disputed**, and offers **Export dispute packet**, which
    produces a PDF through the standard share sheet.
 
-**Scanner behaviour in the Simulator**
+**Scanning — one screen, two modes**
 
-The barcode scanner uses VisionKit's `DataScannerViewController`, which requires camera
-hardware. **On the Simulator the app detects this and shows a manual-entry field instead**,
-including a "Use sample barcode" button. No camera permission is requested and nothing is
-blocked. The same manual fallback appears if camera access is denied or the device is
-unsupported — scanning is always optional, and every field can be typed by hand.
+Everything that starts a scan — the Home Screen widget, the "Scan core" Shortcut / Action Button,
+the Dashboard's Scan core button, and the intake form's own — opens the same screen, titled **Scan
+core**, with a **Live / Document** selector at the top.
 
-Optional OCR (Vision text recognition on a photo of an invoice) only ever produces
-**suggestions**, which are shown in editable fields for the user to confirm or reject. Nothing
-recognised is written to a record automatically.
+- **Live** uses VisionKit's `DataScannerViewController` for barcodes, and also highlights printed
+  text. Highlighted text does nothing until the user taps a specific line — the camera never
+  chooses for them.
+- **Document** uses `VNDocumentCameraViewController` for an invoice or a return receipt: it finds
+  the page edges, flattens the page, and allows several pages.
+
+Both run entirely on device, and **neither can create or change a record**. Everything they read
+becomes a *suggestion* on a confirmation screen, in editable fields, with the raw reading shown
+underneath it; only values the user ticks are copied into the form, and only the form's own **Save**
+writes anything. Values the app is not confident about start switched **off**.
+
+**In the Simulator** neither camera exists. The app detects this rather than failing: Live shows a
+manual-entry field and a "Use sample barcode" button, and Document says plainly that this device has
+no document camera. No camera permission is requested in either case, and nothing is blocked. The
+same fallbacks appear if camera access is denied or the hardware is unsupported — scanning is always
+optional, and every field can be typed by hand.
 
 **In-app purchase — how to reach the paywall**
 

@@ -27,22 +27,24 @@ struct ReturnsView: View {
     @State private var model = ReturnsModel()
 
     var body: some View {
-        ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.xl) {
-                    outstandingHeader
-                    errorBanner
-                    readySection
-                    batchesSection
-                    creditQueueSection
-                }
-                .padding(Spacing.l)
-                .frame(maxWidth: 720, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .center)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.l) {
+                outstandingHeader
+                errorBanner
+                readySection
+                batchesSection
+                creditQueueSection
             }
+            .padding(Spacing.l)
+            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        // Same reason as the Dashboard: a `ZStack` around a safe-area-ignoring background grew to
+        // the full screen and took the tab bar's inset off the scroll view, so "Record credit" on
+        // the last queued core sat under the bar. Nothing here measures the bar.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
         }
         .navigationTitle("Returns")
         .accessibilityIdentifier(A11y.Returns.root)
@@ -140,17 +142,23 @@ struct ReturnsView: View {
     // MARK: - Section 1: ready to return
 
     private var readySection: some View {
-        SectionCard(title: "Ready to return", systemImage: CoreStatus.readyToReturn.symbolName) {
+        SectionCard(title: "Ready to return",
+                    systemImage: CoreStatus.readyToReturn.symbolName,
+                    isPlain: true) {
             let groups = readyGroups
 
             if groups.isEmpty {
                 EmptyStateView(
                     symbol: CoreStatus.readyToReturn.symbolName,
-                    title: "Nothing staged to go back",
-                    message: "Mark a core Ready to return once the old unit is off the vehicle and on the shelf. It will show up here, grouped by the vendor it goes back to."
+                    title: "Nothing ready to return",
+                    message: "Cores appear here after you mark the old part ready."
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                        .fill(Palette.surface)
                 )
             } else {
-                VStack(alignment: .leading, spacing: Spacing.l) {
+                VStack(alignment: .leading, spacing: Spacing.m) {
                     Text(stagedSummaryText(groups))
                         .font(Typography.caption)
                         .foregroundStyle(Palette.textSecondary)
@@ -244,15 +252,12 @@ struct ReturnsView: View {
                 noVendorNotice
             }
         }
-        .padding(Spacing.m)
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .fill(Palette.surfaceElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
+                .fill(Palette.surface)
         )
         .accessibilityElement(children: .contain)
     }
@@ -341,33 +346,42 @@ struct ReturnsView: View {
             let open = openBatches
             let settled = settledBatches
 
-            VStack(alignment: .leading, spacing: Spacing.m) {
+            VStack(alignment: .leading, spacing: 0) {
                 if open.isEmpty {
                     EmptyStateView(
                         symbol: "shippingbox",
                         title: "No open returns",
-                        message: "When you send a batch of cores back, it stays here until every credit on it has landed."
+                        message: "A batch you send back stays here until every credit on it lands."
                     )
                 } else {
                     ForEach(open, id: \.id) { batch in
                         batchRow(batch, isSettled: false)
+
+                        if batch.id != open.last?.id {
+                            Divider()
+                        }
                     }
                 }
 
                 if settled.isEmpty == false {
+                    Divider()
+
                     Button {
                         model.toggleSettledBatches()
                     } label: {
                         Text(settledToggleTitle(settled.count))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Palette.accent)
-                            .frame(minHeight: Spacing.minimumTapTarget, alignment: .leading)
+                            .frame(maxWidth: .infinity,
+                                   minHeight: Spacing.minimumTapTarget,
+                                   alignment: .leading)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
 
                     if model.showsSettledBatches {
                         ForEach(settled, id: \.id) { batch in
+                            Divider()
                             batchRow(batch, isSettled: true)
                         }
                     }
@@ -443,14 +457,20 @@ struct ReturnsView: View {
     // MARK: - Section 3: waiting on credit
 
     private var creditQueueSection: some View {
-        SectionCard(title: "Waiting on credit", systemImage: CoreStatus.returnedAwaitingCredit.symbolName) {
+        SectionCard(title: "Waiting on credit",
+                    systemImage: CoreStatus.returnedAwaitingCredit.symbolName,
+                    isPlain: true) {
             let entries = queue
 
             if entries.isEmpty {
                 EmptyStateView(
                     symbol: CoreStatus.credited.symbolName,
                     title: "Nothing outstanding",
-                    message: "Every core you have sent back has been credited or closed. Cores you return next will queue up here until their credit lands."
+                    message: "Cores you return next queue up here until their credit lands."
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                        .fill(Palette.surface)
                 )
             } else {
                 VStack(alignment: .leading, spacing: Spacing.m) {
@@ -531,15 +551,12 @@ struct ReturnsView: View {
                 .accessibilityHint(Text("Enter the vendor's credit memo and compare it to what was expected."))
             }
         }
-        .padding(Spacing.m)
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .fill(Palette.surfaceElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
+                .fill(Palette.surface)
         )
         .accessibilityElement(children: .contain)
     }
@@ -584,10 +601,6 @@ private struct ReturnsActionLabel: View {
         .background(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .fill(Palette.accent.opacity(0.12))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.accent.opacity(0.35), lineWidth: 1)
         )
         .contentShape(Rectangle())
     }

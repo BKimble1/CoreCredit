@@ -12,9 +12,10 @@ import SwiftUI
 /// `CoreItemQuery.filterAndSort(_:filter:sort:now:calendar:)` decides that, so a search here finds
 /// the same records an export would, and the rules stay unit-testable without SwiftUI.
 ///
-/// Two empty states, on purpose. An empty **ledger** explains the workflow and offers to add the
-/// first core. An empty **result** says the filter is too narrow and offers to clear it. Telling a
-/// shop owner "no cores" when they have forty of them behind a filter is how a ledger loses trust.
+/// Two empty states, on purpose. An empty **ledger** offers to add the first core, with the
+/// workflow lesson folded away in `HowItWorksDisclosure` for whoever wants it. An empty **result**
+/// says the filter is too narrow and offers to clear it. Telling a shop owner "no cores" when they
+/// have forty of them behind a filter is how a ledger loses trust.
 ///
 /// Adding is the only gated action: `EntitlementPolicy.blockingTrigger(unresolvedCount:tier:)` is
 /// asked first, and the paywall is presented *instead of* the editor when the free limit is
@@ -44,29 +45,33 @@ struct CoreListView: View {
     var body: some View {
         let visible = model.visibleItems(from: items, dateProvider: appEnvironment.dateProvider)
 
-        return ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                if let message = model.errorMessage {
-                    ErrorBanner(message: message, onDismiss: { model.clearError() })
-                        .padding(.horizontal, Spacing.l)
-                        .padding(.top, Spacing.s)
-                }
-
-                if !items.isEmpty {
-                    filterBar(visibleCount: visible.count)
-                }
-
-                if items.isEmpty {
-                    emptyLedger
-                } else if visible.isEmpty {
-                    noMatches
-                } else {
-                    list(visible)
-                }
+        return VStack(spacing: 0) {
+            if let message = model.errorMessage {
+                ErrorBanner(message: message, onDismiss: { model.clearError() })
+                    .padding(.horizontal, Spacing.l)
+                    .padding(.top, Spacing.s)
             }
+
+            if !items.isEmpty {
+                filterBar(visibleCount: visible.count)
+            }
+
+            if items.isEmpty {
+                emptyLedger
+            } else if visible.isEmpty {
+                noMatches
+            } else {
+                list(visible)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Same reason as the Dashboard: a `ZStack` holding a safe-area-ignoring background grows to
+        // the full screen and takes the tab bar's inset away from the list inside it, which put the
+        // last core under the bar. The background is painted behind instead, and the bottom margin
+        // is ordinary breathing room rather than a guess at how tall the bar is.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
         }
         .navigationTitle(title)
         .accessibilityIdentifier(A11y.Cores.root)
@@ -251,21 +256,24 @@ struct CoreListView: View {
 
     private var emptyLedger: some View {
         ScrollView {
-            EmptyStateView(
-                symbol: "shippingbox",
-                title: "No cores tracked yet",
-                message: "Log the core charge when you buy the part, keep the old unit on the "
-                    + "shelf, send it back before the vendor's window closes, then confirm the "
-                    + "credit. CoreCredit follows every step so nothing quietly turns into a loss.",
-                actionTitle: "Add your first core",
-                action: {
-                    model.requestAddCore(
-                        items: items,
-                        tier: appEnvironment.subscriptions.entitlement.tier
-                    )
-                }
-            )
-            .padding(.vertical, Spacing.xxl)
+            VStack(spacing: Spacing.l) {
+                EmptyStateView(
+                    symbol: "shippingbox",
+                    title: "No cores yet",
+                    message: "Log your first core charge, return deadline, and expected credit.",
+                    actionTitle: "Add core",
+                    action: {
+                        model.requestAddCore(
+                            items: items,
+                            tier: appEnvironment.subscriptions.entitlement.tier
+                        )
+                    }
+                )
+
+                HowItWorksDisclosure()
+                    .padding(.horizontal, Spacing.l)
+            }
+            .padding(.vertical, Spacing.xl)
         }
     }
 
@@ -274,12 +282,11 @@ struct CoreListView: View {
             EmptyStateView(
                 symbol: "line.3.horizontal.decrease.circle",
                 title: "No cores match",
-                message: "Nothing in the ledger matches this search and filter combination. The "
-                    + "records are still there — the filter is just too narrow.",
+                message: "The records are still there — the filter is just too narrow.",
                 actionTitle: "Clear filters",
                 action: { model.clearFiltersAndSearch() }
             )
-            .padding(.vertical, Spacing.xxl)
+            .padding(.vertical, Spacing.xl)
         }
     }
 

@@ -24,6 +24,35 @@ a compiler *and* by an executed test suite. Two things are still unproven: nothi
 hardware, and no UI test has ever executed, so every claim about layout, Dynamic Type, VoiceOver,
 camera behaviour, and notification delivery remains reasoning rather than evidence.
 
+### The final UX pass — what it changed, and what that leaves unproven
+
+A contained interface pass reworked appearance, bottom safe-area behaviour, empty-state density,
+the Add Core form, and the capture entry points. It changed **no** domain rule: money is still
+`Int64` cents through `Money`/`Decimal`, scanning and OCR still write nothing, every captured value
+still enters an unsaved `CoreItemDraft` and requires review plus Save, only `.high` candidates still
+start selected, the free tier still gates only the creation of a sixth unresolved core, and
+`CoreItemService` / `ReturnBatchService` are still the only mutation paths.
+
+What it changed that a person has to look at:
+
+- **Light appearance is now the primary case.** `Palette.surface` is white in light so cards need no
+  outline; every card stroke is gone, corner radii dropped to 10, and vertical padding shrank.
+  Neither appearance has been seen on a screen.
+- **The bottom safe-area bug is fixed structurally, not by a magic number.** Every root and pushed
+  screen used `ZStack { Palette.background.ignoresSafeArea(); ScrollView { … } }`, which grows the
+  stack past the tab bar's inset and takes it away from the scroll view. The background is now
+  painted behind instead. **This has not been seen running**, and it is the single change most
+  worth checking first on a device.
+- **Capture is one entry point over two engines.** Same sheet, titled "Scan core", with a Live /
+  Document selector; switching swaps `CoreEditorModel.Route` so only one sheet is ever up. Live now
+  also recognises text, delivered **only** on a tap. **No part of this has run against a camera.**
+- **The editor has one Save**, pinned in a bottom bar, and its optional sections fold away while
+  they are empty. Keyboard avoidance of that bar is untested.
+- **`DocumentScanSheet` now checks `DocumentScannerView.isSupported` before presenting the document
+  camera.** It did not before, which means the Simulator and unsupported hardware were being handed
+  a `VNDocumentCameraViewController` that cannot run there. That path was previously unreachable
+  from the main scan entry; it is reachable now, which is why the check was added.
+
 ### What was actually verified
 
 | Check | Tool | Result |
@@ -46,9 +75,14 @@ camera behaviour, and notification delivery remains reasoning rather than eviden
 
 ### What could NOT be verified
 
-- **The UI test suite.** The 7 UI-test files have never executed — neither workflow runs them,
+- **The UI test suite.** The 8 UI-test files have never executed — neither workflow runs them,
   because they drive a full simulator session and belong in a longer job. Their assertions were
-  written against real accessibility identifiers, but none has been evaluated.
+  written against real accessibility identifiers, but none has been evaluated. That now includes
+  `CaptureAndLayoutUITests`, which is the suite that would prove the tab-bar and unified-capture
+  claims above; until it runs, those claims are reasoning.
+- **Every screenshot in the review matrix.** No screenshot of this build exists, in either
+  appearance, at any Dynamic Type size, on any device. Light mode, Dark mode, iPad regular width,
+  and the accessibility text sizes have all been reasoned about and none has been looked at.
 - **Anything on real hardware.** The camera and scanner path, notification delivery, widget
   rendering on a Home Screen, Siri and Action Button entry, and StoreKit purchases have only ever
   run against stubs or not at all.
@@ -140,6 +174,12 @@ Honest and specific. Nothing here is a P0 gap.
   pause/resume cycle, `VNDocumentCameraViewController`, haptic timing, and real-world OCR accuracy
   are unverified. The deterministic parts — normalisation, classification, money parsing,
   deduplication, ranking — are unit-tested; the hardware parts are not.
+- **Live text recognition is the newest unverified thing in that layer.** `recognizesText: true`
+  adds `.text()` to the recognised data types and turns on `recognizesMultipleItems`. Whether the
+  barcode decode rate holds up with both active, how crowded the highlights look on a real invoice,
+  and whether a tap reliably lands on the intended line are all questions only a camera can answer.
+  The safety rule is enforced in code rather than by tuning: text is delivered from `didTapOn`
+  only, never from `didAdd`, so nothing can be captured that a person did not point at.
 - **Diagnostics are in-memory and hold only the most recent session.** They are deliberately not
   persisted, so a crash loses them. That is the privacy trade-off: nothing to leak, nothing to
   upload, and no image bytes are ever recorded.

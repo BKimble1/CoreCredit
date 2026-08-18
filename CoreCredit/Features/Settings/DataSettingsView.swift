@@ -80,6 +80,7 @@ struct DataSettingsView: View {
                 LoadingOverlay(message: "Preparing the file…")
             }
         }
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
         .background(Palette.background.ignoresSafeArea())
         .navigationTitle("Data & export")
         .navigationBarTitleDisplayMode(.inline)

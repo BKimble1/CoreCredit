@@ -68,19 +68,36 @@ enum A11yID {
         static let partNumber = "editor.partNumber"
         static let amount = "editor.amount"
         static let vendor = "editor.vendor"
+        static let bin = "editor.bin"
         static let invoice = "editor.invoice"
         static let repairOrder = "editor.repairOrder"
+        /// The one Save. It lives in a pinned bar above the safe area rather than in the toolbar,
+        /// so it is reachable without scrolling and stays above the keyboard.
         static let save = "editor.save"
         static let cancel = "editor.cancel"
-        // `editor.scan` is deliberately absent: it opens the camera-backed scan sheet, and the
-        // brief forbids any test depending on camera permission. Manual entry only.
+        /// "Scan core" — the unified capture entry at the top of the intake form. It opens the
+        /// capture sheet, which on the simulator lands on its no-camera state, so a test may tap it
+        /// without ever meeting a permission prompt.
+        static let scan = "editor.scan"
+        /// The References disclosure header. The section is folded away while it is empty, so a
+        /// test that wants the invoice or repair-order field opens it first.
+        static let referencesSection = "editor.referencesSection"
     }
 
-    /// The barcode capture sheet. Reachable from the Dashboard's `scanCore` action, which opens the
-    /// editor with this sheet already in front of it — on the simulator that lands on the
-    /// "no camera" state, where manual entry is the whole screen and no permission is involved.
+    /// The unified "Scan core" surface. Reachable from the Dashboard's `scanCore` action, the
+    /// intake form's own Scan core action, and every external entry point (`corecredit://scan`),
+    /// all of which open the editor with this sheet already in front of it — on the simulator that
+    /// lands on the "no camera" state, where manual entry is the whole screen and no permission is
+    /// involved.
+    ///
+    /// `root` is Live capture and `documentRoot` is Document capture. Only one is ever presented:
+    /// choosing the other mode swaps `CoreEditorModel.Route`, so a test asserting one must assert
+    /// the absence of the other rather than expecting both.
     enum Scan {
         static let root = "scan.root"
+        static let documentRoot = "scan.documentRoot"
+        static let modePicker = "scan.modePicker"
+        static let openDocumentCamera = "scan.openDocumentCamera"
         static let manualEntry = "scan.manualEntry"
         static let useManual = "scan.useManual"
         static let resume = "scan.resume"

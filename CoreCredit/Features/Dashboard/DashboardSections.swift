@@ -37,7 +37,7 @@ struct MoneyAtRiskHeader: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
+        VStack(alignment: .leading, spacing: Spacing.s) {
             headlineCard
             overdueTile
         }
@@ -68,15 +68,12 @@ struct MoneyAtRiskHeader: View {
                 .foregroundStyle(Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Spacing.l)
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .fill(Palette.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
         )
     }
 

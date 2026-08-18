@@ -11,23 +11,36 @@ import SwiftUI
 /// because the content here is rows of figures that need horizontal room and must never truncate.
 ///
 /// The header is marked as an accessibility header so VoiceOver's rotor can jump between sections.
+///
+/// # No outline, and no card inside a card
+///
+/// The card is a fill and nothing else. `Palette.surface` is white in light and a lifted navy in
+/// dark, which separates it from `Palette.background` on its own; a stroke on top of that is a
+/// second line saying the same thing, and four of them stacked down a screen is what made this app
+/// read as heavier than it is. Anything that needs to sit *inside* a card is a row with a
+/// `Divider`, never a nested card — use `isPlain` when a caller has already provided the surface.
 struct SectionCard<Content: View>: View {
 
     private let title: String?
     private let systemImage: String?
+    private let isPlain: Bool
     private let content: Content
 
     /// - Parameters:
     ///   - title: Section heading. Omit for an untitled card.
     ///   - systemImage: Optional SF Symbol shown before the title. Ignored when `title` is `nil`.
+    ///   - isPlain: Drops the fill and the padding, for a card that is already inside one. This is
+    ///     how a group of rows gets a heading without becoming a second raised rectangle.
     ///   - content: The card's rows.
     init(
         title: String? = nil,
         systemImage: String? = nil,
+        isPlain: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.systemImage = systemImage
+        self.isPlain = isPlain
         self.content = content()
     }
 
@@ -53,16 +66,15 @@ struct SectionCard<Content: View>: View {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(Spacing.l)
+        .padding(.horizontal, isPlain ? 0 : Spacing.l)
+        .padding(.vertical, isPlain ? 0 : Spacing.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .fill(Palette.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
-        )
+        .background {
+            if isPlain == false {
+                RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                    .fill(Palette.surface)
+            }
+        }
     }
 }
 
@@ -79,6 +91,12 @@ struct SectionCard<Content: View>: View {
 
             SectionCard {
                 Text("An untitled card holds anything that does not need a heading.")
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.textSecondary)
+            }
+
+            SectionCard(title: "Plain", systemImage: "square.dashed", isPlain: true) {
+                Text("A plain card is a heading and its rows, with no surface of its own.")
                     .font(.subheadline)
                     .foregroundStyle(Palette.textSecondary)
             }

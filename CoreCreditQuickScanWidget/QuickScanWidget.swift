@@ -18,11 +18,13 @@ private enum QuickScanCopy {
     /// Matches the app's icon language: the `barcode.viewfinder` mark.
     static let symbolName = "barcode.viewfinder"
 
-    static let title: LocalizedStringKey = "Scan a Core"
-    static let hint: LocalizedStringKey = "Opens CoreCredit's scanner to start a new core."
-    static let configurationName: LocalizedStringKey = "Scan a Core"
+    /// "Scan core", the same words the App Shortcut, the Dashboard action, the intake form's own
+    /// action, and the capture sheet's own title use. One name for one thing.
+    static let title: LocalizedStringKey = "Scan core"
+    static let hint: LocalizedStringKey = "Opens CoreCredit's Scan core screen to start a new core."
+    static let configurationName: LocalizedStringKey = "Scan core"
     static let configurationDescription: LocalizedStringKey =
-        "Opens CoreCredit's scanner so you can start a new core in one tap."
+        "Opens CoreCredit's Scan core screen so you can start a new core in one tap."
 }
 
 // MARK: - Timeline entry

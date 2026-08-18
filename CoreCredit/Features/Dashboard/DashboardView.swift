@@ -25,8 +25,10 @@ private func coreCountPhrase(_ count: Int) -> String {
 /// has been sitting. Every tile and row is a `NavigationLink` into the same ledger, so no figure is
 /// a dead end.
 ///
-/// With an empty ledger there is no fake data and no zeroed-out chrome — just an explanation of the
-/// financial workflow the app exists to close.
+/// With an empty ledger there is no fake data and no zeroed-out chrome: one line saying nothing is
+/// at risk, one line saying what to do about it, and the button that does it. The four-step lesson
+/// about how a core charge comes back is one tap away in `HowItWorksDisclosure` rather than printed
+/// out in full on every visit.
 struct DashboardView: View {
 
     @Environment(AppEnvironment.self) private var appEnvironment
@@ -45,25 +47,31 @@ struct DashboardView: View {
         let summary = model.summary(for: items, dateProvider: appEnvironment.dateProvider)
         let urgent = model.urgentItems(from: items, dateProvider: appEnvironment.dateProvider)
 
-        return ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.xl) {
-                    if let message = model.errorMessage {
-                        ErrorBanner(message: message, onDismiss: { model.clearError() })
-                    }
-
-                    if summary.hasAnyItems {
-                        populatedContent(summary: summary, urgent: urgent)
-                    } else {
-                        emptyContent
-                    }
+        return ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.l) {
+                if let message = model.errorMessage {
+                    ErrorBanner(message: message, onDismiss: { model.clearError() })
                 }
-                .padding(Spacing.l)
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if summary.hasAnyItems {
+                    populatedContent(summary: summary, urgent: urgent)
+                } else {
+                    emptyContent
+                }
             }
+            .padding(Spacing.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // The tab bar is a bottom safe-area inset, and a `ScrollView` already lays itself out
+        // inside one — but only while nothing has taken that inset away from it. This screen used
+        // to be `ZStack { Palette.background.ignoresSafeArea(); ScrollView { ... } }`, and a ZStack
+        // sizes itself to its largest child: the ignoring background grew the stack to the full
+        // screen, the scroll view was sized to the stack, and the last row went under the bar.
+        // Painting the background *behind* the scroll view instead leaves the inset where SwiftUI
+        // put it, so nothing here has to know how tall a tab bar is.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
         }
         .navigationTitle("Dashboard")
         .accessibilityIdentifier(A11y.Dashboard.root)
@@ -221,72 +229,32 @@ struct DashboardView: View {
 
     // MARK: - Empty state
 
+    /// A glyph, one line of what is missing, one line of what to do, and the button that does it.
+    ///
+    /// The four-step lesson that used to be printed here in full now lives in
+    /// `HowItWorksDisclosure`, closed. Onboarding already teaches it on first run, and a shop that
+    /// has just settled its last core is looking at this screen too.
     @ViewBuilder
     private var emptyContent: some View {
         EmptyStateView(
             symbol: "dollarsign.circle",
-            title: "No core money on the books yet",
-            message: "A core charge is your money sitting on a vendor's account. Log the first one "
-                + "and this screen tells you exactly how much is still out there."
+            title: "No core money at risk",
+            message: "Add a core charge to start tracking money owed by vendors.",
+            actionTitle: "Add core",
+            actionIdentifier: A11y.Dashboard.addCore,
+            action: {
+                model.requestAddCore(
+                    items: items,
+                    tier: appEnvironment.subscriptions.entitlement.tier
+                )
+            }
         )
 
-        workflowCard
-        addCoreActions
-    }
+        scanCoreButton
+            .frame(maxWidth: 320)
+            .frame(maxWidth: .infinity, alignment: .center)
 
-    private var workflowCard: some View {
-        SectionCard(title: "How a core charge comes back", systemImage: "list.number") {
-            VStack(alignment: .leading, spacing: Spacing.l) {
-                workflowStep(
-                    number: 1,
-                    title: "The vendor charges you a core",
-                    detail: "A deposit is added to the invoice on top of the new part."
-                )
-                workflowStep(
-                    number: 2,
-                    title: "You keep the old part",
-                    detail: "Tag it and put it in a bin so it does not walk off the shelf."
-                )
-                workflowStep(
-                    number: 3,
-                    title: "You return it in time",
-                    detail: "Send it back before the vendor's return window closes."
-                )
-                workflowStep(
-                    number: 4,
-                    title: "You confirm the credit",
-                    detail: "Match the credit memo against the charge. Anything short stays on "
-                        + "your books until it is settled."
-                )
-            }
-        }
-    }
-
-    private func workflowStep(number: Int, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: Spacing.m) {
-            Text(String(number))
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(Palette.onColor(for: .readyToReturn))
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Palette.accent))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(title)
-                    .font(Typography.rowTitle)
-                    .foregroundStyle(Palette.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Step " + String(number) + ". " + title))
-        .accessibilityValue(Text(detail))
+        HowItWorksDisclosure()
     }
 
     // MARK: - Shared pieces
@@ -295,7 +263,7 @@ struct DashboardView: View {
     ///
     /// Both go through `DashboardModel`, so both hit the free-limit check before anything opens.
     private var addCoreActions: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
+        VStack(alignment: .leading, spacing: Spacing.s) {
             addCoreButton
             scanCoreButton
         }
@@ -315,9 +283,9 @@ struct DashboardView: View {
         .accessibilityHint(Text("Logs a new core charge you are waiting to get credited."))
     }
 
-    /// Opens the intake form with the scanner already in front of it. Secondary, not primary: amber
-    /// belongs to the one action on the screen that always works, which is the one that needs no
-    /// camera at all.
+    /// Opens the intake form with the unified capture surface already in front of it. Secondary,
+    /// not primary: amber belongs to the one action on the screen that always works, which is the
+    /// one that needs no camera at all.
     private var scanCoreButton: some View {
         Button {
             model.requestScanCore(
@@ -378,10 +346,7 @@ private struct AgingBucketItemsView: View {
     var body: some View {
         let matching = matchingItems
 
-        return ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
+        return Group {
             if matching.isEmpty {
                 ScrollView {
                     EmptyStateView(
@@ -391,7 +356,7 @@ private struct AgingBucketItemsView: View {
                             + bucket.displayName.lowercased()
                             + "."
                     )
-                    .padding(.vertical, Spacing.xxl)
+                    .padding(.vertical, Spacing.xl)
                 }
             } else {
                 List {
@@ -412,6 +377,11 @@ private struct AgingBucketItemsView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
         }
         .navigationTitle(bucket.displayName)
     }

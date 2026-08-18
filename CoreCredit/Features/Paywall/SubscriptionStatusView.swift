@@ -68,10 +68,14 @@ private struct SubscriptionStatusContent: View {
             .frame(maxWidth: 560, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        // A pushed screen still sits behind the tab bar, so the last account action needs the
+        // same breathing room the root screens got.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
         .background {
             Palette.background.ignoresSafeArea()
         }
         .navigationTitle("Subscription")
+        .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier(A11y.Settings.subscriptionScreen)
         .sheet(isPresented: $isPresentingPaywall) {
             PaywallView(trigger: .voluntary)
@@ -180,7 +184,9 @@ private struct SubscriptionStatusContent: View {
             tier: controller.entitlement.tier
         ) ?? 0
 
-        return SectionCard(title: "Free allowance", systemImage: "shippingbox") {
+        // Plain: the `StatTile` inside already draws a surface, and a card around a card is the
+        // pattern this pass exists to remove.
+        return SectionCard(title: "Free allowance", systemImage: "shippingbox", isPlain: true) {
             VStack(alignment: .leading, spacing: Spacing.m) {
                 StatTile(
                     title: "Open cores",

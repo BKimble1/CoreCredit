@@ -1623,7 +1623,10 @@ enum Spacing {
     static let xl: CGFloat = 24
     static let xxl: CGFloat = 32
     static let minimumTapTarget: CGFloat = 44
-    static let cornerRadius: CGFloat = 12
+    static let cornerRadius: CGFloat = 10          // matches an inset-grouped list row
+    /// Gap under the last item of a root scroll view. NOT a stand-in for the tab bar's height —
+    /// SwiftUI already reports that as a safe-area inset. Nothing in this app measures the bar.
+    static let scrollBottomBreathingRoom: CGFloat = 24
 }
 
 // Views
@@ -1644,9 +1647,19 @@ struct CurrencyTextField: View {
 
 struct FormErrorText: View { init(_ message: String?) }
 
+/// `message` is **one sentence naming the next useful action**. The four-step explanation of how a
+/// core charge comes back belongs in onboarding and in `HowItWorksDisclosure`, never on an empty
+/// screen the owner will see again every time they settle their last core.
 struct EmptyStateView: View {
     init(symbol: String, title: String, message: String,
-         actionTitle: String? = nil, action: (() -> Void)? = nil)
+         actionTitle: String? = nil, actionIdentifier: String? = nil,
+         action: (() -> Void)? = nil)
+}
+
+/// The four-step "how a core charge comes back" lesson, collapsed. No implicit animation, so it
+/// behaves identically with Reduce Motion on and off.
+struct HowItWorksDisclosure: View {
+    init(isInitiallyExpanded: Bool = false)
 }
 
 struct ErrorBanner: View {
@@ -1660,8 +1673,13 @@ struct ConfirmationBanner: View {
     init(message: String, systemImage: String = "checkmark.circle", onDismiss: (() -> Void)? = nil)
 }
 
+/// A fill and a heading. **No stroke** — `Palette.surface` already separates it from
+/// `Palette.background` in both appearances, and an outline on top is a second line saying the same
+/// thing. `isPlain` drops the fill and the padding, for a heading over content that already has a
+/// surface of its own; that is how the app avoids card-on-card.
 struct SectionCard<Content: View>: View {
-    init(title: String? = nil, systemImage: String? = nil, @ViewBuilder content: () -> Content)
+    init(title: String? = nil, systemImage: String? = nil, isPlain: Bool = false,
+         @ViewBuilder content: () -> Content)
 }
 
 struct StatTile: View {
@@ -1708,8 +1726,15 @@ enum A11y {
     enum Editor { static let partName = "editor.partName"; static let partNumber = "editor.partNumber"
                   static let amount = "editor.amount"; static let vendor = "editor.vendor"
                   static let bin = "editor.bin"; static let invoice = "editor.invoice"
-                  static let repairOrder = "editor.repairOrder"; static let save = "editor.save"
-                  static let cancel = "editor.cancel"; static let scan = "editor.scan" }
+                  static let repairOrder = "editor.repairOrder"
+                  // The one Save, in a pinned bottom bar rather than the toolbar.
+                  static let save = "editor.save"
+                  static let cancel = "editor.cancel"
+                  // "Scan core" — the unified capture entry at the top of the form.
+                  static let scan = "editor.scan"
+                  // The References disclosure. That section folds away while it is empty, so a UI
+                  // test that wants the invoice or repair-order field opens it through this first.
+                  static let referencesSection = "editor.referencesSection" }
     enum Detail { static let root = "detail.root"; static let status = "detail.status"
                   static let markReady = "detail.markReady"; static let recordCredit = "detail.recordCredit"
                   static let exportPacket = "detail.exportPacket"; static let binTag = "detail.binTag" }
@@ -1853,6 +1878,34 @@ Launch arguments consumed by `LaunchOptions.parse`:
 | `-uiTestStoreKitFailure` | `StubSubscriptionEngine(simulateLoadFailure: true)` |
 | `-uiTestScannerPayload <string>` | manual-entry field pre-filled / stub scan result |
 | `-uiTestSkipOnboarding` | marks the seeded profile as onboarded |
+
+---
+
+## 7a. Screen layout rules (added by the final UX pass)
+
+These are normative for every screen, and they exist because breaking them produced real bugs.
+
+1. **Never write `ZStack { Palette.background.ignoresSafeArea(); ScrollView { … } }`.** A `ZStack`
+   sizes itself to its largest child, so the ignoring background grows the stack past the tab bar's
+   bottom safe-area inset, the scroll view is sized to the stack, and the last row ends up under the
+   bar. Paint the background *behind* instead:
+
+   ```swift
+   ScrollView { … }
+       .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+       .background { Palette.background.ignoresSafeArea() }
+   ```
+
+   Nothing in this app measures or hard-codes a tab-bar height. SwiftUI reports it; the content
+   margin above it is ordinary breathing room, the same gap the first row gets.
+
+2. **One `NavigationStack` per presentation.** `CoreEditorView` carries none of its own: all four
+   call sites already wrap it, and a nested stack draws a second navigation bar under the first.
+
+3. **Root screens use large titles; pushed screens, editors, and sheets use `.inline`.**
+
+4. **One primary action per screen**, filled in `Palette.accent`. Everything else is tinted or
+   outlined. On the intake form the filled control is Save — the action that works with no camera.
 
 ---
 

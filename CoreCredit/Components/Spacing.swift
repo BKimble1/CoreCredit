@@ -26,6 +26,19 @@ enum Spacing {
 
     /// Minimum height and width of anything tappable.
     static let minimumTapTarget: CGFloat = 44
+
     /// Corner radius for cards, wells, and buttons.
-    static let cornerRadius: CGFloat = 12
+    ///
+    /// 10 rather than 12, matching the radius iOS draws on an inset-grouped list row. One value for
+    /// every rounded thing in the app: a screen where the cards, the fields, and the buttons all
+    /// round by different amounts reads as three designs stacked on top of each other.
+    static let cornerRadius: CGFloat = 10
+
+    /// Breathing room under the last item of a root scroll view.
+    ///
+    /// This is **not** a stand-in for the tab bar's height. SwiftUI already reports the tab bar as a
+    /// bottom safe-area inset and lays a scroll view out inside it; this is the ordinary gap that
+    /// keeps the final row from sitting flush against that inset, exactly like the gap above the
+    /// first row. See `docs/CONTRACTS.md` §6 for why nothing here measures the bar itself.
+    static let scrollBottomBreathingRoom: CGFloat = 24
 }

@@ -68,7 +68,7 @@ final class NavigationUITests: XCTestCase {
             requireExists(element(app, A11yID.Dashboard.root), "the Dashboard root")
             // Matched on the accessibility label rather than through the identifier subscript,
             // because a plain SwiftUI `Text` carries no identifier of its own.
-            requireExists(element(app, labelled: "No core money on the books yet"),
+            requireExists(element(app, labelled: "No core money at risk"),
                           "the Dashboard's empty-state heading")
 
             // The headline figure and the overdue tile belong to the populated layout. An empty
@@ -85,7 +85,7 @@ final class NavigationUITests: XCTestCase {
 
         XCTContext.runActivity(named: "The ledger is empty, not filtered") { _ in
             tapTab(A11yID.Tab.cores, in: app)
-            requireExists(element(app, labelled: "No cores tracked yet"),
+            requireExists(element(app, labelled: "No cores yet"),
                           "the ledger's empty-state heading")
             requireAbsent(element(app, A11yID.Cores.list),
                           "the cores list, which is not built for an empty ledger")
@@ -97,7 +97,7 @@ final class NavigationUITests: XCTestCase {
         XCTContext.runActivity(named: "Returns has nothing staged and nothing outstanding") { _ in
             tapTab(A11yID.Tab.returns, in: app)
             requireExists(element(app, A11yID.Returns.root), "the Returns root")
-            requireExists(element(app, labelled: "Nothing staged to go back"),
+            requireExists(element(app, labelled: "Nothing ready to return"),
                           "the Returns staging empty state")
             requireExists(element(app, labelled: "Nothing outstanding"),
                           "the awaiting-credit empty state")

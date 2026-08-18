@@ -59,6 +59,12 @@ SDK, no crash reporter, and no dependency manager.
 | Camera | Only when the user taps a scan or photo control | Manual entry remains fully available; the app explains and offers a Settings link |
 | Notifications | Only from Settings → Notifications, when enabling deadline reminders | Reminders are off and the app says so plainly; nothing else is affected |
 
+The **Scan core** screen's Live mode recognises barcodes *and* printed text in the camera preview.
+Both are recognised entirely on device, by VisionKit and Vision; no frame, no transcript, and no
+image ever leaves the device, and nothing is written to a record without a person confirming it on
+the review screen. Recognised text is highlighted only — it is handed to the app when the user taps
+a specific line, never because it came into frame.
+
 **Not requested:** Photo Library (`PhotosPicker` needs no permission), location, contacts,
 calendar, reminders, microphone, Bluetooth, Health, Motion, App Tracking Transparency.
 No background modes and no remote push notifications.
@@ -82,6 +88,10 @@ and are purpose-specific.
   A disk-space declaration (`E174.1`) was removed: an audit found the app never calls a
   disk-space API, so declaring it would have over-stated what CoreCredit does. Declare only
   what the code actually uses.
+
+The capture rework did not change any of this. Adding live text recognition adds an on-device Vision
+pass, not a data flow: there is still no analytics, no crash reporter, no network client of the
+app's own, and no stored image beyond the evidence photos the user deliberately attaches.
 
 ---
 

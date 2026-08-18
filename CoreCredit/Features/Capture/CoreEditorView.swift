@@ -10,14 +10,25 @@
 //  entry is the feature. Everything here follows from that:
 //
 //  - **The manual path is always available.** No camera, no scanner, no OCR, no network — the form
-//    still fills in and still saves. Scanning and photo-reading are buttons *beside* the fields,
-//    never gates in front of them.
+//    still fills in and still saves. Scanning is an accelerator *above* the fields, never a gate in
+//    front of them.
 //  - **Nothing is set up elsewhere.** A missing vendor or bin is created inline, in place, without
 //    abandoning the entry.
 //  - **Money is text until it is parsed.** The amount binds to a `String` and only `Money.parse`
 //    ever reads it, so a core charge can never pick up a floating-point error.
 //  - **The deadline comes from the vendor.** The due date is derived from the selected vendor's own
 //    return window; no policy is written into this file.
+//
+//  ## The order of the form is the order of the job
+//
+//  Scan core, then part, vendor, expected credit, dates — everything a core charge cannot be
+//  recorded without — and only then the optional context: references, bin, evidence, notes. The
+//  optional four are quieter and fold away while they are empty, and `CollapsibleSection` makes it
+//  structurally impossible for a fold to conceal a value or an error.
+//
+//  There is exactly **one** Save, in a bar pinned above the safe area and above the keyboard. The
+//  screen used to carry two — a toolbar item and a button at the foot of the scroll — which is two
+//  answers to the same question and one of them below the fold.
 //
 
 import SwiftData
@@ -59,6 +70,13 @@ struct CoreEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    /// Whether the person using this has asked the system to move things less.
+    ///
+    /// The only motion this screen produces is the scroll that follows a failed save, and that
+    /// scroll is not decoration — it is how the user finds the field that needs attention. So it
+    /// still happens under Reduce Motion; it just happens instantly instead of sliding.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Query private var vendors: [Vendor]
     @Query private var bins: [StorageBin]
     @Query private var profiles: [ShopProfile]
@@ -68,10 +86,11 @@ struct CoreEditorView: View {
 
     /// - Parameters:
     ///   - mode: Creating a record, or editing one that already exists.
-    ///   - initialRoute: A modal to open on top of the form as it appears. This is how the
-    ///     Dashboard's "Scan core" action reaches the scanner *without* presenting a second copy of
-    ///     the intake form: there is one editor, and the scanner is a sheet over it, so cancelling
-    ///     the camera lands on the form the user was always going to fill in.
+    ///   - initialRoute: A modal to open on top of the form as it appears. This is how every
+    ///     "Scan core" entry point — the Dashboard button, the Quick Scan widget, the App Shortcut,
+    ///     the Action Button — reaches capture *without* presenting a second copy of the intake
+    ///     form: there is one editor, and the capture surface is a sheet over it, so cancelling the
+    ///     camera lands on the form the user was always going to fill in.
     init(mode: CoreEditorMode, initialRoute: CoreEditorModel.Route? = nil) {
         let model = CoreEditorModel(mode: mode)
         model.route = initialRoute
@@ -79,53 +98,63 @@ struct CoreEditorView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollViewReader { proxy in
-                ScrollView {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.l) {
                     VStack(alignment: .leading, spacing: Spacing.l) {
-                        VStack(alignment: .leading, spacing: Spacing.l) {
-                            messages
-                        }
-                        .id(CoreEditorView.topAnchorID)
-                        partCard
-                        vendorCard
-                        moneyCard
-                        referenceCard
-                        dateCard
-                        binCard
-                        photoCard
-                        notesCard
-                        saveButton(proxy: proxy)
+                        messages
                     }
-                    .padding(Spacing.l)
-                    .frame(maxWidth: CoreEditorView.contentMaxWidth)
-                    .frame(maxWidth: .infinity)
+                    .id(CoreEditorView.topAnchorID)
+
+                    // Essential first, optional last. Everything above `referenceCard` is what a
+                    // core charge cannot be recorded without; everything below it is context the
+                    // shop may or may not have at the counter.
+                    captureCard
+                    partCard
+                    vendorCard
+                    moneyCard
+                    dateCard
+                    referenceCard
+                    binCard
+                    photoCard
+                    notesCard
                 }
-                .background(Palette.background)
-                .scrollDismissesKeyboard(.interactively)
-                .navigationTitle(model.title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                            .accessibilityIdentifier(A11y.Editor.cancel)
-                            .accessibilityHint(Text("Closes without saving."))
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") { performSave(proxy: proxy) }
-                            .disabled(model.isSaving)
-                            .accessibilityIdentifier(A11y.Editor.save)
-                    }
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Done") { focusedField = nil }
-                    }
+                .padding(Spacing.l)
+                .frame(maxWidth: CoreEditorView.contentMaxWidth)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            // One Save, pinned. It used to exist twice — once in the toolbar, once at the foot of
+            // the scroll view — which is two answers to "where do I save this?", and on a small
+            // phone at a large text size the second one was a long way below the fold. A bottom
+            // safe-area inset is reachable without scrolling and rides above the keyboard.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                saveBar(proxy: proxy)
+            }
+            .background {
+                Palette.background.ignoresSafeArea()
+            }
+            // No `NavigationStack` here. Every one of the four call sites already presents this
+            // view inside one, and a second stack nested in the first draws a second navigation
+            // bar under the first — two bars, one of them empty, on every appearance of the
+            // editor.
+            .navigationTitle(model.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier(A11y.Editor.cancel)
+                        .accessibilityHint(Text("Closes without saving."))
                 }
-                // Attached here rather than beside the paywall sheet below: two `.sheet` modifiers
-                // on the *same* view can shadow one another, so each lives on its own view.
-                .sheet(item: $model.route) { route in
-                    sheetContent(for: route)
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
                 }
+            }
+            // Attached here rather than beside the paywall sheet below: two `.sheet` modifiers
+            // on the *same* view can shadow one another, so each lives on its own view.
+            .sheet(item: $model.route) { route in
+                sheetContent(for: route)
             }
         }
         .tint(Palette.accent)
@@ -172,6 +201,30 @@ struct CoreEditorView: View {
         }
     }
 
+    // MARK: - Capture
+
+    /// The single, prominent way into the unified "Scan core" surface.
+    ///
+    /// It sits above the fields rather than beside the part number, because scanning is how a
+    /// technician *starts* a core when they have the box in their hand — and because there is now
+    /// one capture entry instead of a barcode button here and a document button four sections
+    /// further down. Tinted rather than filled: the one filled amber control on this screen is
+    /// Save, which is the action that always works with no camera at all.
+    private var captureCard: some View {
+        Button {
+            focusedField = nil
+            model.route = .scan
+        } label: {
+            CaptureActionLabel()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(A11y.Editor.scan)
+        .accessibilityLabel(Text("Scan core"))
+        .accessibilityHint(Text("Opens the camera. A barcode, a line of printed text, or a whole "
+                                + "invoice — all of them end on a check screen before anything is "
+                                + "filled in."))
+    }
+
     // MARK: - Part
 
     private var partCard: some View {
@@ -192,6 +245,9 @@ struct CoreEditorView: View {
                     onSubmit: { focusedField = .partNumber }
                 )
 
+                // Submitting here dismisses the keyboard rather than jumping to the invoice field:
+                // References is an optional section and may legitimately be folded away, and
+                // moving focus into a control that is not on screen is worse than stopping.
                 EditorField(
                     title: "Part number",
                     placeholder: "03-1887",
@@ -202,22 +258,11 @@ struct CoreEditorView: View {
                     keyboardType: .numbersAndPunctuation,
                     autocapitalization: .characters,
                     disablesAutocorrection: true,
-                    submitLabel: .next,
+                    submitLabel: .done,
                     errorMessage: model.message(for: .partNumber),
                     hint: "Optional. Scan it, or type it in.",
-                    onSubmit: { focusedField = .invoiceReference }
+                    onSubmit: { focusedField = nil }
                 )
-
-                Button {
-                    focusedField = nil
-                    model.route = .scan
-                } label: {
-                    SecondaryActionLabel(title: "Scan barcode", systemImage: "barcode.viewfinder")
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier(A11y.Editor.scan)
-                .accessibilityLabel(Text("Scan barcode"))
-                .accessibilityHint(Text("Opens the scanner. You can also type the number in."))
             }
         }
         .id(CoreItemField.partName)
@@ -324,10 +369,6 @@ struct CoreEditorView: View {
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .fill(Palette.surfaceElevated)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
-        )
     }
 
     // MARK: - Money
@@ -348,8 +389,17 @@ struct CoreEditorView: View {
 
     // MARK: - References
 
+    /// Optional, and folded away while it is empty.
+    ///
+    /// `isForcedOpen` is what keeps the fold honest: a section holding a saved value, a scanned
+    /// value, or a validation error is **always** open and its header is not a toggle at all, so
+    /// nothing a user or a scan put there can ever be concealed behind a chevron.
     private var referenceCard: some View {
-        SectionCard(title: "References", systemImage: "doc.text") {
+        CollapsibleSection(title: "References",
+                           systemImage: "doc.text",
+                           subtitle: "Optional",
+                           disclosureIdentifier: A11y.Editor.referencesSection,
+                           isForcedOpen: hasReferenceContent) {
             VStack(alignment: .leading, spacing: Spacing.l) {
                 EditorField(
                     title: "Invoice or reference",
@@ -377,13 +427,21 @@ struct CoreEditorView: View {
                     keyboardType: .numbersAndPunctuation,
                     autocapitalization: .characters,
                     disablesAutocorrection: true,
-                    submitLabel: .next,
+                    submitLabel: .done,
                     errorMessage: model.message(for: .repairOrderReference),
                     hint: "Your own ticket number, so the core ties back to the job.",
-                    onSubmit: { focusedField = .notes }
+                    onSubmit: { focusedField = nil }
                 )
             }
         }
+    }
+
+    /// Whether References holds anything at all — a typed value, a scanned one, or an error.
+    private var hasReferenceContent: Bool {
+        model.draft.invoiceReference.isEmpty == false
+            || model.draft.repairOrderReference.isEmpty == false
+            || model.message(for: .invoiceReference) != nil
+            || model.message(for: .repairOrderReference) != nil
     }
 
     // MARK: - Dates
@@ -426,7 +484,10 @@ struct CoreEditorView: View {
     // MARK: - Bin
 
     private var binCard: some View {
-        SectionCard(title: "Storage bin", systemImage: "tray.full") {
+        CollapsibleSection(title: "Storage bin",
+                           systemImage: "tray.full",
+                           subtitle: "Optional",
+                           isForcedOpen: model.draft.binIdentifier != nil || model.isAddingBin) {
             VStack(alignment: .leading, spacing: Spacing.m) {
                 Menu {
                     Button {
@@ -520,18 +581,17 @@ struct CoreEditorView: View {
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .fill(Palette.surfaceElevated)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
-        )
     }
 
     // MARK: - Photos
 
     private var photoCard: some View {
-        SectionCard(title: "Photos", systemImage: "camera") {
+        CollapsibleSection(title: "Evidence",
+                           systemImage: "camera",
+                           subtitle: "Optional",
+                           isForcedOpen: model.photos.isEmpty == false) {
             VStack(alignment: .leading, spacing: Spacing.m) {
-                Text("Photos are the evidence when a credit comes up short. All optional.")
+                Text("Photos are what settles it when a credit comes up short.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -544,6 +604,8 @@ struct CoreEditorView: View {
                     photoButton(kind: .receipt, title: "Return receipt")
                 }
 
+                // The same unified surface the Scan core button at the top opens, with Document
+                // already selected — not a second scanner.
                 Button {
                     focusedField = nil
                     model.route = .documentScan
@@ -554,7 +616,7 @@ struct CoreEditorView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Text("Scan an invoice or receipt"))
                 .accessibilityHint(
-                    Text("Opens the document camera for a multi-page invoice. "
+                    Text("Opens Scan core with Document selected, for a multi-page invoice. "
                          + "Nothing is filled in until you confirm each value.")
                 )
 
@@ -598,7 +660,10 @@ struct CoreEditorView: View {
     // MARK: - Notes
 
     private var notesCard: some View {
-        SectionCard(title: "Notes", systemImage: "note.text") {
+        CollapsibleSection(title: "Notes",
+                           systemImage: "note.text",
+                           subtitle: "Optional",
+                           isForcedOpen: model.draft.notes.isEmpty == false) {
             VStack(alignment: .leading, spacing: Spacing.s) {
                 TextField("Anything the counter needs to know",
                           text: $model.draft.notes,
@@ -625,17 +690,28 @@ struct CoreEditorView: View {
 
     // MARK: - Save
 
-    private func saveButton(proxy: ScrollViewProxy) -> some View {
-        Button {
-            performSave(proxy: proxy)
-        } label: {
-            PrimaryButtonLabel(model.isCreatingNewRecord ? "Save core" : "Save changes",
-                               systemImage: "checkmark")
+    /// The one Save, pinned above the safe area and above the keyboard.
+    private func saveBar(proxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            Button {
+                performSave(proxy: proxy)
+            } label: {
+                PrimaryButtonLabel(model.isCreatingNewRecord ? "Save core" : "Save changes",
+                                   systemImage: "checkmark")
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isSaving)
+            .accessibilityIdentifier(A11y.Editor.save)
+            .accessibilityLabel(Text(model.isCreatingNewRecord ? "Save core" : "Save changes"))
+            .accessibilityHint(Text("Checks the form and writes this core to the ledger."))
+            .padding(.horizontal, Spacing.l)
+            .padding(.vertical, Spacing.m)
+            .frame(maxWidth: CoreEditorView.contentMaxWidth)
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
-        .disabled(model.isSaving)
-        .accessibilityLabel(Text(model.isCreatingNewRecord ? "Save core" : "Save changes"))
-        .padding(.top, Spacing.s)
+        .background(Material.bar)
     }
 
     /// Validates, saves, and either closes or points the user at the first problem.
@@ -655,17 +731,26 @@ struct CoreEditorView: View {
             // No field owns this failure — a store error, or a paywall block. Bring the banners
             // (and the paywall's own presentation) back into view.
             if model.errorMessage != nil {
-                withAnimation {
-                    proxy.scrollTo(CoreEditorView.topAnchorID, anchor: .top)
-                }
+                scroll(proxy, to: CoreEditorView.topAnchorID, anchor: .top)
             }
             return
         }
         if CoreEditorView.focusableFields.contains(field) {
             focusedField = field
         }
-        withAnimation {
-            proxy.scrollTo(field, anchor: .center)
+        scroll(proxy, to: field, anchor: .center)
+    }
+
+    /// Moves the failed field into view, animated unless the system has asked for less motion.
+    private func scroll(_ proxy: ScrollViewProxy,
+                        to target: some Hashable,
+                        anchor: UnitPoint) {
+        if reduceMotion {
+            proxy.scrollTo(target, anchor: anchor)
+        } else {
+            withAnimation {
+                proxy.scrollTo(target, anchor: anchor)
+            }
         }
     }
 
@@ -678,9 +763,17 @@ struct CoreEditorView: View {
     private func sheetContent(for route: CoreEditorModel.Route) -> some View {
         switch route {
         case .scan:
-            ScanSheet { session in
-                model.beginReview(of: session)
-            }
+            // Live capture. Choosing Document swaps the route rather than presenting a sheet from
+            // inside a sheet, so exactly one capture surface is ever up and a dismissal can never
+            // race a presentation.
+            ScanSheet(
+                onCandidates: { session in
+                    model.beginReview(of: session)
+                },
+                onSwitchToDocument: {
+                    model.route = .documentScan
+                }
+            )
         case .attachment(let kind):
             AttachmentPickerSheet(kind: kind) { attachment in
                 model.addPhoto(attachment, using: itemService)
@@ -700,10 +793,18 @@ struct CoreEditorView: View {
                 }
             )
         case .documentScan:
-            DocumentScanSheet { candidates in
-                model.apply(candidates, vendors: vendors)
-                model.route = nil
-            }
+            // The other half of the same surface. `startsInCamera: false` so the Live / Document
+            // selector is reachable before the document camera takes the screen.
+            DocumentScanSheet(
+                startsInCamera: false,
+                onApply: { candidates in
+                    model.apply(candidates, vendors: vendors)
+                    model.route = nil
+                },
+                onSwitchToLive: {
+                    model.route = .scan
+                }
+            )
         }
     }
 
@@ -819,10 +920,6 @@ private struct NoticeBanner: View {
         .background(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .fill(Palette.surfaceElevated)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
         )
     }
 }
@@ -1070,6 +1167,188 @@ private struct SecondaryActionLabel: View {
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .strokeBorder(Palette.hairline, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Capture action label
+
+/// The label for the unified "Scan core" action at the top of the intake form.
+///
+/// Tinted amber rather than filled amber. There is exactly one filled control on this screen and it
+/// is Save — the action that works with no camera, no permission, and no hardware. Scanning is the
+/// accelerator, so it is drawn as one: unmissable, and visibly not the thing you have to do.
+@MainActor
+private struct CaptureActionLabel: View {
+
+    var body: some View {
+        HStack(spacing: Spacing.m) {
+            Image(systemName: "barcode.viewfinder")
+                .font(.title2)
+                .foregroundStyle(Palette.accent)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Scan core")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Palette.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Barcode, printed text, or a whole invoice")
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: Spacing.s)
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Palette.textSecondary)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
+        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .fill(Palette.accent.opacity(0.12))
+        )
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Collapsible section
+
+/// An optional section of the intake form, quieter than a required one and folded away while it is
+/// empty.
+///
+/// # The fold can never hide anything
+///
+/// `isForcedOpen` is the whole safety rule. A section that holds a saved value, a value a scan just
+/// applied, or a validation error is **always** expanded, and in that state its header is not a
+/// control at all — there is no chevron to tap and no way to collapse it. Folding therefore only
+/// ever applies to a section with nothing in it, which is exactly the case where hiding it costs
+/// the user nothing and saves them a screenful of scrolling.
+///
+/// # No animation
+///
+/// Expanding swaps the content in without an implicit animation, so the behaviour is identical with
+/// Reduce Motion on and off, and a failed save that opens a section never animates the field the
+/// user is being sent to out from under the scroll.
+@MainActor
+private struct CollapsibleSection<Content: View>: View {
+
+    private let title: String
+    private let systemImage: String
+    private let subtitle: String?
+    private let disclosureIdentifier: String?
+    private let isForcedOpen: Bool
+    private let content: Content
+
+    /// The user's own choice. Only consulted while `isForcedOpen` is `false`.
+    @State private var userExpanded = false
+
+    /// - Parameters:
+    ///   - title: Section heading.
+    ///   - systemImage: SF Symbol shown before the title.
+    ///   - subtitle: A quiet qualifier beside the title — "Optional", in every current use.
+    ///   - disclosureIdentifier: Accessibility identifier for the header control, for the UI tests
+    ///     that need to open a section deterministically.
+    ///   - isForcedOpen: Keeps the section open and removes the control entirely. Pass `true`
+    ///     whenever the section holds a value or an error.
+    ///   - content: The section's fields.
+    init(title: String,
+         systemImage: String,
+         subtitle: String? = nil,
+         disclosureIdentifier: String? = nil,
+         isForcedOpen: Bool,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.subtitle = subtitle
+        self.disclosureIdentifier = disclosureIdentifier
+        self.isForcedOpen = isForcedOpen
+        self.content = content()
+    }
+
+    private var isExpanded: Bool { isForcedOpen || userExpanded }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            header
+
+            if isExpanded {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .fill(Palette.surface)
+        )
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        if isForcedOpen {
+            headerContent(showsChevron: false)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+        } else {
+            let control = Button {
+                userExpanded.toggle()
+            } label: {
+                headerContent(showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(subtitle == nil ? title : title + ", " + (subtitle ?? "")))
+            .accessibilityValue(Text(userExpanded ? "Showing" : "Hidden"))
+            .accessibilityHint(Text(userExpanded
+                                    ? "Hides these optional fields."
+                                    : "Shows these optional fields."))
+            .accessibilityAddTraits(.isHeader)
+
+            if let disclosureIdentifier = disclosureIdentifier {
+                control.accessibilityIdentifier(disclosureIdentifier)
+            } else {
+                control
+            }
+        }
+    }
+
+    private func headerContent(showsChevron: Bool) -> some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+                .foregroundStyle(Palette.textSecondary)
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(Typography.sectionTitle)
+                .foregroundStyle(Palette.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let subtitle = subtitle {
+                Text(subtitle)
+                    .font(Typography.caption)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: Spacing.s)
+
+            if showsChevron {
+                Image(systemName: userExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Palette.textSecondary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
         .contentShape(Rectangle())
     }
 }
