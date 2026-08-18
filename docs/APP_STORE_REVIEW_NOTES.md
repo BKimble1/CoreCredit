@@ -105,6 +105,18 @@ no document camera. No camera permission is requested in either case, and nothin
 same fallbacks appear if camera access is denied or the hardware is unsupported — scanning is always
 optional, and every field can be typed by hand.
 
+**Restoring a backup**
+
+Settings → Data & export → **Restore from backup** reads a JSON backup the app itself wrote. It
+is a **replace-all** operation, stated in those words before it runs: the file is decoded and
+checked first, a summary of what it contains is shown alongside how much is on the device now, and
+nothing is deleted until that is confirmed. An empty, damaged, non-CoreCredit, or newer-format file
+is refused and nothing changes. A failed restore rolls back and leaves the existing records intact.
+
+Evidence photographs are **not** stored in a backup file and are not restored; the app says so in
+the footer, in the confirmation, and in the bundled Local Data and Backup document. The device's
+own notification settings are kept rather than overwritten, because the file does not carry them.
+
 **In-app purchase — how to reach the paywall**
 
 The free tier allows up to **5 unresolved core items** at a time. "Unresolved" means Awaiting

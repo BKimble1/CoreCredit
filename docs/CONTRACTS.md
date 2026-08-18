@@ -897,6 +897,9 @@ struct CoreItemService {
     func writeOff(_ item: CoreItem, reason: String) throws
     func addAttachment(_ attachment: Attachment, to item: CoreItem) throws
     func removeAttachment(_ attachment: Attachment, from item: CoreItem) throws
+    /// Forgets the raw scanned payload. Audited as `.edited`, never touches `partNumber`, and is
+    /// a no-op when there is nothing to clear.
+    func clearScannedBarcode(_ item: CoreItem) throws
     func delete(_ item: CoreItem) throws
     func recalculateDueDate(for item: CoreItem)
 
@@ -1760,7 +1763,15 @@ enum A11y {
                   static let referencesSection = "editor.referencesSection" }
     enum Detail { static let root = "detail.root"; static let status = "detail.status"
                   static let markReady = "detail.markReady"; static let recordCredit = "detail.recordCredit"
-                  static let exportPacket = "detail.exportPacket"; static let binTag = "detail.binTag" }
+                  static let exportPacket = "detail.exportPacket"; static let binTag = "detail.binTag"
+                  // The scanned-barcode card. Present only on a core that carries a payload.
+                  static let copyBarcode = "detail.copyBarcode"
+                  static let clearBarcode = "detail.clearBarcode" }
+    enum Data { static let restore = "data.restore"
+                static let restorePreflight = "data.restorePreflight"
+                static let restoreCancel = "data.restoreCancel" }
+    enum Appearance { static let root = "appearance.root"
+                      static func option(_ rawValue: String) -> String { "appearance.option." + rawValue } }
     enum Returns { static let root = "returns.root"
                    static let reference = "returns.reference"        // create-batch sheet
                    static let editReference = "returns.editReference" // batch detail, while editing
@@ -1903,6 +1914,54 @@ Launch arguments consumed by `LaunchOptions.parse`:
 | `-uiTestSkipOnboarding` | marks the seeded profile as onboarded |
 
 ---
+
+## 7c. Backup restore — `CoreCredit/Services/BackupRestoreService.swift`
+
+```swift
+struct BackupRestorePlan: Sendable { let payload: BackupPayload; let summary: BackupRestoreSummary }
+
+struct BackupRestoreSummary: Equatable, Sendable {
+    var formatVersion: Int; var appVersion: String; var exportedAt: Date
+    var shopName: String
+    var vendorCount: Int; var binCount: Int; var itemCount: Int; var batchCount: Int
+    var eventCount: Int; var unresolvedCount: Int; var moneyAtRisk: Money
+    var existingItemCount: Int      // what is on the device now and would be replaced
+}
+
+enum BackupRestoreError: LocalizedError, Equatable {
+    case unreadableFile(String), notJSON, notACoreCreditBackup
+    case newerFormat(found: Int, supported: Int), empty
+    case duplicateIdentifiers(kind: String), restoreFailed(String)
+}
+
+@MainActor final class BackupRestoreService {
+    init(context: ModelContext, dateProvider: any DateProvider)
+    func plan(from data: Data) throws -> BackupRestorePlan   // reads only. NEVER mutates.
+    func restore(_ plan: BackupRestorePlan) throws            // one transaction, rolls back
+}
+```
+
+**The split is the safety, and it is normative.** `plan(from:)` performs *every* rejection while
+the existing ledger is still intact. `restore(_:)` deletes and rebuilds inside a **single unsaved
+transaction** and saves once; anything thrown calls `context.rollback()`, which discards the
+deletions together with the half-built replacement. The delete must never be saved on its own — if
+it were, a failure during the rebuild would leave a shop with nothing at all.
+
+Other rules:
+
+- **Replace, not merge.** Version 1 restores by replacement, and the confirmation says so in those
+  words. A merge has to decide which duplicate wins, and a duplicated core is money counted twice.
+- **The backup carries no image bytes.** `BackupPayload` has no attachment data, so evidence photos
+  cannot be restored. The UI, the bundled `local-data-and-backup` document, `docs/PRIVACY.md`, and
+  the App Review notes all say so, and `BackupRestoreTests` asserts the encoded file contains no
+  `imageData`, so the claim stays true if the format ever changes.
+- **The backup carries no reminder preferences.** `ShopProfileSnapshot` holds name, phone, email,
+  address, and currency. `CarriedDeviceSettings` copies the device's notification settings across a
+  restore rather than resetting them — they describe the device, not the ledger.
+- **The postal address is stored as formatted lines**, so it returns as address lines. No character
+  is lost; the split between city/region/postal is.
+- After a successful restore the caller cancels the reminder queue and rebuilds it from the store:
+  the old queue referred to records that no longer exist.
 
 ## 7b. The load-in screen — `CoreCredit/App/LaunchSplashView.swift`
 

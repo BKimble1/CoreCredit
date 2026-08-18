@@ -27,11 +27,23 @@ answers must change in the same commit.
 | Reminder settings | Local SwiftData store (on `ShopProfile`) | No |
 | Last-known subscription entitlement | `UserDefaults` on device | No |
 | Generated PDF / CSV / JSON exports | App-controlled `Caches/CoreCreditExports`, swept after 24 h | Only when the user shares one |
+| A backup file chosen for restore | Read once, in memory, from wherever the user picked it | No — it is read, never copied or transmitted |
 
 Nothing is transmitted to the developer. There is no developer-operated server, no account, and
 no sign-in.
 
 ---
+
+## Restoring a backup
+
+Restoring reads a file the user chooses through the system file importer. The file is opened inside
+a security scope, decoded in memory, validated, and — only after the user confirms — used to replace
+the local store. It is never copied elsewhere, never uploaded, and never retained: CoreCredit has no
+server to send it to.
+
+A backup contains records, not images. **Evidence photographs are not in the file and are not
+restored.** Reminder preferences are not in it either, so the device's existing notification
+settings are kept rather than overwritten.
 
 ## Network activity
 

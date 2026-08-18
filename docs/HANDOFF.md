@@ -2,134 +2,54 @@
 
 ## 1. The one thing to know first
 
-This repository is authored on a Windows machine with **no Swift toolchain** — `swift`,
-`swiftc`, `xcodebuild`, and `xcrun` are all absent on the build host. Codemagic performs every
-authoritative build. Every claim below distinguishes what was *verified* from what was
-*reasoned about*.
+This repository is authored on a Windows machine with **no Swift toolchain** — `swift`, `swiftc`,
+`xcodebuild`, `xcrun`, and every simulator are absent, confirmed again at the start of the final
+production sweep. **Codemagic performs every authoritative build.** Nothing below is claimed as
+verified unless something actually executed and produced the result.
 
-### Build status, precisely
+### What was executed during the final production sweep
+
+| Check | How | Result |
+|---|---|---|
+| The three public legal URLs resolve over HTTPS, anonymously | `curl` | **pass** — `/support` 200 (7,652 B), `/privacy` 200 (12,448 B), `/terms` 200 (13,622 B) |
+| GitHub Pages build for `BKimble1/CoreCredit-Legal` | Pages API | **built** |
+| 12 repository invariants | `python3 scripts/verify_repository.py` | **all 12 hold** |
+| The SwiftData guard actually catches a non-additive change | simulated a rename of `Vendor.name` | **pass** — failed with the freeze-the-schemas message, file restored |
+| Legal pages match their generated source, and carry no tracker | in the invariant script | **pass** |
+| Every WCAG ratio in `PaletteThemeTests` and `LaunchScreenTests` | independent implementation of the WCAG 2.1 formulas over the shipping hex | **0 failures** across light, dark, and both with Increase Contrast |
+| Brace/paren balance, string- and comment-aware | custom Swift scanner | **pass** — all files |
+| Banned constructs (`fatalError`, `try!`, `as!`, `TODO`) | invariant script | **pass** — zero |
+
+### What was NOT executed, and therefore is not claimed
 
 | Thing | State |
 |---|---|
-| App target, Debug, iOS Simulator | **compiles** |
-| `CoreCreditQuickScanWidget` extension | **compiles** — the app depends on it and embeds the `.appex`, so a widget error fails the build |
-| App + extension install and launch on a simulator | **yes** |
-| `CoreCreditTests` / `CoreCreditUITests` targets | **compile** |
-| Unit test suite | **260 tests in 23 suites, all passing** (`corecredit-simulator-build`) |
-| UI test suite | **never run** — not wired into either workflow |
-| Release archive / device build / signing | **blocked** on the widget App ID, §2 item 0 |
+| Compiling any of the code written in this sweep | **not done** — no toolchain on this machine |
+| `CoreCreditTests` | **not run in this sweep** |
+| `CoreCreditUITests` | **still never executed anywhere** |
+| Signed archive | **not produced** |
+| TestFlight upload | **not performed** |
+| Any screenshot of the running app | **none exists** |
 
-The architecture, the data model, the money arithmetic, and the business rules are now backed by
-a compiler *and* by an executed test suite. Two things are still unproven: nothing has run on real
-hardware, and no UI test has ever executed, so every claim about layout, Dynamic Type, VoiceOver,
-camera behaviour, and notification delivery remains reasoning rather than evidence.
+The last authoritative *compile* was Codemagic's build of an earlier commit on `main`
+(260 unit tests in 23 suites, all passing). Everything added since — the whole UX pass, the
+appearance rework, the launch screen, backup restore, the barcode card, and the new test suites —
+**has never been through a compiler.** Treat a first Codemagic run on this branch as the real
+smoke test, and expect the usual first-compile class of error: SwiftUI modifier spellings, actor
+isolation, and SwiftData API details.
 
-### The final UX pass — what it changed, and what that leaves unproven
+### Why nothing was merged
 
-A contained interface pass reworked appearance, bottom safe-area behaviour, empty-state density,
-the Add Core form, and the capture entry points. It changed **no** domain rule: money is still
-`Int64` cents through `Money`/`Decimal`, scanning and OCR still write nothing, every captured value
-still enters an unsaved `CoreItemDraft` and requires review plus Save, only `.high` candidates still
-start selected, the free tier still gates only the creation of a sixth unresolved core, and
-`CoreItemService` / `ReturnBatchService` are still the only mutation paths.
+The brief for this sweep says not to merge until the branch compiles and the complete automated
+suite passes. Neither could be established from here: this machine has no toolchain, no Codemagic
+API token is present, and GitHub reports **zero check runs** on the repository, so CI can neither
+be triggered nor observed. Merging would have meant asserting a gate that had not been evaluated.
+`main` is also wired to publish to TestFlight on push, so a merge is a release action, not an
+integration one.
 
-What it changed that a person has to look at:
-
-- **Light appearance is now the primary case.** `Palette.surface` is white in light so cards need no
-  outline; every card stroke is gone, corner radii dropped to 10, and vertical padding shrank.
-  Neither appearance has been seen on a screen.
-- **The bottom safe-area bug is fixed structurally, not by a magic number.** Every root and pushed
-  screen used `ZStack { Palette.background.ignoresSafeArea(); ScrollView { … } }`, which grows the
-  stack past the tab bar's inset and takes it away from the scroll view. The background is now
-  painted behind instead. **This has not been seen running**, and it is the single change most
-  worth checking first on a device.
-- **Capture is one entry point over two engines.** Same sheet, titled "Scan core", with a Live /
-  Document selector; switching swaps `CoreEditorModel.Route` so only one sheet is ever up. Live now
-  also recognises text, delivered **only** on a tap. **No part of this has run against a camera.**
-- **The editor has one Save**, pinned in a bottom bar, and its optional sections fold away while
-  they are empty. Keyboard avoidance of that bar is untested.
-- **`DocumentScanSheet` now checks `DocumentScannerView.isSupported` before presenting the document
-  camera.** It did not before, which means the Simulator and unsupported hardware were being handed
-  a `VNDocumentCameraViewController` that cannot run there. That path was previously unreachable
-  from the main scan entry; it is reachable now, which is why the check was added.
-- **The app has a load-in screen** — one layer, not two. `UILaunchScreen` paints the brand blue and
-  the white mark before any Swift runs, which removes the white flash and is the whole job. A second
-  animated SwiftUI layer was built on top of it and then taken out again: the handover from a static
-  image to a live view a frame later was visible on device. Do not add one back.
-  `INFOPLIST_KEY_UILaunchScreen_Generation` was removed from both app build configurations;
-  **it must stay off**, because it merges an empty dictionary over the real one and the only symptom
-  is the flash coming back. See `docs/CONTRACTS.md` §7b.
-- **The light scheme is built out of the app icon, and there is an appearance switch.** The icon's
-  blue `#0053FD` is now `Palette.accent` — the action colour for every filled button, link, and
-  focused field — and the light ground is that hue washed almost to white, so the bright scheme
-  reads as one family instead of blue buttons on neutral grey. Amber survives as "ready to return"
-  only, private behind `color(for:)`. The app **defaults to Light** and is switched at
-  **Settings → Appearance** (`AppearancePreference`, stored in `UserDefaults`, applied with the one
-  `preferredColorScheme` in the app). This overrides the original brief's "follow the system
-  setting, never force an appearance" at the owner's explicit request: the bright scheme is the one
-  built for a shop floor, and a phone left on Dark for reading in bed is not a statement about a
-  parts counter.
-
-### Both appearances are retuned, and a bug that was caught by being asked about
-
-The first cut of this pass moved **only the light halves** of `Palette`. Dark was byte-for-byte
-unchanged — while the card outlines were removed in *both* appearances. That left dark-mode cards
-with nothing separating them from the background at all: 1.099:1, which is a card you cannot see.
-It did not fail, did not warn, and looked from a dark-mode device exactly like no work had been
-done.
-
-Dark now has its own retune, to the same relationship light has: a deeper ground (`#080B12`) and a
-clearly lifted card (`#18202E`), giving **1.204:1** — better separation than light's 1.151:1.
-`surfaceElevated`, `hairline`, `textPrimary`, and `textSecondary` moved with it.
-
-The same measurement found a second, pre-existing defect: `hairline` at 1.36:1 was doing duty as
-both a row separator *and* the edge of every text field, and WCAG 1.4.11 wants 3:1 on the boundary
-that identifies a control. `Palette.fieldBorder` now carries that job at 3.35:1 (light) and 3.36:1
-(dark) across twelve input sites; `hairline` stays faint for separators.
-
-**`CoreCreditTests/PaletteThemeTests.swift` measures all of it** — surface separation, 4.5:1 for
-every foreground and every status colour on a card, 4.5:1 for text on a solid status fill, 3:1 for
-the field border, Increase Contrast never making anything worse, and every token genuinely
-differing between the two schemes — in four appearances (light, dark, and each with Increase
-Contrast). That suite exists because a screenshot would have caught the original bug in one second
-and there is no screenshot: this repository is built on a machine with no simulator.
-
-### What was actually verified
-
-| Check | Tool | Result |
-|---|---|---|
-| `project.pbxproj` parses as a valid old-style plist | custom parser | pass — 39 objects |
-| Every object ID referenced is defined and reachable from `rootObject` | custom parser | pass — no dangling or orphaned IDs |
-| Required keys present per `isa` type | custom parser | pass |
-| `CoreCredit.xcscheme` is well-formed XML | `xml.dom.minidom` | pass |
-| `CoreCredit.storekit` is valid JSON with both products in one group | `json` | pass |
-| Asset catalog `Contents.json` files are valid JSON | `json` | pass |
-| Brace/paren/bracket balance, string- and comment-aware | custom Swift scanner | pass — all files |
-| Banned constructs: `fatalError`, `try!`, `as!`, force unwrap, `TODO` | custom Swift scanner | pass — zero occurrences |
-| `OurType.member` references resolve to a declared member | custom Swift scanner | pass — 3 flagged, all false positives (wrapped `case` lists, a nested enum) |
-| Framework imports present for the APIs each file uses | custom Swift scanner | pass — 2 flagged, both false positives (string literals) |
-| Layering: `Domain/` imports only `Foundation` | custom Swift scanner | pass |
-| Cross-file call sites match their declarations | full read-through audit | pass — no blockers across 16 seams |
-| Duplicate top-level declarations | full read-through audit | pass — 204 types, 204 distinct names |
-| `switch` exhaustiveness over 15 enums | full read-through audit | pass — 59 switches, all exhaustive or defaulted |
-| Protocol conformance completeness + actor isolation | full read-through audit | pass |
-
-### What could NOT be verified
-
-- **The UI test suite.** The 8 UI-test files have never executed — neither workflow runs them,
-  because they drive a full simulator session and belong in a longer job. Their assertions were
-  written against real accessibility identifiers, but none has been evaluated. That now includes
-  `CaptureAndLayoutUITests`, which is the suite that would prove the tab-bar and unified-capture
-  claims above; until it runs, those claims are reasoning.
-- **Every screenshot in the review matrix.** No screenshot of this build exists, in either
-  appearance, at any Dynamic Type size, on any device. Light mode, Dark mode, iPad regular width,
-  and the accessibility text sizes have all been reasoned about and none has been looked at.
-- **Anything on real hardware.** The camera and scanner path, notification delivery, widget
-  rendering on a Home Screen, Siri and Action Button entry, and StoreKit purchases have only ever
-  run against stubs or not at all.
-- **Runtime behaviour**, layout, Dynamic Type reflow, VoiceOver output, PDF rendering, QR
-  scannability, and StoreKit purchase flows.
-- **Code signing and device install.**
+**The smallest owner action that unblocks everything:** open Codemagic, run
+`corecredit-simulator-build` against `ux/final-polish-pass`, and fix or report what it says. That
+workflow now runs the unit suite *and* the UI suite and gates on both.
 
 ---
 
@@ -226,6 +146,13 @@ Honest and specific. Nothing here is a P0 gap.
   upload, and no image bytes are ever recorded.
 - **`draft.scannedBarcodeValue` round-trips but has no editor UI.** It is stored, shown in
   diagnostics, and preserved across an edit, but there is no field to view or clear it directly.
+- **Schema versioning is additive-only, and now guarded.** The decision was deliberate: freezing
+  the historical schemas is a seven-model refactor whose correctness can only be shown with real
+  migration fixtures on a Mac, and doing it unproven immediately before release is a worse risk
+  than the one it removes. Instead the persisted shape of all seven `@Model` types is pinned in
+  `scripts/swiftdata-model-manifest.json`, and any rename, retype, or removal fails CI with
+  instructions to freeze the historical schemas first. Additive changes update the manifest in the
+  same commit. Original note follows.
 - **Schema versioning is additive-only.** `CoreCreditSchemaV1.models` returns the live model types,
   so V1 and V2 describe identical entities and the lightweight stage is a structural no-op.
   Existing stores open correctly because the change is purely additive, but the plan cannot express
@@ -237,6 +164,23 @@ Honest and specific. Nothing here is a P0 gap.
   cannot import the app module, so `CoreCreditUITests/UITestSupport.swift` carries a verbatim
   copy of the `A11y` strings. Renaming an identifier in the app will **not** cause a compile
   error — it will cause a query that never resolves. Keep the two in sync by hand.
+
+### Closed in the final production sweep
+
+- **JSON backup import.** Implemented. `BackupRestoreService` validates before it deletes and
+  rolls back on failure; Data & export offers Restore from backup. Two honest limits, stated in
+  the UI and in the legal documents: evidence photos are not in the format, and reminder
+  preferences are not either (the device's own settings are carried across instead).
+- **`draft.scannedBarcodeValue` had no editor UI.** Core detail now shows a Barcode card with
+  copy and clear-with-confirmation, routed through `CoreItemService` so the clear lands in the
+  timeline.
+- **The `Calendar.current` leak in the ledger PDF.** `makeLedgerPDFData` now takes the calendar as
+  a required parameter.
+- **The A11y mirror could drift silently.** `scripts/verify_repository.py` compares the app's
+  identifiers with the UI-test target's hand-copy, string for string, and runs first in CI.
+- **The UI suite had never executed.** Wired into `corecredit-simulator-build`, which now also
+  triggers on every push and pull request. It has still never *passed*, because it has still never
+  been run — see §1.
 
 ### Deliberately out of scope for Version 1
 
