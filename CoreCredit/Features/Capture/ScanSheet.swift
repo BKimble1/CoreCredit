@@ -174,8 +174,25 @@ struct ScanSheet: View {
     @State private var manualEntry: String = ""
     @State private var scannerError: String?
     @State private var isRequestingAccess = false
-    @State private var isShowingPhotoAssist = false
-    @State private var paywallTrigger: PaywallTrigger?
+    /// The one modal this sheet can put in front of itself.
+    ///
+    /// A single `.sheet(item:)` rather than two `.sheet` modifiers stacked on one view: SwiftUI
+    /// honours only one of those, and which one is not something to find out on a device. The
+    /// editor's own `CoreEditorModel.Route` solves the same problem the same way, for the same
+    /// reason.
+    private enum Modal: Identifiable {
+        case photoAssist
+        case paywall(PaywallTrigger)
+
+        var id: String {
+            switch self {
+            case .photoAssist: return "photoAssist"
+            case .paywall(let trigger): return "paywall-" + trigger.id
+            }
+        }
+    }
+
+    @State private var modal: Modal?
 
     /// The accepted read currently held on screen. Non-`nil` means the viewfinder is paused.
     @State private var frozen: FrozenScan?
@@ -247,14 +264,16 @@ struct ScanSheet: View {
             .navigationTitle(ScanCaptureCopy.title)
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier(A11y.Scan.root)
-            .sheet(isPresented: $isShowingPhotoAssist) {
-                PhotoAssistSheet { review in
-                    isShowingPhotoAssist = false
-                    onCandidates(review)
+            .sheet(item: $modal) { modal in
+                switch modal {
+                case .photoAssist:
+                    PhotoAssistSheet { review in
+                        self.modal = nil
+                        onCandidates(review)
+                    }
+                case .paywall(let trigger):
+                    PaywallView(trigger: trigger)
                 }
-            }
-            .sheet(item: $paywallTrigger) { trigger in
-                PaywallView(trigger: trigger)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -535,10 +554,10 @@ struct ScanSheet: View {
                 if let trigger = EntitlementPolicy.photoAssistTrigger(
                     tier: appEnvironment.subscriptions.entitlement.tier
                 ) {
-                    paywallTrigger = trigger
+                    modal = .paywall(trigger)
                 } else {
                     isManualEntryFocused = false
-                    isShowingPhotoAssist = true
+                    modal = .photoAssist
                 }
             } label: {
                 photoAssistLabel
