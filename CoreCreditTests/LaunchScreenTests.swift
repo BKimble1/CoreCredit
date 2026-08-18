@@ -42,9 +42,11 @@ struct LaunchScreenTests {
         let raw = Bundle.main.object(forInfoDictionaryKey: "UILaunchScreen")
         let launchScreen = try #require(
             raw as? [String: Any],
-            "UILaunchScreen is missing from the built Info.plist. The most likely cause is "
-                + "INFOPLIST_KEY_UILaunchScreen_Generation being switched back on in the build "
-                + "settings: it merges an empty dictionary over Config/CoreCredit-Info.plist."
+            """
+            UILaunchScreen is missing from the built Info.plist. The most likely cause is \
+            INFOPLIST_KEY_UILaunchScreen_Generation being switched back on in the build settings: it merges \
+            an empty dictionary over Config/CoreCredit-Info.plist.
+            """
         )
 
         #expect(launchScreen["UIColorName"] as? String == Palette.launchBackgroundAssetName)
@@ -73,9 +75,11 @@ struct LaunchScreenTests {
 
         let background = UIColor(named: Palette.launchBackgroundAssetName)
         #expect(background != nil,
-                "LaunchBackground is missing. The static launch screen would fall back to a plain "
-                    + "system background — a white flash in light appearance, which is the exact "
-                    + "thing this screen exists to remove.")
+                """
+                LaunchBackground is missing. The static launch screen would fall back to a plain system \
+                background — a white flash in light appearance, which is the exact thing this screen exists to \
+                remove.
+                """)
     }
 
     @Test("The mark's canvas is square, so it is centred rather than stretched")
@@ -107,8 +111,10 @@ struct LaunchScreenTests {
         let accentComponents = LaunchScreenTests.components(of: UIColor(Palette.accent), in: light)
 
         #expect(LaunchScreenTests.isSameColour(assetComponents, accentComponents),
-                "The LaunchBackground asset and the app's accent have drifted apart, so the app "
-                    + "opens in one colour and then becomes a different one.")
+                """
+                The LaunchBackground asset and the app's accent have drifted apart, so the app opens in one \
+                colour and then becomes a different one.
+                """)
     }
 
     @Test("There is one launch layer, not two")

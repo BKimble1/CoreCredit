@@ -76,9 +76,11 @@ struct PaletteThemeTests {
         for scheme in PaletteThemeTests.schemes {
             let ratio = PaletteThemeTests.contrast(Palette.surface, Palette.background, in: scheme.traits)
             #expect(ratio >= floor,
-                    "In \(scheme.name) a card is only \(PaletteThemeTests.rounded(ratio)):1 against "
-                        + "the background. No card in this app is drawn with an outline, so the "
-                        + "fill is the only thing separating it — see Palette's surface token.")
+                    """
+                    In \(scheme.name) a card is only \(PaletteThemeTests.rounded(ratio)):1 against the background. \
+                    No card in this app is drawn with an outline, so the fill is the only thing separating it — see \
+                    Palette's surface token.
+                    """)
         }
     }
 
@@ -88,8 +90,10 @@ struct PaletteThemeTests {
         for scheme in PaletteThemeTests.schemes {
             let ratio = PaletteThemeTests.contrast(Palette.surfaceElevated, Palette.surface, in: scheme.traits)
             #expect(ratio >= 1.05,
-                    "In \(scheme.name) a field well is only \(PaletteThemeTests.rounded(ratio)):1 "
-                        + "against the card it sits in.")
+                    """
+                    In \(scheme.name) a field well is only \(PaletteThemeTests.rounded(ratio)):1 against the card it \
+                    sits in.
+                    """)
         }
     }
 
@@ -116,8 +120,10 @@ struct PaletteThemeTests {
             for foreground in PaletteThemeTests.foregrounds {
                 let ratio = PaletteThemeTests.contrast(foreground.color, Palette.surface, in: scheme.traits)
                 #expect(ratio >= 4.5,
-                        "\(foreground.name) is \(PaletteThemeTests.rounded(ratio)):1 on a card in "
-                            + "\(scheme.name), under the 4.5:1 floor for body text.")
+                        """
+                        \(foreground.name) is \(PaletteThemeTests.rounded(ratio)):1 on a card in \(scheme.name), under \
+                        the 4.5:1 floor for body text.
+                        """)
             }
         }
     }
@@ -131,9 +137,10 @@ struct PaletteThemeTests {
                                                       Palette.surface,
                                                       in: scheme.traits)
                 #expect(ratio >= 4.5,
-                        "\(status.rawValue) is \(PaletteThemeTests.rounded(ratio)):1 on a card in "
-                            + "\(scheme.name). StatusBadge draws the status colour as text and as a "
-                            + "glyph on that card.")
+                        """
+                        \(status.rawValue) is \(PaletteThemeTests.rounded(ratio)):1 on a card in \(scheme.name). \
+                        StatusBadge draws the status colour as text and as a glyph on that card.
+                        """)
             }
         }
     }
@@ -147,9 +154,10 @@ struct PaletteThemeTests {
                                                        Palette.color(for: status),
                                                        in: scheme.traits)
                 #expect(ratio >= 4.5,
-                        "Foreground on a solid \(status.rawValue) fill is "
-                            + "\(PaletteThemeTests.rounded(ratio)):1 in \(scheme.name). "
-                            + "StatusBadge and the status tiles fill with this colour.")
+                        """
+                        Foreground on a solid \(status.rawValue) fill is \(PaletteThemeTests.rounded(ratio)):1 in \
+                        \(scheme.name). StatusBadge and the status tiles fill with this colour.
+                        """)
             }
         }
     }
@@ -162,8 +170,10 @@ struct PaletteThemeTests {
         for scheme in PaletteThemeTests.schemes {
             let ratio = PaletteThemeTests.contrast(Palette.onAccent, Palette.accent, in: scheme.traits)
             #expect(ratio >= 4.5,
-                    "The primary button's label is \(PaletteThemeTests.rounded(ratio)):1 on its own "
-                        + "fill in \(scheme.name).")
+                    """
+                    The primary button's label is \(PaletteThemeTests.rounded(ratio)):1 on its own fill in \
+                    \(scheme.name).
+                    """)
         }
     }
 
@@ -180,8 +190,9 @@ struct PaletteThemeTests {
                                                                in: scheme.traits)
                 let action = PaletteThemeTests.components(Palette.accent, in: scheme.traits)
                 #expect(statusColour != action,
-                        "\(status.rawValue) resolves to the same colour as the action accent in "
-                            + "\(scheme.name).")
+                        """
+                        \(status.rawValue) resolves to the same colour as the action accent in \(scheme.name).
+                        """)
             }
         }
     }
@@ -194,17 +205,19 @@ struct PaletteThemeTests {
         for scheme in PaletteThemeTests.schemes {
             let border = PaletteThemeTests.contrast(Palette.fieldBorder, Palette.surface, in: scheme.traits)
             #expect(border >= 3.0,
-                    "The field border is \(PaletteThemeTests.rounded(border)):1 on a card in "
-                        + "\(scheme.name), under WCAG 1.4.11's 3:1 for the edge that identifies an "
-                        + "input.")
+                    """
+                    The field border is \(PaletteThemeTests.rounded(border)):1 on a card in \(scheme.name), under \
+                    WCAG 1.4.11's 3:1 for the edge that identifies an input.
+                    """)
 
             // And the two tokens have not collapsed into each other: a row separator drawn as
             // heavily as a text field would put the ledger back in a cage.
             let separator = PaletteThemeTests.contrast(Palette.hairline, Palette.surface, in: scheme.traits)
             #expect(separator < border,
-                    "In \(scheme.name) the row separator (\(PaletteThemeTests.rounded(separator)):1) "
-                        + "is no lighter than a field border "
-                        + "(\(PaletteThemeTests.rounded(border)):1).")
+                    """
+                    In \(scheme.name) the row separator (\(PaletteThemeTests.rounded(separator)):1) is no lighter \
+                    than a field border (\(PaletteThemeTests.rounded(border)):1).
+                    """)
         }
     }
 
@@ -225,9 +238,10 @@ struct PaletteThemeTests {
                 // Equal is fine — most tokens have no high-contrast variant and are legible as they
                 // are. Going *down* would mean a variant was tuned in the wrong direction.
                 #expect(boosted >= plain - 0.01,
-                        "\(foreground.name) drops from \(PaletteThemeTests.rounded(plain)):1 to "
-                            + "\(PaletteThemeTests.rounded(boosted)):1 in \(name) when Increase "
-                            + "Contrast is switched on.")
+                        """
+                        \(foreground.name) drops from \(PaletteThemeTests.rounded(plain)):1 to \
+                        \(PaletteThemeTests.rounded(boosted)):1 in \(name) when Increase Contrast is switched on.
+                        """)
             }
         }
     }
@@ -274,9 +288,10 @@ struct PaletteThemeTests {
             let inLight = PaletteThemeTests.components(color, in: light)
             let inDark = PaletteThemeTests.components(color, in: dark)
             #expect(inLight != inDark,
-                    "\(name) is the same colour in light and dark. Every token in this palette is "
-                        + "an explicit pair; one that resolves identically is a value somebody "
-                        + "forgot to give a second half.")
+                    """
+                    \(name) is the same colour in light and dark. Every token in this palette is an explicit pair; \
+                    one that resolves identically is a value somebody forgot to give a second half.
+                    """)
         }
 
         // And the schemes run in opposite directions: a card is lighter than the ground in light,

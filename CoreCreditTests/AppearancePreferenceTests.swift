@@ -98,8 +98,10 @@ struct AppearancePreferenceTests {
     func everyOptionIsOfferedOnce() {
         let order = AppearancePreference.displayOrder
         #expect(Set(order) == Set(AppearancePreference.allCases),
-                "The Settings screen lists displayOrder, so an option missing from it is an option "
-                    + "nobody can choose.")
+                """
+                The Settings screen lists displayOrder, so an option missing from it is an option nobody can \
+                choose.
+                """)
         #expect(order.count == AppearancePreference.allCases.count, "An option is listed twice.")
         #expect(order.first == .light, "The default should be the first thing offered.")
 

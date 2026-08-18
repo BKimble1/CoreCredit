@@ -446,6 +446,106 @@ def check_banned_swift_constructs():
         note("banned constructs: no fatalError, try!, or as! in shipping code")
 
 
+# ------------------------------------------------------- 4. Swift Testing's sharp edges
+
+# Public types Swift Testing puts in scope in any file that says `import Testing`. A name here
+# that the app also declares is ambiguous at the use site, and the compiler says so in a way that
+# takes a moment to read: "generic parameter 'AttachableValue' could not be inferred".
+TESTING_MODULE_TYPES = {"Attachment", "Comment", "Issue", "Test", "Tag", "Confirmation",
+                        "SourceLocation", "Trait"}
+
+MACRO_CALL = re.compile(r"#(?:expect|require)\s*\(")
+
+
+def _macro_call_spans(text):
+    """Yields the balanced-paren span of every #expect/#require call."""
+    for match in MACRO_CALL.finditer(text):
+        index = text.index("(", match.start())
+        depth, in_string = 0, False
+        while index < len(text):
+            char = text[index]
+            if in_string:
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == '"':
+                    in_string = False
+            elif char == '"':
+                in_string = True
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            index += 1
+        yield match.start(), text[match.start():index + 1]
+
+
+def check_test_comment_literals():
+    """A failure message built with `+` does not compile.
+
+    Swift Testing's `Comment` is `ExpressibleByStringLiteral` and `ExpressibleByStringInterpolation`,
+    so `"a"` and `"a \\(b)"` both convert. `"a " + "b"` does not: it is a function call returning
+    `String`, and the error — *cannot convert value of type 'String' to expected argument type
+    'Comment?'* — points at the message rather than at the concatenation.
+
+    Wrap a long message in a multi-line literal with trailing backslashes instead. That is still a
+    literal, and the backslash keeps the text on one line.
+    """
+    offenders = []
+    for path in swift_sources("CoreCreditTests", "CoreCreditUITests"):
+        text = io.open(path, encoding="utf-8", newline="").read().replace("\r\n", "\n")
+        for offset, chunk in _macro_call_spans(text):
+            if re.search(r'"\s*\+\s*"', chunk):
+                line = text[:offset].count("\n") + 1
+                offenders.append("%s:%d" % (os.path.relpath(path, ROOT), line))
+    if offenders:
+        fail("test-comments",
+             "a #expect/#require message is built with `+`, which yields String and will not "
+             "convert to Comment: " + ", ".join(offenders))
+    else:
+        note("test comments: every #expect/#require message is a literal, not a concatenation")
+
+
+def check_testing_name_collisions():
+    """An app type whose name Swift Testing also uses must be module-qualified in a test.
+
+    `CoreCredit.Attachment` and `Testing.Attachment` are both in scope in a test file, so the bare
+    name does not resolve. The compiler reports it as an inference failure on Testing's generic
+    parameter, which does not obviously point at the app's own type.
+    """
+    app_types = set()
+    for path in swift_sources("CoreCredit"):
+        text = io.open(path, encoding="utf-8", newline="").read()
+        for match in re.finditer(r"^(?:@\w+\s+)*(?:public\s+|final\s+)*(?:class|struct|enum)\s+(\w+)",
+                                 text, re.M):
+            app_types.add(match.group(1))
+
+    collisions = sorted(app_types & TESTING_MODULE_TYPES)
+    if not collisions:
+        note("testing name collisions: no app type shares a name with Swift Testing")
+        return
+
+    offenders = []
+    for path in swift_sources("CoreCreditTests", "CoreCreditUITests"):
+        text = io.open(path, encoding="utf-8", newline="").read().replace("\r\n", "\n")
+        if re.search(r"^import Testing$", text, re.M) is None:
+            continue
+        for number, line in enumerate(text.split("\n"), 1):
+            code = line.split("//")[0]
+            for name in collisions:
+                if re.search(r"(?<![.\w])%s(?![\w])" % name, code):
+                    offenders.append("%s:%d (%s)" % (os.path.relpath(path, ROOT), number, name))
+    if offenders:
+        fail("testing-collisions",
+             "an app type that shares a name with Swift Testing is used unqualified in a test "
+             "file; write CoreCredit.<Type>: " + ", ".join(offenders))
+    else:
+        note("testing name collisions: %s always module-qualified in tests"
+             % ", ".join(collisions))
+
+
 def check_project_file():
     text = read("CoreCredit.xcodeproj", "project.pbxproj")
     if text.count("{") != text.count("}"):
@@ -470,6 +570,8 @@ def main():
     check_no_placeholders()
     check_published_pages_match_source()
     check_banned_swift_constructs()
+    check_test_comment_literals()
+    check_testing_name_collisions()
     check_project_file()
 
     print("CoreCredit repository invariants")

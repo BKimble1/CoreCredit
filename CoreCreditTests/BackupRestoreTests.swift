@@ -273,7 +273,9 @@ struct BackupRestoreTests {
             .filter { $0.status.isUnresolved }
         #expect(unresolved.isEmpty == false, "The fixture must leave something to remind about.")
         #expect(coordinator.lastRefresh != nil,
-                "A refresh after a restore has to actually run, or the restored deadlines are silent.")
+                """
+                A refresh after a restore has to actually run, or the restored deadlines are silent.
+                """)
     }
 
     // MARK: - Everything that is refused, before anything is deleted
@@ -459,7 +461,9 @@ struct BackupRestoreTests {
         let service = restoreService(target)
         try service.restore(try service.plan(from: try JSONBackupExporter.encode(payload)))
 
-        let attachments = try target.fetch(FetchDescriptor<Attachment>())
+        // Module-qualified: Swift Testing ships its own `Attachment` type, so the bare name
+        // is ambiguous in any file that imports Testing.
+        let attachments = try target.fetch(FetchDescriptor<CoreCredit.Attachment>())
         #expect(attachments.isEmpty)
     }
 }
