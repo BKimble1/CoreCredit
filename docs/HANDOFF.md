@@ -52,6 +52,21 @@ What it changed that a person has to look at:
   camera.** It did not before, which means the Simulator and unsupported hardware were being handed
   a `VNDocumentCameraViewController` that cannot run there. That path was previously unreachable
   from the main scan entry; it is reachable now, which is why the check was added.
+- **The app has a load-in screen.** `UILaunchScreen` paints the brand blue and the white mark before
+  any Swift runs — that is what removes the white flash — and `LaunchSplashView` fades the same
+  picture, gradient-lit, out of the way. `INFOPLIST_KEY_UILaunchScreen_Generation` was removed from
+  both app build configurations; **it must stay off**, because it merges an empty dictionary over
+  the real one and the only symptom is the flash coming back. See `docs/CONTRACTS.md` §7b.
+
+### One thing to know when the difference looks smaller than expected
+
+The appearance half of this pass is **almost entirely light-mode**. `Palette`'s dark values are
+byte-for-byte what they were: only `surface`, `hairline`, and `surfaceElevated` changed, and only
+their *light* halves. In dark appearance what changed is the card outlines coming off, the radii
+going 12 → 10, and the padding tightening — and against a dark background the outline that came off
+was already low-contrast. **A dark-mode device will look far more like the old build than a
+light-mode one does.** That is a consequence of treating light as the primary bright-shop-floor
+case, not a sign the change did not land.
 
 ### What was actually verified
 

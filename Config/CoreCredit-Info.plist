@@ -7,11 +7,34 @@
 
 	  GENERATE_INFOPLIST_FILE stays YES; Xcode merges every INFOPLIST_KEY_* build
 	  setting on top of this file. Only keys that have no INFOPLIST_KEY_ equivalent
-	  belong here — currently just the URL scheme, because CFBundleURLTypes is an
-	  array of dictionaries and cannot be expressed as a build setting.
+	  belong here — the URL scheme, because CFBundleURLTypes is an array of
+	  dictionaries, and the launch screen, because UILaunchScreen is a dictionary.
 
 	  The scheme must stay in step with AppConfiguration.urlScheme.
+
+	  UILaunchScreen is the screen iOS paints the instant the process starts, before
+	  a single line of SwiftUI runs. It is what stops the app opening on a white
+	  flash. It takes a colour and an image and nothing else — no gradient, no
+	  layout — so the gradient version of the same picture is LaunchSplashView,
+	  which fades in over this one and then fades away.
+
+	  INFOPLIST_KEY_UILaunchScreen_Generation must stay OFF in the build settings.
+	  It generates an empty UILaunchScreen dictionary, and a generated key is merged
+	  on top of this file — it would silently replace everything below with nothing.
 	-->
+	<key>UILaunchScreen</key>
+	<dict>
+		<!-- The flat brand blue. It is the midpoint of LaunchSplashView's gradient,
+		     so the handover from this screen to that one reads as the light coming
+		     up rather than as one picture replacing another. -->
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+		<!-- The white mark on a transparent square canvas, occupying the same 34%
+		     of it that LaunchSplashView.markFraction draws. Same asset, same
+		     proportion, so the two layers cannot drift apart. -->
+		<key>UIImageName</key>
+		<string>LaunchMark</string>
+	</dict>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

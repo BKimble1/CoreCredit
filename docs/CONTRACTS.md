@@ -1881,6 +1881,61 @@ Launch arguments consumed by `LaunchOptions.parse`:
 
 ---
 
+## 7b. The load-in screen — `CoreCredit/App/LaunchSplashView.swift`
+
+Two layers, because one cannot do the job.
+
+1. **The static launch screen.** `UILaunchScreen` in `Config/CoreCredit-Info.plist`, naming the
+   `LaunchBackground` colour and the `LaunchMark` image. iOS paints this the instant the process
+   starts, before any Swift runs; it is the only thing that can remove the white flash, and it can
+   draw a colour and an image and nothing else.
+2. **`LaunchSplashView`.** The same mark at the same proportion over a gradient centred on the same
+   colour, faded away by `LaunchSplashHost` once the app is up.
+
+```swift
+enum LaunchPalette {
+    static let backgroundAssetName = "LaunchBackground"
+    static let markAssetName = "LaunchMark"
+    static let top: Color        // lifted
+    static let middle: Color     // #0053FD — the icon's blue, and the whole static screen
+    static let bottom: Color     // deepened
+}
+
+struct LaunchSplashView: View {
+    init()
+    /// The mark's longest side as a fraction of the screen's short side. Baked into the asset too.
+    static let markFraction: CGFloat   // 0.34
+    static let gradient: LinearGradient
+}
+
+enum LaunchSplash {
+    static let settleDuration: TimeInterval   // 0.28
+    static let dwellDuration: TimeInterval    // 0.34
+    static let fadeDuration: TimeInterval     // 0.30
+}
+
+struct LaunchSplashHost<Content: View>: View {
+    init(isEnabled: Bool, @ViewBuilder content: () -> Content)
+}
+```
+
+**Rules that are load-bearing, and tested in `CoreCreditTests/LaunchScreenTests.swift` because every
+one of them fails silently:**
+
+- `INFOPLIST_KEY_UILaunchScreen_Generation` must stay **off**. It merges an *empty* `UILaunchScreen`
+  dictionary on top of the partial Info.plist and replaces the real one with nothing. No warning, no
+  error — the app just opens on a white flash again.
+- `LaunchPalette.middle` must equal the `LaunchBackground` asset, in both appearances. That equality
+  is the whole reason the handover between the two layers is invisible.
+- `LaunchMark` must be a **square canvas** with the mark occupying `markFraction` of it, centred.
+  Both layers size it by the screen's short side; a tight crop would land at different sizes in each.
+- The host is an `.overlay`, never a `ZStack` layer — see §7a rule 1. Nothing waits on it, and a
+  deep link cancels it outright, because somebody who tapped the Quick Scan widget wants a
+  viewfinder rather than a logo.
+- It is skipped under `-uiTesting`, so **no UI test exercises it.**
+
+---
+
 ## 7a. Screen layout rules (added by the final UX pass)
 
 These are normative for every screen, and they exist because breaking them produced real bugs.
