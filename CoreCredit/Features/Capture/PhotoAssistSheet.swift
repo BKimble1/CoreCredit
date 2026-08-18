@@ -245,14 +245,14 @@ struct PhotoAssistSheet: View {
             Divider()
 
             Button {
-                session?.move(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
+                session?.movePhoto(from: index, to: index - 1)
             } label: {
                 Label("Move earlier", systemImage: "arrow.left")
             }
             .disabled(index == 0)
 
             Button {
-                session?.move(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
+                session?.movePhoto(from: index, to: index + 1)
             } label: {
                 Label("Move later", systemImage: "arrow.right")
             }

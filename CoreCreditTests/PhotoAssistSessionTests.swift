@@ -95,6 +95,63 @@ struct PhotoAssistSessionTests {
         #expect(refill == .added)
     }
 
+    @Test("Reordering puts a photo exactly where it was asked to go")
+    func reorderingIsExact() async throws {
+        let session = makeSession()
+        for index in 0..<4 {
+            _ = await session.add(photo(index), shot: nil)
+        }
+        let original = session.photos.map(\.id)
+
+        // One place later. `destination` is where the photo ends up — not an insertion point in
+        // the pre-move indexing, which is what makes SwiftUI's `move(fromOffsets:toOffset:)` read
+        // as `index + 2` and go wrong in exactly one direction.
+        session.movePhoto(from: 0, to: 1)
+        #expect(session.photos.map(\.id) == [original[1], original[0], original[2], original[3]])
+
+        // And back.
+        session.movePhoto(from: 1, to: 0)
+        #expect(session.photos.map(\.id) == original)
+
+        // All the way to the end.
+        session.movePhoto(from: 0, to: 3)
+        #expect(session.photos.map(\.id) == [original[1], original[2], original[3], original[0]])
+    }
+
+    @Test("An out-of-range reorder clamps instead of trapping")
+    func reorderingClamps() async throws {
+        let session = makeSession()
+        for index in 0..<3 {
+            _ = await session.add(photo(index), shot: nil)
+        }
+        let original = session.photos.map(\.id)
+
+        // A menu's idea of the bounds and the array's can disagree for a frame after a removal.
+        // Neither of these may crash, and neither may scramble the order.
+        session.movePhoto(from: 0, to: 99)
+        #expect(session.photos.map(\.id) == [original[1], original[2], original[0]])
+
+        session.movePhoto(from: 42, to: 0)
+        #expect(session.photos.map(\.id) == [original[1], original[2], original[0]],
+                "A move from an index that does not exist must change nothing.")
+
+        session.movePhoto(from: 0, to: -5)
+        #expect(session.photos.count == 3)
+    }
+
+    @Test("Reordering invalidates a result computed for the old order")
+    func reorderingInvalidatesTheResult() async throws {
+        let session = makeSession()
+        _ = await session.add(photo(0))
+        _ = await session.add(photo(1))
+        await session.analyze()
+        #expect(session.phase.result != nil)
+
+        session.movePhoto(from: 0, to: 1)
+        #expect(session.phase == .idle,
+                "Image index is a tiebreak in fusion, so the order is part of the input.")
+    }
+
     @Test("Empty data is refused rather than analysed")
     func emptyDataIsRefused() async throws {
         let session = makeSession()

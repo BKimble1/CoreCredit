@@ -193,8 +193,26 @@ final class PhotoAssistSession {
         invalidate()
     }
 
-    func move(fromOffsets source: IndexSet, toOffset destination: Int) {
-        photos.move(fromOffsets: source, toOffset: destination)
+    /// Moves one photograph to a new position.
+    ///
+    /// Written out rather than using `move(fromOffsets:toOffset:)`, for two reasons. That method is
+    /// vended by **SwiftUI**, and no view model in this app imports SwiftUI — whether it would
+    /// resolve here without the import depends on a Swift 5 member-lookup rule that Swift 6 turns
+    /// off, which is a strange thing for a photo reorder to depend on. And its `toOffset` is an
+    /// insertion point in the *pre-move* indexing, so moving an item one place later reads as
+    /// `toOffset: index + 2`, which is the kind of arithmetic that is wrong in one direction and
+    /// nobody notices.
+    ///
+    /// Here `destination` is simply where the photograph ends up. Out-of-range values clamp instead
+    /// of trapping: this is driven by a menu whose bounds and the array's can disagree for one
+    /// frame after a removal.
+    func movePhoto(from index: Int, to destination: Int) {
+        guard photos.indices.contains(index) else { return }
+        let target = min(max(destination, 0), photos.count - 1)
+        guard target != index else { return }
+
+        let moved = photos.remove(at: index)
+        photos.insert(moved, at: target)
         invalidate()
     }
 
