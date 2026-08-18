@@ -64,26 +64,28 @@ struct BatchDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.l) {
-                    if let errorMessage = errorMessage {
-                        ErrorBanner(message: errorMessage, onDismiss: { self.errorMessage = nil })
-                    }
-
-                    totalsCard
-                    detailsCard
-                    receiptsCard
-                    itemsCard
-                    deleteCard
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.l) {
+                if let errorMessage = errorMessage {
+                    ErrorBanner(message: errorMessage, onDismiss: { self.errorMessage = nil })
                 }
-                .padding(Spacing.l)
-                .frame(maxWidth: 720, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .center)
+
+                totalsCard
+                detailsCard
+                receiptsCard
+                itemsCard
+                deleteCard
             }
+            .padding(Spacing.l)
+            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        // A pushed screen still sits inside the tab bar's safe-area inset, and "Delete return" is
+        // the last thing on this one. Same fix as the root screens: paint the background behind
+        // the scroll view rather than stacking it beside one that ignores the safe area.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
         }
         .navigationTitle(batch.vendor?.displayName ?? "Return")
         .navigationBarTitleDisplayMode(.inline)
@@ -566,7 +568,7 @@ private struct BatchDetailFieldWell<Content: View>: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
         }
     }

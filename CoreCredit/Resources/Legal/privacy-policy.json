@@ -97,6 +97,13 @@
       ]
     },
     {
+      "heading": "Where CoreCredit is offered",
+      "paragraphs": [
+        "Version 1 of CoreCredit is offered on the App Store in the United States only. It is not distributed in other App Store storefronts.",
+        "Because the app has no server and no account, using it does not transfer your records anywhere - including across a border. Everything stays on the device it was entered on."
+      ]
+    },
+    {
       "heading": "Children",
       "paragraphs": [
         "CoreCredit is a tool for running a repair shop. It is not designed for or directed to children, and it should not be used by them.",
@@ -113,9 +120,10 @@
     {
       "heading": "Who is responsible, and how to get in touch",
       "paragraphs": [
-        "The person or company responsible for CoreCredit must be named here before the app is offered publicly: [TO BE SUPPLIED BY OWNER - legal name of the developer or company, and a postal address if one is required].",
-        "A support contact must be published before public release: [TO BE SUPPLIED BY OWNER - support email address and support page address].",
-        "Until those are supplied, the app does not display a support address, because it would not reach anyone."
+        "CoreCredit is published by Idlery Services LLC. Idlery Services LLC is the data controller for the purposes of this policy, to the extent any such role applies to an app that collects nothing.",
+        "Questions about this policy, or about the app, go to idlery.apps@gmail.com. That address reaches the people who make CoreCredit.",
+        "The support page is published at https://bkimble1.github.io/CoreCredit-Legal/support and this policy at https://bkimble1.github.io/CoreCredit-Legal/privacy.",
+        "No postal address is published for support. Email is the support channel, and it is read."
       ]
     }
   ]

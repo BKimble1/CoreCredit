@@ -207,6 +207,17 @@ enum ModelContainerFactory {
                                 bin: spec.bin,
                                 now: received)
             item.partNumber = spec.partNumber
+
+            // The first core carries a scanned payload, and a numeric one: a UPC-A read off the
+            // box, which Vision reports as EAN-13. It is deliberately NOT the part number, so the
+            // demonstration ledger exercises the one thing the Barcode card exists to show — a
+            // retail product code kept apart from the manufacturer's number — and a UI test has a
+            // record with a barcode on it to open.
+            if index == 0 {
+                item.scannedBarcodeValue = "0123456789012"
+                item.scannedBarcodeSymbology = "VNBarcodeSymbologyEAN13"
+            }
+
             item.invoiceReference = "INV-" + String(500 + index)
             item.repairOrderReference = String(1_000 + index)
             item.status = spec.status

@@ -247,14 +247,16 @@ struct ExportTests {
         let populated = try DisputePacketBuilder.makeLedgerPDFData(items: items,
                                                                    shop: shop,
                                                                    summary: summary,
-                                                                   generatedAt: credited)
+                                                                   generatedAt: credited,
+                                                                   calendar: TestClock.calendar)
         #expect(populated.isEmpty == false)
         #expect(Array(populated.prefix(4)) == Array("%PDF".utf8))
 
         let empty = try DisputePacketBuilder.makeLedgerPDFData(items: [],
                                                                shop: .placeholder,
                                                                summary: .empty,
-                                                               generatedAt: credited)
+                                                               generatedAt: credited,
+                                                               calendar: TestClock.calendar)
         #expect(empty.isEmpty == false)
         #expect(Array(empty.prefix(4)) == Array("%PDF".utf8))
     }

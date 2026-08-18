@@ -54,27 +54,29 @@ struct CreateBatchSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Palette.background
-                    .ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.l) {
+                    vendorCard
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Spacing.l) {
-                        vendorCard
-
-                        if vendor == nil {
-                            missingVendorCard
-                        } else {
-                            selectionCard
-                            detailsCard
-                            receiptCard
-                            confirmationCard
-                        }
+                    if vendor == nil {
+                        missingVendorCard
+                    } else {
+                        selectionCard
+                        detailsCard
+                        receiptCard
+                        confirmationCard
                     }
-                    .padding(Spacing.l)
-                    .frame(maxWidth: 720, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .center)
                 }
+                .padding(Spacing.l)
+                .frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            // Confirm is the last thing on this sheet. A `ZStack` around a safe-area-ignoring
+            // background grew past the home indicator and took that inset off the scroll view;
+            // painting the background behind it instead leaves the inset where SwiftUI put it.
+            .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+            .background {
+                Palette.background.ignoresSafeArea()
             }
             .navigationTitle("New return")
             .navigationBarTitleDisplayMode(.inline)
@@ -552,7 +554,7 @@ private struct BatchFieldWell<Content: View>: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
 
             if let hint = hint, hint.isEmpty == false {

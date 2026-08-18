@@ -124,7 +124,7 @@ struct CurrencyTextField: View {
 
     private var borderColor: Color {
         if hasError { return Palette.danger }
-        return isFocused ? Palette.accent : Palette.hairline
+        return isFocused ? Palette.accent : Palette.fieldBorder
     }
 
     /// The error and focused states thicken the border, so neither depends on colour alone.

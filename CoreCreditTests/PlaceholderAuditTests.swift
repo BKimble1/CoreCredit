@@ -71,6 +71,12 @@ struct PlaceholderAuditTests {
                     "A configured accessor must be nil for exactly the stand-in values: \(value)")
         }
 
+        // The detector itself still has to work, or the guard it provides is gone. These are the
+        // stand-ins this build no longer ships — it must still recognise them if one came back.
+        #expect(AppConfiguration.isPlaceholder("https://example.com/corecredit/support"))
+        #expect(AppConfiguration.isPlaceholder("support@example.com"))
+        #expect(AppConfiguration.isPlaceholder(""))
+
         let email = AppConfiguration.configuredSupportEmail
         #expect(AppConfiguration.isPlaceholder(AppConfiguration.supportEmail) == (email == nil))
 
@@ -80,23 +86,89 @@ struct PlaceholderAuditTests {
                     || AppConfiguration.configuredSupportEmail != nil))
     }
 
-    @Test("This build still ships the owner-supplied values unset, so no screen shows one")
-    func thisBuildStillShipsTheOwnerSuppliedValuesUnset() {
-        // This is the release gate: when the owner fills these in, this test is what tells them the
-        // audit needs updating. Until then, every accessor must hand back nothing.
-        #expect(AppConfiguration.isPlaceholder(AppConfiguration.supportURLString))
-        #expect(AppConfiguration.isPlaceholder(AppConfiguration.privacyURLString))
-        #expect(AppConfiguration.isPlaceholder(AppConfiguration.termsURLString))
-        #expect(AppConfiguration.isPlaceholder(AppConfiguration.supportEmail))
+    @Test("This build ships real, reachable, owner-supplied values — the release gate")
+    func thisBuildShipsTheOwnerSuppliedValues() throws {
+        // This test used to assert the opposite: that the values were still unset, so that filling
+        // them in would fail the suite and force the audit to be revisited. It has been revisited.
+        // The values are supplied, the three pages were fetched over HTTPS and returned the
+        // intended content anonymously, and the assertion is now the stronger one — that nothing
+        // ever regresses to a stand-in.
+        #expect(AppConfiguration.isPlaceholder(AppConfiguration.supportURLString) == false)
+        #expect(AppConfiguration.isPlaceholder(AppConfiguration.privacyURLString) == false)
+        #expect(AppConfiguration.isPlaceholder(AppConfiguration.termsURLString) == false)
+        #expect(AppConfiguration.isPlaceholder(AppConfiguration.supportEmail) == false)
 
-        #expect(AppConfiguration.configuredSupportURL == nil)
-        #expect(AppConfiguration.configuredPrivacyURL == nil)
-        #expect(AppConfiguration.configuredTermsURL == nil)
-        #expect(AppConfiguration.configuredSupportEmail == nil)
-        #expect(AppConfiguration.isSupportContactConfigured == false)
+        let support = try #require(AppConfiguration.configuredSupportURL)
+        let privacy = try #require(AppConfiguration.configuredPrivacyURL)
+        let terms = try #require(AppConfiguration.configuredTermsURL)
+        let email = try #require(AppConfiguration.configuredSupportEmail)
+
+        // App Review opens these. A non-HTTPS or malformed address is a rejection.
+        for url in [support, privacy, terms] {
+            #expect(url.scheme == "https", "\(url) must be served over HTTPS.")
+            #expect((url.host ?? "").isEmpty == false)
+        }
+
+        #expect(email == "idlery.apps@gmail.com")
+        #expect(email.contains("@"))
+        #expect(AppConfiguration.isSupportContactConfigured)
+
+        // The exact published addresses, spelled out once. Comparing a value to itself through
+        // `AppConfiguration` would pass even if the constants were wrong, which is the whole
+        // failure mode a release gate exists to catch.
+        #expect(support.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/support")
+        #expect(privacy.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/privacy")
+        #expect(terms.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/terms")
+    }
+
+    @Test("The publisher is the company, never an individual")
+    func thePublisherIsTheCompany() {
+        #expect(AppConfiguration.companyName == "Idlery Services LLC")
+        #expect(AppConfiguration.copyrightNotice == "Copyright 2026 Idlery Services LLC")
+        #expect(AppConfiguration.distributionTerritory == "United States")
+
+        // Nothing user-facing may carry the account holder's personal name. The bundle identifier
+        // is deliberately excluded: it is a reverse-DNS identifier registered with Apple, it is
+        // never displayed, and changing it would orphan the App Store Connect record and both
+        // subscription products.
+        let userFacing = [
+            AppConfiguration.displayName,
+            AppConfiguration.companyName,
+            AppConfiguration.copyrightNotice,
+            AppConfiguration.supportEmail,
+            AppConfiguration.distributionTerritory
+        ]
+        for value in userFacing {
+            let lowered = value.lowercased()
+            #expect(lowered.contains("blake") == false, "\(value) names an individual.")
+            #expect(lowered.contains("kimble") == false, "\(value) names an individual.")
+        }
     }
 
     // MARK: - The bundled documents
+
+    @Test("The bundled documents name the publisher, the contact, the venue, and the territory")
+    func theBundledDocumentsCarryTheRealValues() throws {
+        let documents = LegalDocumentStore.loadAll(from: .main)
+        let all = documents.map(\.plainText).joined(separator: "\n")
+
+        // Absence of a placeholder is not presence of the real thing. These are the clauses a
+        // reviewer, and a court, would actually look for.
+        #expect(all.contains(AppConfiguration.companyName))
+        #expect(all.contains(AppConfiguration.supportEmail))
+        #expect(all.contains("United States only"))
+
+        let terms = try #require(documents.first { $0.identifier == "terms-of-use" })
+        let termsText = terms.plainText
+        #expect(termsText.contains("laws of the State of Ohio"))
+        #expect(termsText.contains("Butler County, Ohio"))
+
+        // No individual is named anywhere a reader can see.
+        for document in documents {
+            #expect(document.plainText.localizedCaseInsensitiveContains("Blake") == false,
+                    "\(document.identifier) names an individual.")
+        }
+    }
 
     @Test("No bundled legal document contains a placeholder address")
     func noBundledLegalDocumentContainsAPlaceholderAddress() throws {

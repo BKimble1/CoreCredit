@@ -13,6 +13,14 @@ import SwiftUI
 /// configured here directly — every setting lives on its own screen where there is room to explain
 /// what it does.
 ///
+/// # It is a system list, not a painted one
+///
+/// The screen deliberately keeps `.insetGrouped`'s own background and row fills rather than
+/// substituting `Palette` surfaces for them. A settings screen is the one place in an app where a
+/// person's expectation is set entirely by iOS, and repainting it — even in colours that match
+/// everywhere else — makes it read as a copy of Settings rather than as Settings. Both appearances
+/// come free that way, including Increase Contrast.
+///
 /// Rows are `NavigationLink { destination } label: { row }` rather than typed navigation
 /// destinations, because on iPad these screens share a `NavigationSplitView` column with other
 /// features' stacks and a value-typed destination registered here would be ambiguous there.
@@ -38,8 +46,7 @@ struct SettingsView: View {
             dataSection
         }
         .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Palette.background.ignoresSafeArea())
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
         .navigationTitle("Settings")
         .accessibilityIdentifier(A11y.Settings.root)
         .task { ensureProfileExists() }
@@ -106,7 +113,6 @@ struct SettingsView: View {
             Text("Vendors and bins are shared by every core you log, so it is worth setting them "
                  + "up once the way the shop actually works.")
         }
-        .listRowBackground(Palette.surface)
     }
 
     private var remindersSection: some View {
@@ -126,7 +132,6 @@ struct SettingsView: View {
         } header: {
             Text("Reminders")
         }
-        .listRowBackground(Palette.surface)
     }
 
     private var planSection: some View {
@@ -145,11 +150,23 @@ struct SettingsView: View {
         } header: {
             Text("Plan")
         }
-        .listRowBackground(Palette.surface)
     }
 
     private var dataSection: some View {
         Section {
+            NavigationLink {
+                AppearanceSettingsView()
+            } label: {
+                SettingsRow(
+                    title: "Appearance",
+                    value: appearanceSummary,
+                    symbol: appEnvironment.appearance.preference.symbolName,
+                    hint: "Whether CoreCredit uses the bright scheme, the dark one, or whichever "
+                        + "the phone is set to."
+                )
+            }
+            .accessibilityIdentifier(A11y.Settings.appearance)
+
             NavigationLink {
                 DataSettingsView()
             } label: {
@@ -200,7 +217,6 @@ struct SettingsView: View {
         } header: {
             Text("App")
         }
-        .listRowBackground(Palette.surface)
     }
 
     // MARK: - Summaries
@@ -252,6 +268,10 @@ struct SettingsView: View {
 
     private var planSummary: String {
         appEnvironment.subscriptions.entitlement.tier.displayName
+    }
+
+    private var appearanceSummary: String {
+        appEnvironment.appearance.preference.displayName
     }
 
     /// Whether there is anything to look at, without hinting that the app keeps a scan history —
@@ -327,7 +347,6 @@ private struct SettingsRow: View {
 
             Spacer(minLength: Spacing.s)
         }
-        .padding(.vertical, Spacing.xs)
         .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)

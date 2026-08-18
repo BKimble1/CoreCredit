@@ -130,7 +130,7 @@ struct OnboardingView: View {
         HStack(alignment: .top, spacing: Spacing.m) {
             Text(String(number))
                 .font(.subheadline.weight(.bold).monospacedDigit())
-                .foregroundStyle(Palette.onColor(for: .readyToReturn))
+                .foregroundStyle(Palette.onAccent)
                 .frame(width: 28, height: 28)
                 .background(Circle().fill(Palette.accent))
                 .accessibilityHidden(true)
@@ -449,7 +449,7 @@ private struct OnboardingTextField: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
                 .accessibilityLabel(Text(title))
                 .modifier(OptionalAccessibilityIdentifier(identifier: identifier))

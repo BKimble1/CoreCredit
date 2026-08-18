@@ -18,6 +18,13 @@ import Foundation
 /// land. `DeepLinkRouterRegistry` holds that request if the app is still launching, which is the
 /// normal case for the Action Button on a cold device.
 ///
+/// # It lands on the same surface as everything else
+///
+/// `DeepLink.scan` is the one route every external entry point uses — this intent, the Quick Scan
+/// widget, and a `corecredit://scan` URL alike — and `MainTabView` answers all of them with the
+/// create editor and the unified **Scan core** sheet in front of it. There is no separate
+/// Shortcut-only scanner to keep in step.
+///
 /// # It writes nothing
 ///
 /// Running this intent creates no record. It opens the ordinary unsaved draft — the same one the
@@ -25,13 +32,15 @@ import Foundation
 /// `CoreEditorModel.save(using:vendor:bin:tier:)` before anything reaches the store.
 struct ScanCoreIntent: AppIntent {
 
-    static var title: LocalizedStringResource { "Scan a Core" }
+    /// "Scan core" — the same words the widget, the Dashboard action, the intake form's action,
+    /// and the capture sheet's own navigation title use. One name for one thing.
+    static var title: LocalizedStringResource { "Scan core" }
 
     /// Written as one string literal, not a concatenation: `LocalizedStringResource` is built from
     /// a *literal*, and `"a" + "b"` is a `String`, which will not convert to one.
     static var description: IntentDescription {
         IntentDescription(
-            "Opens a new core charge with the scanner ready. Nothing is saved until you tap Save.",
+            "Opens a new core charge on the Scan core screen. Nothing is saved until you tap Save.",
             categoryName: "Cores"
         )
     }
@@ -61,11 +70,11 @@ struct CoreCreditShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: ScanCoreIntent(),
             phrases: [
-                "Scan a Core in \(.applicationName)",
+                "Scan core in \(.applicationName)",
                 "Scan a core with \(.applicationName)",
                 "Log a core in \(.applicationName)"
             ],
-            shortTitle: "Scan a Core",
+            shortTitle: "Scan core",
             systemImageName: "barcode.viewfinder"
         )
     }

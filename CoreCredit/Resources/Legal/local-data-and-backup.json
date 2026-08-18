@@ -29,10 +29,13 @@
       ]
     },
     {
-      "heading": "This version does not read a backup file back in",
+      "heading": "Reading a backup back in",
       "paragraphs": [
-        "The backup file is a complete, readable record of the ledger, but this version of the app has no screen for importing one back into the app.",
-        "Treat exports as your safety copy and your paper trail, not as a one-tap restore. Keep them somewhere you can actually open them."
+        "CoreCredit can restore a backup file it wrote. Data & export has a Restore from backup action that reads a .json backup, checks it, shows you exactly what it contains, and asks you to confirm before anything changes.",
+        "A restore REPLACES everything currently on this device. It is not a merge. Cores, vendors, bins, returns, the event history, and the shop profile in the file take the place of what is on the device now. There is no undo.",
+        "The whole file is read and checked before a single existing record is removed. If the file is empty, damaged, not a CoreCredit backup, or was written by a newer version of the app than the one you are running, the restore stops and your existing ledger is left exactly as it was.",
+        "One thing a backup does not carry: EVIDENCE PHOTOS. The backup file is a text file of your records - part names, numbers, references, amounts, dates, statuses, and the event history. The photographs you attached to cores are not in it, and a restore cannot bring them back. Keep photos through your device backup, which does include them.",
+        "For the same reason, a restore is a way to move a ledger to a replacement device or to recover from a mistake - not a substitute for the device backup Apple already makes."
       ]
     },
     {
@@ -74,8 +77,8 @@
     {
       "heading": "Questions",
       "paragraphs": [
-        "A support contact must be published before this app is offered publicly: [TO BE SUPPLIED BY OWNER - support email address and support page address].",
-        "Until then, the app deliberately shows no support address rather than one that reaches nobody."
+        "CoreCredit is published by Idlery Services LLC.",
+        "Questions about your data, an export, or a restore go to idlery.apps@gmail.com."
       ]
     }
   ]

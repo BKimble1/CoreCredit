@@ -2,15 +2,31 @@
 //  ScanSheet.swift
 //  CoreCredit
 //
-//  Capture feature — barcode entry, by camera or by hand.
+//  Capture feature — "Scan core": one entry point, two capture modes, one confirmation step.
+//
+//  ## One surface, two engines
+//
+//  Everything outside the app that says "scan a core" — the Quick Scan widget, the App Shortcut and
+//  the Action Button through `ScanCoreIntent`, the Dashboard's Scan core button, and the intake
+//  form's own — lands here, on a sheet titled **Scan core**. Inside it there are two modes:
+//
+//  - **Live** (this file) is `DataScannerViewController`: barcodes and, alongside them, text. It is
+//    the default because it is what a technician holding a part actually wants.
+//  - **Document** (`DocumentScanSheet`, in `OCRReviewSheet.swift`) is
+//    `VNDocumentCameraViewController`: page-edge detection, perspective correction, several pages.
+//    It is what an invoice or a return receipt actually needs.
+//
+//  The *entry point* is unified; the engines are not, and deliberately so. One finds a symbol in a
+//  moving frame, the other flattens a sheet of paper — they have different framing behaviour,
+//  different failure modes, and different guidance overlays, and pretending otherwise would make
+//  both worse. Switching modes swaps `CoreEditorModel.Route`, so exactly one capture sheet is ever
+//  presented and a dismissal can never race a presentation.
 //
 //  ## A scan stops, it does not commit
 //
-//  The old version of this screen handed a payload straight back and dismissed itself. It now
-//  **freezes** instead: the viewfinder pauses, one success haptic fires, and the code that was read
-//  is shown with what the classifier made of it. Nothing leaves this sheet until the user taps
-//  *Use these details*, and even then it only travels as far as the review sheet, which is where a
-//  value is confirmed before it reaches the intake draft. Cancelling leaves the draft untouched.
+//  Nothing leaves this sheet until the user taps *Use these details*, and even then it only travels
+//  as far as the review sheet, which is where a value is confirmed before it reaches the intake
+//  draft. Cancelling leaves the draft untouched. Switching modes writes nothing at all.
 //
 //  ## Every branch reaches a usable outcome
 //
@@ -25,7 +41,113 @@
 
 import SwiftUI
 
-/// Barcode capture with a manual fallback that is always available.
+// MARK: - Modes
+
+/// Which capture engine the unified "Scan core" surface currently has in front of the user.
+///
+/// A value type shared by both sheets so the segmented control reads identically on each, and so a
+/// test can assert the vocabulary without launching a camera.
+enum ScanCaptureMode: String, CaseIterable, Identifiable, Hashable, Sendable {
+
+    /// `DataScannerViewController` — barcodes and tappable text.
+    case live
+
+    /// `VNDocumentCameraViewController` — a flattened, deskewed page.
+    case document
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .live:
+            return "Live"
+        case .document:
+            return "Document"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .live:
+            return "barcode.viewfinder"
+        case .document:
+            return "doc.viewfinder"
+        }
+    }
+
+    /// One sentence saying what this mode is for, shown under the selector.
+    var explanation: String {
+        switch self {
+        case .live:
+            return "Point the camera at a barcode on the part, the box, or the shelf label. "
+                + "Printed text is highlighted too — tap the line you want."
+        case .document:
+            return "For an invoice or a return receipt. The page is flattened and straightened "
+                + "first, which is what makes small print readable."
+        }
+    }
+}
+
+/// The one user-facing name for the whole capture surface, in both modes.
+enum ScanCaptureCopy {
+    static let title = "Scan core"
+}
+
+// MARK: - Mode selector
+
+/// The Live / Document control at the top of both capture sheets.
+///
+/// Selecting the mode that is already showing does nothing. Selecting the other one asks the host
+/// to swap routes, which closes this sheet and opens the other — one sheet at a time, always.
+@MainActor
+struct ScanModeSelector: View {
+
+    private let mode: ScanCaptureMode
+    private let onSelect: (ScanCaptureMode) -> Void
+
+    init(mode: ScanCaptureMode, onSelect: @escaping (ScanCaptureMode) -> Void) {
+        self.mode = mode
+        self.onSelect = onSelect
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            // No `.accessibilityLabel` / `.accessibilityValue` on the picker itself. A segmented
+            // control already announces each segment and its selected state, and collapsing it into
+            // one labelled element would take that away from VoiceOver — and take the individual
+            // segments away from the UI tests at the same time. The identifier is applied to the
+            // container, where it does not disturb the children.
+            Picker("Capture mode", selection: selection) {
+                ForEach(ScanCaptureMode.allCases) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(minHeight: Spacing.minimumTapTarget)
+            .accessibilityIdentifier(A11y.Scan.modePicker)
+
+            Text(mode.explanation)
+                .font(Typography.caption)
+                .foregroundStyle(Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var selection: Binding<ScanCaptureMode> {
+        Binding(
+            get: { mode },
+            set: { newValue in
+                guard newValue != mode else { return }
+                onSelect(newValue)
+            }
+        )
+    }
+}
+
+// MARK: - Live capture
+
+/// Live capture with a manual fallback that is always available.
 @MainActor
 struct ScanSheet: View {
 
@@ -35,8 +157,14 @@ struct ScanSheet: View {
     /// the review sheet, and a `dismiss()` racing that swap would close both.
     private let onCandidates: (ScanReviewSession) -> Void
 
-    init(onCandidates: @escaping (ScanReviewSession) -> Void) {
+    /// Called when the user picks Document. The host swaps the route; this sheet does nothing else.
+    /// `nil` hides the mode selector, for a host with only one engine to offer.
+    private let onSwitchToDocument: (() -> Void)?
+
+    init(onCandidates: @escaping (ScanReviewSession) -> Void,
+         onSwitchToDocument: (() -> Void)? = nil) {
         self.onCandidates = onCandidates
+        self.onSwitchToDocument = onSwitchToDocument
     }
 
     @Environment(AppEnvironment.self) private var appEnvironment
@@ -47,7 +175,7 @@ struct ScanSheet: View {
     @State private var scannerError: String?
     @State private var isRequestingAccess = false
 
-    /// The accepted scan currently held on screen. Non-`nil` means the viewfinder is paused.
+    /// The accepted read currently held on screen. Non-`nil` means the viewfinder is paused.
     @State private var frozen: FrozenScan?
 
     // There is deliberately no deduplicator here. Duplicate suppression and the cooldown live in
@@ -68,10 +196,26 @@ struct ScanSheet: View {
 
     private static let contentMaxWidth: CGFloat = 560
 
+    /// Confidence stamped on a line the user tapped out of the live text highlights.
+    ///
+    /// Deliberately mid-band. A tapped line arrives with none of the context the ranking layer
+    /// normally has — no label above it, no page position, no neighbours — so it must not be able
+    /// to reach `.high` and start pre-selected on its own. The technician chose the line; they
+    /// still confirm what it *is*.
+    private static let liveTextConfidence = 0.5
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Spacing.l) {
+                    if let onSwitchToDocument = onSwitchToDocument {
+                        ScanModeSelector(mode: .live) { newMode in
+                            guard newMode == .document else { return }
+                            isManualEntryFocused = false
+                            onSwitchToDocument()
+                        }
+                    }
+
                     if let scannerError = scannerError {
                         ErrorBanner(message: scannerError,
                                     retryTitle: "Try the camera again",
@@ -91,9 +235,12 @@ struct ScanSheet: View {
                 .frame(maxWidth: ScanSheet.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
-            .background(Palette.background)
+            .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+            .background {
+                Palette.background.ignoresSafeArea()
+            }
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Scan")
+            .navigationTitle(ScanCaptureCopy.title)
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityIdentifier(A11y.Scan.root)
             .toolbar {
@@ -110,8 +257,8 @@ struct ScanSheet: View {
         }
         .tint(Palette.accent)
         // No haptic here on purpose. `BarcodeScannerView` fires exactly one `.success`
-        // when a scan clears duplicate suppression and the cooldown, which is the only
-        // place that knows a scan was actually *accepted*. Adding a second trigger on
+        // when a read clears duplicate suppression and the cooldown, which is the only
+        // place that knows a read was actually *accepted*. Adding a second trigger on
         // the frozen state would buzz twice for one read.
         .task {
             availability = BarcodeScannerAvailabilityChecker.current()
@@ -185,17 +332,21 @@ struct ScanSheet: View {
     // MARK: - Live scanning
 
     private var viewfinderSection: some View {
-        SectionCard(title: frozen == nil ? "Point at the barcode" : "Paused on a code",
+        SectionCard(title: frozen == nil ? "Point at the barcode" : "Paused on a read",
                     systemImage: "barcode.viewfinder") {
             VStack(alignment: .leading, spacing: Spacing.m) {
                 BarcodeScannerView(
                     isPaused: frozen != nil,
+                    recognizesText: true,
                     dateProvider: appEnvironment.dateProvider,
                     onScan: { result in
                         accept(result)
                     },
                     onSuppressed: { result, reason in
                         recordSuppressedScan(result, reason: reason)
+                    },
+                    onTextScan: { transcript in
+                        acceptText(transcript)
                     },
                     onError: { message in
                         scannerError = message
@@ -205,19 +356,17 @@ struct ScanSheet: View {
                 .frame(height: ScanSheet.viewfinderHeight)
                 .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
-                )
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text("Camera viewfinder"))
-                .accessibilityValue(Text(frozen == nil ? "Scanning" : "Paused on a scanned code"))
-                .accessibilityHint(Text("Hold the barcode in front of the camera. "
-                                        + "You can also type the number in below."))
+                .accessibilityValue(Text(frozen == nil ? "Scanning" : "Paused on a scanned value"))
+                .accessibilityHint(Text("Hold the barcode in front of the camera, or tap a line of "
+                                        + "printed text to use it. You can also type the number in "
+                                        + "below."))
 
                 Text(frozen == nil
-                     ? ScannerAvailability.available.explanation
-                     : "Scanning is paused so the code below stays put. Resume when you are done "
+                     ? "A barcode is used as soon as it reads. Printed text is only highlighted — "
+                        + "tap the line you want."
+                     : "Scanning is paused so the value below stays put. Resume when you are done "
                         + "with it.")
                     .font(Typography.caption)
                     .foregroundStyle(Palette.textSecondary)
@@ -226,28 +375,32 @@ struct ScanSheet: View {
         }
     }
 
-    // MARK: - The frozen scan
+    // MARK: - The frozen read
 
     /// What was read, held still, with the three things the user can do about it.
     private func frozenCard(_ scan: FrozenScan) -> some View {
-        SectionCard(title: "Scanned code", systemImage: "checkmark.circle") {
+        SectionCard(title: scan.isText ? "Tapped text" : "Scanned code",
+                    systemImage: "checkmark.circle") {
             VStack(alignment: .leading, spacing: Spacing.m) {
                 Text(scan.payload)
                     .font(Typography.money)
                     .foregroundStyle(Palette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel(Text("Scanned code"))
+                    .accessibilityLabel(Text(scan.isText ? "Tapped text" : "Scanned code"))
                     .accessibilityValue(Text(scan.payload))
 
-                Text(scan.symbologyDescription)
+                Text(scan.sourceDescription)
                     .font(Typography.caption)
                     .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if scan.session.candidates.isEmpty {
-                    Text("Nothing could be made of that code. Resume scanning, or type the number "
-                         + "in below.")
+                    Text(scan.isText
+                         ? "Nothing could be made of that line. Tap a different one, or type the "
+                            + "number in below."
+                         : "Nothing could be made of that code. Resume scanning, or type the number "
+                            + "in below.")
                         .font(Typography.caption)
                         .foregroundStyle(Palette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -286,7 +439,7 @@ struct ScanSheet: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier(A11y.Scan.resume)
                 .accessibilityLabel(Text("Resume scanning"))
-                .accessibilityHint(Text("Throws this code away and starts the camera again."))
+                .accessibilityHint(Text("Throws this reading away and starts the camera again."))
 
                 Button {
                     dismiss()
@@ -377,7 +530,7 @@ struct ScanSheet: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                            .strokeBorder(isManualEntryFocused ? Palette.accent : Palette.hairline,
+                            .strokeBorder(isManualEntryFocused ? Palette.accent : Palette.fieldBorder,
                                           lineWidth: isManualEntryFocused ? 2 : 1)
                     )
                     .accessibilityIdentifier(A11y.Scan.manualEntry)
@@ -437,9 +590,44 @@ struct ScanSheet: View {
         frozen = FrozenScan(
             payload: payload,
             symbology: result.symbology,
+            isText: false,
             session: ScanReviewSession(source: .liveBarcode,
                                        candidates: candidates,
                                        rawLines: [payload])
+        )
+    }
+
+    /// Freezes on a line of printed text the user tapped in the viewfinder.
+    ///
+    /// Ranked by `OCRSuggestionExtractor`, exactly as a photographed or scanned page is, so a live
+    /// tap and a document scan produce the same kind of candidate with the same reasoning attached.
+    /// The raw line is preserved as `rawValue` by the extractor and shown again on the review sheet.
+    private func acceptText(_ transcript: String) {
+        let value = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value.isEmpty == false else { return }
+
+        appEnvironment.scanDiagnostics.recordBarcode(
+            payload: value,
+            symbology: BarcodeScannerView.liveTextSymbology,
+            accepted: true,
+            reason: "Line of printed text tapped in the viewfinder."
+        )
+
+        let line = RecognizedLine(text: value, confidence: ScanSheet.liveTextConfidence)
+        appEnvironment.scanDiagnostics.recordLines([line])
+
+        let candidates = OCRSuggestionExtractor.candidates(from: [line], source: .liveText)
+        appEnvironment.scanDiagnostics.recordCandidates(candidates)
+
+        scannerError = nil
+        isManualEntryFocused = false
+        frozen = FrozenScan(
+            payload: value,
+            symbology: BarcodeScannerView.liveTextSymbology,
+            isText: true,
+            session: ScanReviewSession(source: .liveText,
+                                       candidates: candidates,
+                                       rawLines: [value])
         )
     }
 
@@ -465,7 +653,7 @@ struct ScanSheet: View {
     private static func suppressionExplanation(for reason: String) -> String {
         if reason == BarcodeScannerView.duplicateSuppressionReason {
             return "Already read in this session. Close the scanner and open it again to read the "
-                + "same code twice."
+                + "same value twice."
         }
         if reason == BarcodeScannerView.cooldownSuppressionReason {
             return "Read inside the repeat-scan cooldown, so it counted as the same read as the "
@@ -474,7 +662,7 @@ struct ScanSheet: View {
         return "Dropped by the scanner: " + reason + "."
     }
 
-    /// Hands the frozen scan to the caller. The caller presents the review sheet; this sheet stays
+    /// Hands the frozen read to the caller. The caller presents the review sheet; this sheet stays
     /// put rather than dismissing itself, so the two presentations cannot race.
     private func useFrozenScan(_ scan: FrozenScan) {
         guard scan.session.candidates.isEmpty == false else { return }
@@ -482,7 +670,7 @@ struct ScanSheet: View {
         onCandidates(scan.session)
     }
 
-    /// Drops the frozen code and starts the camera again.
+    /// Drops the frozen read and starts the camera again.
     private func resumeScanning() {
         frozen = nil
         scannerError = nil
@@ -536,21 +724,29 @@ struct ScanSheet: View {
         appEnvironment.scanDiagnostics.begin(source: .liveBarcode, availability: availability)
     }
 
-    // MARK: - Frozen scan
+    // MARK: - Frozen read
 
     /// One accepted read, held on screen while the user decides what to do with it.
     private struct FrozenScan: Equatable {
 
         var payload: String
 
-        /// `VNBarcodeSymbology.rawValue`, kept verbatim.
+        /// `VNBarcodeSymbology.rawValue` for a code, `BarcodeScannerView.liveTextSymbology` for a
+        /// tapped line. Kept verbatim either way.
         var symbology: String
 
-        /// What the classifier made of the payload, ready for the review sheet.
+        /// Whether this came from the text highlights rather than from a symbol.
+        var isText: Bool
+
+        /// What the classifier or the extractor made of the value, ready for the review sheet.
         var session: ScanReviewSession
 
-        /// A sentence naming the kind of symbol, so a numeric UPC is visibly not a part number.
-        var symbologyDescription: String {
+        /// A sentence naming where the value came from, so a numeric UPC is visibly not a part
+        /// number and a tapped line is visibly not a scanned code.
+        var sourceDescription: String {
+            if isText {
+                return "Read as printed text, not from a barcode."
+            }
             let family = BarcodeSymbologyClass.classify(symbology).displayName
             return "Symbol type: " + family + "."
         }

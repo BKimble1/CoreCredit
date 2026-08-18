@@ -8,7 +8,10 @@ import UIKit
 
 /// Single place to change the working name, identifiers, and placeholder URLs before release.
 ///
-/// # Pre-release checklist — everything in this file that must change before submission
+/// # Pre-release checklist — everything in this file that had to change before submission
+///
+/// All of it is now supplied. The list is kept because each item explains *why* the value matters
+/// and what breaks silently if it drifts.
 ///
 /// 1. `displayName` — the shipping product name. Must also be updated in the Xcode target's
 ///    `INFOPLIST_KEY_CFBundleDisplayName` build setting and in `CoreCredit.storekit`.
@@ -20,9 +23,11 @@ import UIKit
 ///    to its retry state rather than reporting anything wrong.
 /// 4. `subscriptionGroupIdentifier` — the local `.storekit` group number. Nothing reads it today,
 ///    so it is metadata; replace it if any code starts querying the group directly.
-/// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — all four are
-///    `example.com` placeholders. App Review rejects builds whose support and privacy URLs do
-///    not resolve to real, reachable pages.
+/// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — SET, and the
+///    three URLs were fetched over HTTPS and returned the intended pages anonymously. They are
+///    served from `BKimble1/CoreCredit-Legal`, a public repository holding nothing but those
+///    static pages; this repository stays private. App Review rejects builds whose support and
+///    privacy URLs do not resolve, so re-check them if the hosting ever moves.
 /// 6. `defaultCurrencyCode` — only if the shop's default ledger currency is not US dollars.
 ///    Individual shops can still override this in Settings; this is only the seed value.
 /// 7. `urlScheme` — must match the `CFBundleURLSchemes` entry in the target's Info settings if
@@ -57,29 +62,33 @@ enum AppConfiguration {
     /// The full set of identifiers requested from StoreKit on launch.
     static var subscriptionProductIDs: [String] { [monthlyProductID, annualProductID] }
 
-    // MARK: - OWNER-SUPPLIED VALUES — required before public release
+    // MARK: - Publisher and public addresses
     //
-    // Everything between here and the end of this section is a stand-in. The app is written so that
-    // a stand-in is *never printed to the screen*: the legal documents ship inside the app and are
-    // read natively, and any screen that would otherwise show one of these addresses hides the row
-    // and says plainly that a contact has not been set up yet.
+    // All supplied. The app is written so that a *stand-in* is never printed to the screen —
+    // `isPlaceholder(_:)` below decides that at runtime and hides any row that would otherwise show
+    // one — and that machinery stays in place as a guard, not because anything here is provisional.
     //
-    // Replacing a value is the only step needed to make the matching UI appear — `isPlaceholder(_:)`
-    // below decides that at runtime, so nothing else has to be edited.
-    //
-    // Still outstanding, and *not* invented anywhere in this codebase:
-    //   * the legal name of the developer or company, and a postal address if one is required
-    //   * a governing law and venue for the Terms of Use
-    //   * a working support email address and support page
-    //   * the published web addresses of the privacy policy and terms (App Review requires these to
-    //     resolve; the in-app copies do not depend on them)
-    // These appear in the bundled documents as `[TO BE SUPPLIED BY OWNER - …]` markers, and in
-    // `docs/legal-public/*.html`, which are the pages to publish at the addresses below.
+    // The three URLs are live, static, public pages served over HTTPS from a repository that holds
+    // nothing but those pages. They are generated from the same JSON the app reads natively out of
+    // `CoreCredit/Resources/Legal/`, by `docs/tools/render_legal_pages.py`, so the published wording
+    // and the on-device wording cannot drift apart. The app never fetches them; they exist because
+    // App Review needs an address it can open.
 
-    static let supportURLString = "https://example.com/corecredit/support"
-    static let privacyURLString = "https://example.com/corecredit/privacy"
-    static let termsURLString   = "https://example.com/corecredit/terms"
-    static let supportEmail     = "support@example.com"
+    /// The legal entity that publishes CoreCredit. This is the name that appears in the legal
+    /// documents, on the public pages, and as the App Store seller — never an individual's name.
+    static let companyName = "Idlery Services LLC"
+
+    /// Shown on the About screen and in the bundled documents.
+    static let copyrightNotice = "Copyright 2026 Idlery Services LLC"
+
+    static let supportURLString = "https://bkimble1.github.io/CoreCredit-Legal/support"
+    static let privacyURLString = "https://bkimble1.github.io/CoreCredit-Legal/privacy"
+    static let termsURLString   = "https://bkimble1.github.io/CoreCredit-Legal/terms"
+    static let supportEmail     = "idlery.apps@gmail.com"
+
+    /// Version 1 ships to the United States App Store storefront only. Stated here because the
+    /// legal documents say so and a claim in a legal document should have exactly one source.
+    static let distributionTerritory = "United States"
 
     /// Used instead of force-unwrapping a `URL`. Navigating to it is harmless and obviously wrong,
     /// which is the point: a malformed placeholder should be visible, not a crash.

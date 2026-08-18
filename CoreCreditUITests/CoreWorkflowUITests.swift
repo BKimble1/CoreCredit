@@ -7,9 +7,10 @@
 //      create vendor -> add core -> mark ready -> create return batch
 //      -> record receipt/reference -> mark credited -> verify dashboard zero
 //
-//  Everything here is manual entry. The editor's "Scan barcode" button is never touched, no photo
-//  is ever attached, and the subscription engine is the in-memory stub — so the suite depends on
-//  neither camera permission nor live StoreKit.
+//  Everything here is manual entry. The editor's "Scan core" action is never touched, no photo is
+//  ever attached, and the subscription engine is the in-memory stub — so the suite depends on
+//  neither camera permission nor live StoreKit. The capture surface has its own suite in
+//  `CaptureAndLayoutUITests`, which reaches it without a camera either.
 //
 
 import XCTest
@@ -237,6 +238,23 @@ final class CoreWorkflowUITests: XCTestCase {
     }
 
     /// Stage 3 — Dashboard ▸ Add core, filled in entirely by hand.
+    /// Expands the editor's optional **References** section when it is folded away.
+    ///
+    /// `CollapsibleSection` keeps an optional section closed only while it is empty; the moment it
+    /// holds a value, a scanned value, or a validation error it is forced open and its header stops
+    /// being a control. Checking for the field first is therefore the correct order — it makes this
+    /// helper a no-op on an already-open section instead of collapsing one.
+    private func openReferencesIfNeeded(in app: XCUIApplication,
+                                       file: StaticString = #filePath,
+                                       line: UInt = #line) {
+        guard textField(app, A11yID.Editor.invoice).exists == false else { return }
+        tapWhenHittable(control(app, A11yID.Editor.referencesSection),
+                        "the editor's References section header",
+                        in: app,
+                        file: file,
+                        line: line)
+    }
+
     private func addAlternator(in app: XCUIApplication,
                                file: StaticString = #filePath,
                                line: UInt = #line) {
@@ -260,6 +278,12 @@ final class CoreWorkflowUITests: XCTestCase {
                          in: app,
                          file: file,
                          line: line)
+            // References is optional and folds away while it is empty, so it is opened before the
+            // two fields inside it are typed into. Guarded rather than tapped blind: a section
+            // holding a value is forced open and has no toggle at all, and tapping the header then
+            // would be tapping nothing.
+            openReferencesIfNeeded(in: app, file: file, line: line)
+
             clearAndType("INV-552",
                          into: textField(app, A11yID.Editor.invoice),
                          "the invoice field",

@@ -8,10 +8,26 @@ import SwiftUI
 
 /// The app entry point.
 ///
-/// It does four things and nothing else: build the `AppEnvironment` from the launch arguments,
-/// put it in the SwiftUI environment, attach the SwiftData container when there is one, and hand
-/// any incoming `corecredit://` URL to the deep-link router. Every decision about *what to show*
+/// It does five things and nothing else: build the `AppEnvironment` from the launch arguments, put
+/// it in the SwiftUI environment, attach the SwiftData container when there is one, hand any
+/// incoming `corecredit://` URL to the deep-link router, and hold the load-in screen over the
+/// whole thing until the first frame is ready to be looked at. Every decision about *what to show*
 /// belongs to `RootView`, and every decision about what a link *means* belongs to `MainTabView`.
+///
+/// # The load-in screen
+///
+/// There is no SwiftUI splash. `UILaunchScreen` in `Config/CoreCredit-Info.plist` paints the
+/// brand blue and the white mark before a single line of Swift runs, which is the whole job —
+/// the app is never seen opening on a white flash. A second, animated layer was tried on top of
+/// it and taken out again: handing over from a static image to a live view a frame later showed,
+/// and a launch screen that draws attention to itself has failed at the one thing it is for.
+///
+/// # Appearance
+///
+/// Applied here, at the root, above the branch that chooses between the store-failure screen,
+/// onboarding, and the tab bar — so a shop's choice holds even on a launch where SwiftData never
+/// opened. Defaults to Light and is changed in Settings → Appearance; see `AppearancePreference`
+/// for why this app has the switch at all when most should just follow the system.
 @main
 struct CoreCreditApp: App {
 
@@ -21,6 +37,7 @@ struct CoreCreditApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .preferredColorScheme(Palette.colorScheme(for: appEnvironment.appearance.preference))
                 .environment(appEnvironment)
                 .modelContainerIfAvailable(appEnvironment.container)
                 // Recorded, never acted on here. On a cold start this fires while `RootView` is

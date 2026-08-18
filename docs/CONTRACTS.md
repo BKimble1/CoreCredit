@@ -897,6 +897,9 @@ struct CoreItemService {
     func writeOff(_ item: CoreItem, reason: String) throws
     func addAttachment(_ attachment: Attachment, to item: CoreItem) throws
     func removeAttachment(_ attachment: Attachment, from item: CoreItem) throws
+    /// Forgets the raw scanned payload. Audited as `.edited`, never touches `partNumber`, and is
+    /// a no-op when there is nothing to clear.
+    func clearScannedBarcode(_ item: CoreItem) throws
     func delete(_ item: CoreItem) throws
     func recalculateDueDate(for item: CoreItem)
 
@@ -1588,22 +1591,45 @@ by `PaywallView` — one reader for all three routes, identified by `A11y.Legal.
 
 ```swift
 // Palette.swift
+//
+// Both appearances are designed, not derived. The RELATIONSHIP is what must survive an edit:
+// a card is lifted from the ground by its own fill in each scheme (no card is drawn with an
+// outline anywhere in this app), and a well moves the way iOS moves a field well in that
+// scheme — down in light, up in dark. `CoreCreditTests/PaletteThemeTests.swift` measures it.
 enum Palette {
-    static let background: Color          // near-black navy in dark, off-white in light
-    static let surface: Color
-    static let surfaceElevated: Color
-    static let hairline: Color
+    static let background: Color          // the ground: cool grey in light, near-black navy in dark
+    static let surface: Color             // a card. Separates from `background` WITHOUT a border.
+    static let surfaceElevated: Color     // a well inside a card
+    static let hairline: Color            // row separators only — deliberately faint (1.36:1)
+    /// The edge of a text field or picker row. WCAG 1.4.11 wants 3:1 on the boundary that
+    /// identifies a control, and `hairline` is nowhere near it. 3.35:1 light, 3.36:1 dark.
+    static let fieldBorder: Color
     static let textPrimary: Color
     static let textSecondary: Color
-    static let accent: Color              // restrained amber — warnings / "ready to return"
+    /// **The app's own blue, `#0053FD`, lifted straight out of the app icon.** The ACTION colour:
+    /// filled buttons, links, focused fields, active filters. It is NOT a status, and
+    /// `color(for:)` never returns it. `AccentColor.colorset` must match it in all four
+    /// resolutions (light, dark, and each with Increase Contrast).
+    static let accent: Color
+    static let onAccent: Color            // readable foreground on a solid `accent` fill
     static let positive: Color            // green — confirmed credits ONLY
     static let danger: Color              // red — overdue / disputed ONLY
     static let neutral: Color             // graphite — awaiting / returned
     static let muted: Color               // written off
 
+    // Asset names the static launch screen paints. `launchBackground` holds `accent`'s LIGHT value.
+    static let launchBackgroundAssetName: String   // "LaunchBackground"
+    static let launchMarkAssetName: String         // "LaunchMark"
+
     static func color(for status: CoreStatus) -> Color
     static func onColor(for status: CoreStatus) -> Color   // readable foreground on that color
+    static func colorScheme(for: AppearancePreference) -> ColorScheme?  // nil == follow the device
 }
+
+// Amber — "ready to return" — is PRIVATE and reachable only through `color(for:)`. It used to be
+// `accent`, doing double duty as the primary-button colour; splitting them is what let the light
+// scheme be rebuilt out of the app icon without spending the one colour that means a core is
+// staged to go back. `PaletteThemeTests` asserts no status colour ever equals `accent` again.
 
 // Typography.swift
 enum Typography {
@@ -1623,7 +1649,10 @@ enum Spacing {
     static let xl: CGFloat = 24
     static let xxl: CGFloat = 32
     static let minimumTapTarget: CGFloat = 44
-    static let cornerRadius: CGFloat = 12
+    static let cornerRadius: CGFloat = 10          // matches an inset-grouped list row
+    /// Gap under the last item of a root scroll view. NOT a stand-in for the tab bar's height —
+    /// SwiftUI already reports that as a safe-area inset. Nothing in this app measures the bar.
+    static let scrollBottomBreathingRoom: CGFloat = 24
 }
 
 // Views
@@ -1644,9 +1673,19 @@ struct CurrencyTextField: View {
 
 struct FormErrorText: View { init(_ message: String?) }
 
+/// `message` is **one sentence naming the next useful action**. The four-step explanation of how a
+/// core charge comes back belongs in onboarding and in `HowItWorksDisclosure`, never on an empty
+/// screen the owner will see again every time they settle their last core.
 struct EmptyStateView: View {
     init(symbol: String, title: String, message: String,
-         actionTitle: String? = nil, action: (() -> Void)? = nil)
+         actionTitle: String? = nil, actionIdentifier: String? = nil,
+         action: (() -> Void)? = nil)
+}
+
+/// The four-step "how a core charge comes back" lesson, collapsed. No implicit animation, so it
+/// behaves identically with Reduce Motion on and off.
+struct HowItWorksDisclosure: View {
+    init(isInitiallyExpanded: Bool = false)
 }
 
 struct ErrorBanner: View {
@@ -1660,8 +1699,13 @@ struct ConfirmationBanner: View {
     init(message: String, systemImage: String = "checkmark.circle", onDismiss: (() -> Void)? = nil)
 }
 
+/// A fill and a heading. **No stroke** — `Palette.surface` already separates it from
+/// `Palette.background` in both appearances, and an outline on top is a second line saying the same
+/// thing. `isPlain` drops the fill and the padding, for a heading over content that already has a
+/// surface of its own; that is how the app avoids card-on-card.
 struct SectionCard<Content: View>: View {
-    init(title: String? = nil, systemImage: String? = nil, @ViewBuilder content: () -> Content)
+    init(title: String? = nil, systemImage: String? = nil, isPlain: Bool = false,
+         @ViewBuilder content: () -> Content)
 }
 
 struct StatTile: View {
@@ -1708,11 +1752,26 @@ enum A11y {
     enum Editor { static let partName = "editor.partName"; static let partNumber = "editor.partNumber"
                   static let amount = "editor.amount"; static let vendor = "editor.vendor"
                   static let bin = "editor.bin"; static let invoice = "editor.invoice"
-                  static let repairOrder = "editor.repairOrder"; static let save = "editor.save"
-                  static let cancel = "editor.cancel"; static let scan = "editor.scan" }
+                  static let repairOrder = "editor.repairOrder"
+                  // The one Save, in a pinned bottom bar rather than the toolbar.
+                  static let save = "editor.save"
+                  static let cancel = "editor.cancel"
+                  // "Scan core" — the unified capture entry at the top of the form.
+                  static let scan = "editor.scan"
+                  // The References disclosure. That section folds away while it is empty, so a UI
+                  // test that wants the invoice or repair-order field opens it through this first.
+                  static let referencesSection = "editor.referencesSection" }
     enum Detail { static let root = "detail.root"; static let status = "detail.status"
                   static let markReady = "detail.markReady"; static let recordCredit = "detail.recordCredit"
-                  static let exportPacket = "detail.exportPacket"; static let binTag = "detail.binTag" }
+                  static let exportPacket = "detail.exportPacket"; static let binTag = "detail.binTag"
+                  // The scanned-barcode card. Present only on a core that carries a payload.
+                  static let copyBarcode = "detail.copyBarcode"
+                  static let clearBarcode = "detail.clearBarcode" }
+    enum Data { static let restore = "data.restore"
+                static let restorePreflight = "data.restorePreflight"
+                static let restoreCancel = "data.restoreCancel" }
+    enum Appearance { static let root = "appearance.root"
+                      static func option(_ rawValue: String) -> String { "appearance.option." + rawValue } }
     enum Returns { static let root = "returns.root"
                    static let reference = "returns.reference"        // create-batch sheet
                    static let editReference = "returns.editReference" // batch detail, while editing
@@ -1853,6 +1912,112 @@ Launch arguments consumed by `LaunchOptions.parse`:
 | `-uiTestStoreKitFailure` | `StubSubscriptionEngine(simulateLoadFailure: true)` |
 | `-uiTestScannerPayload <string>` | manual-entry field pre-filled / stub scan result |
 | `-uiTestSkipOnboarding` | marks the seeded profile as onboarded |
+
+---
+
+## 7c. Backup restore — `CoreCredit/Services/BackupRestoreService.swift`
+
+```swift
+struct BackupRestorePlan: Sendable { let payload: BackupPayload; let summary: BackupRestoreSummary }
+
+struct BackupRestoreSummary: Equatable, Sendable {
+    var formatVersion: Int; var appVersion: String; var exportedAt: Date
+    var shopName: String
+    var vendorCount: Int; var binCount: Int; var itemCount: Int; var batchCount: Int
+    var eventCount: Int; var unresolvedCount: Int; var moneyAtRisk: Money
+    var existingItemCount: Int      // what is on the device now and would be replaced
+}
+
+enum BackupRestoreError: LocalizedError, Equatable {
+    case unreadableFile(String), notJSON, notACoreCreditBackup
+    case newerFormat(found: Int, supported: Int), empty
+    case duplicateIdentifiers(kind: String), restoreFailed(String)
+}
+
+@MainActor final class BackupRestoreService {
+    init(context: ModelContext, dateProvider: any DateProvider)
+    func plan(from data: Data) throws -> BackupRestorePlan   // reads only. NEVER mutates.
+    func restore(_ plan: BackupRestorePlan) throws            // one transaction, rolls back
+}
+```
+
+**The split is the safety, and it is normative.** `plan(from:)` performs *every* rejection while
+the existing ledger is still intact. `restore(_:)` deletes and rebuilds inside a **single unsaved
+transaction** and saves once; anything thrown calls `context.rollback()`, which discards the
+deletions together with the half-built replacement. The delete must never be saved on its own — if
+it were, a failure during the rebuild would leave a shop with nothing at all.
+
+Other rules:
+
+- **Replace, not merge.** Version 1 restores by replacement, and the confirmation says so in those
+  words. A merge has to decide which duplicate wins, and a duplicated core is money counted twice.
+- **The backup carries no image bytes.** `BackupPayload` has no attachment data, so evidence photos
+  cannot be restored. The UI, the bundled `local-data-and-backup` document, `docs/PRIVACY.md`, and
+  the App Review notes all say so, and `BackupRestoreTests` asserts the encoded file contains no
+  `imageData`, so the claim stays true if the format ever changes.
+- **The backup carries no reminder preferences.** `ShopProfileSnapshot` holds name, phone, email,
+  address, and currency. `CarriedDeviceSettings` copies the device's notification settings across a
+  restore rather than resetting them — they describe the device, not the ledger.
+- **The postal address is stored as formatted lines**, so it returns as address lines. No character
+  is lost; the split between city/region/postal is.
+- After a successful restore the caller cancels the reminder queue and rebuilds it from the store:
+  the old queue referred to records that no longer exist.
+
+## 7b. The load-in screen — `CoreCredit/App/LaunchSplashView.swift`
+
+Two layers, because one cannot do the job.
+
+There is **one** layer: `UILaunchScreen` in `Config/CoreCredit-Info.plist`, naming the
+`LaunchBackground` colour and the `LaunchMark` image. iOS paints it the instant the process starts,
+before any Swift runs, which is the whole job — the app is never seen opening on a white flash.
+
+A second, animated SwiftUI layer over it (a gradient and a settling mark) was built and then
+**removed**: handing over from a static image to a live view one frame later was visible on device,
+and a launch screen that draws attention to itself has failed at the only thing it is for. Do not
+add one back. If the launch needs to feel better, make the *first real screen* cheaper to build.
+
+**Rules that are load-bearing, and tested in `CoreCreditTests/LaunchScreenTests.swift` because every
+one of them fails silently:**
+
+- `INFOPLIST_KEY_UILaunchScreen_Generation` must stay **off**. It merges an *empty* `UILaunchScreen`
+  dictionary on top of the partial Info.plist and replaces the real one with nothing. No warning, no
+  error — the app just opens on a white flash again.
+- The `LaunchBackground` asset must equal the **light** value of `Palette.accent`, so the app opens
+  in its own colour rather than in one it then changes out of. It is fixed in both appearances: a
+  launch screen is the app introducing itself, not a surface being read.
+- `LaunchMark` must be a **square canvas** with the mark centred and its padding baked in. The
+  launch screen fits the canvas to the screen; a tight crop would be stretched across the width.
+- The mark is the white artwork lifted out of `AppIcon.png` with a real alpha channel — not the
+  icon. What fills the screen is blue with a mark on it, never a rounded square floating in the
+  middle.
+
+---
+
+## 7a. Screen layout rules (added by the final UX pass)
+
+These are normative for every screen, and they exist because breaking them produced real bugs.
+
+1. **Never write `ZStack { Palette.background.ignoresSafeArea(); ScrollView { … } }`.** A `ZStack`
+   sizes itself to its largest child, so the ignoring background grows the stack past the tab bar's
+   bottom safe-area inset, the scroll view is sized to the stack, and the last row ends up under the
+   bar. Paint the background *behind* instead:
+
+   ```swift
+   ScrollView { … }
+       .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+       .background { Palette.background.ignoresSafeArea() }
+   ```
+
+   Nothing in this app measures or hard-codes a tab-bar height. SwiftUI reports it; the content
+   margin above it is ordinary breathing room, the same gap the first row gets.
+
+2. **One `NavigationStack` per presentation.** `CoreEditorView` carries none of its own: all four
+   call sites already wrap it, and a nested stack draws a second navigation bar under the first.
+
+3. **Root screens use large titles; pushed screens, editors, and sheets use `.inline`.**
+
+4. **One primary action per screen**, filled in `Palette.accent`. Everything else is tinted or
+   outlined. On the intake form the filled control is Save — the action that works with no camera.
 
 ---
 

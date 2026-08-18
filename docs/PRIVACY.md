@@ -1,5 +1,10 @@
 # Privacy — CoreCredit
 
+CoreCredit is published by **Idlery Services LLC**. Support: **idlery.apps@gmail.com**. Version 1
+is distributed in the **United States** App Store storefront only. The published policy lives at
+<https://bkimble1.github.io/CoreCredit-Legal/privacy> and is generated from the same JSON the app
+reads on device, so the two cannot drift.
+
 This document records what the shipped code actually does, so the App Store privacy answers can
 be given honestly and re-checked whenever the app changes.
 
@@ -22,11 +27,23 @@ answers must change in the same commit.
 | Reminder settings | Local SwiftData store (on `ShopProfile`) | No |
 | Last-known subscription entitlement | `UserDefaults` on device | No |
 | Generated PDF / CSV / JSON exports | App-controlled `Caches/CoreCreditExports`, swept after 24 h | Only when the user shares one |
+| A backup file chosen for restore | Read once, in memory, from wherever the user picked it | No — it is read, never copied or transmitted |
 
 Nothing is transmitted to the developer. There is no developer-operated server, no account, and
 no sign-in.
 
 ---
+
+## Restoring a backup
+
+Restoring reads a file the user chooses through the system file importer. The file is opened inside
+a security scope, decoded in memory, validated, and — only after the user confirms — used to replace
+the local store. It is never copied elsewhere, never uploaded, and never retained: CoreCredit has no
+server to send it to.
+
+A backup contains records, not images. **Evidence photographs are not in the file and are not
+restored.** Reminder preferences are not in it either, so the device's existing notification
+settings are kept rather than overwritten.
 
 ## Network activity
 
@@ -59,6 +76,12 @@ SDK, no crash reporter, and no dependency manager.
 | Camera | Only when the user taps a scan or photo control | Manual entry remains fully available; the app explains and offers a Settings link |
 | Notifications | Only from Settings → Notifications, when enabling deadline reminders | Reminders are off and the app says so plainly; nothing else is affected |
 
+The **Scan core** screen's Live mode recognises barcodes *and* printed text in the camera preview.
+Both are recognised entirely on device, by VisionKit and Vision; no frame, no transcript, and no
+image ever leaves the device, and nothing is written to a record without a person confirming it on
+the review screen. Recognised text is highlighted only — it is handed to the app when the user taps
+a specific line, never because it came into frame.
+
 **Not requested:** Photo Library (`PhotosPicker` needs no permission), location, contacts,
 calendar, reminders, microphone, Bluetooth, Health, Motion, App Tracking Transparency.
 No background modes and no remote push notifications.
@@ -82,6 +105,10 @@ and are purpose-specific.
   A disk-space declaration (`E174.1`) was removed: an audit found the app never calls a
   disk-space API, so declaring it would have over-stated what CoreCredit does. Declare only
   what the code actually uses.
+
+The capture rework did not change any of this. Adding live text recognition adds an on-device Vision
+pass, not a data flow: there is still no analytics, no crash reporter, no network client of the
+app's own, and no stored image beyond the evidence photos the user deliberately attaches.
 
 ---
 

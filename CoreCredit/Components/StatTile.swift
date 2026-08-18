@@ -109,15 +109,12 @@ struct StatTile: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(Spacing.l)
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        .padding(.horizontal, Spacing.l)
+        .padding(.vertical, Spacing.m)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
                 .fill(Palette.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                .strokeBorder(Palette.hairline, lineWidth: 1)
         )
         .contentShape(Rectangle())
     }

@@ -344,49 +344,127 @@ Only `.high` candidates start selected.
 
 ```swift
 @MainActor struct BarcodeScannerView: UIViewControllerRepresentable {
-    init(isPaused: Bool,
+    init(isPaused: Bool = false,
+         recognizesText: Bool = false,
+         dateProvider: any DateProvider = SystemDateProvider(),
          onScan: @escaping (ScanResult) -> Void,
+         onSuppressed: @escaping (ScanResult, String) -> Void = { _, _ in },
+         onTextScan: @escaping (String) -> Void = { _ in },
          onError: @escaping (String) -> Void)
+
     /// Exactly these, passed explicitly to `recognizedDataTypes: [.barcode(symbologies:)]`.
     static let symbologies: [VNBarcodeSymbology]   // code128, code39, code39Checksum,
         // code39FullASCII, qr, dataMatrix, upce, ean8, ean13, itf14, pdf417, aztec
+
+    /// Recorded instead of a `VNBarcodeSymbology` for a value tapped out of the text highlights,
+    /// so a line of print can never be mistaken for a symbol in the deduplicator or in diagnostics.
+    static let liveTextSymbology = "liveText"
+
+    static let duplicateSuppressionReason = "duplicate"
+    static let cooldownSuppressionReason  = "cooldown"
 }
 ```
 
-`ScanSheet` changes shape — it must no longer apply-and-dismiss in one step:
+**Text is recognised, and only ever tapped.** With `recognizesText: true` the session also asks for
+`.text()` and turns on `recognizesMultipleItems`, so a barcode and the line of print beside it can
+highlight at once. The two are *not* treated the same way:
+
+- a **barcode** is unambiguous once it decodes, so it is accepted from `didAdd`, exactly as before;
+- **text** is one line among dozens, so it is delivered **only** from `didTapOn`, never from
+  `didAdd`. Highlighting is not choosing.
+
+Both pass the same `ScanSessionDeduplicator` and the same cooldown, and both fire exactly one
+`.success` haptic on acceptance and none on a refusal.
+
+A tapped line is ranked by `OCRSuggestionExtractor.candidates(from:source:)` with
+`source: .liveText` and a **mid-band confidence (0.5)**, deliberately: a single line arrives with no
+label above it, no page position, and no neighbours, so it must not be able to reach `.high` and
+start pre-selected on its own. It never goes near `BarcodePayloadClassifier`.
+
+## 10a. The unified capture surface — `Features/Capture/ScanSheet.swift`
+
+One user-facing entry point, two engines. `ScanCaptureCopy.title` is `"Scan core"` and is the
+navigation title of **both** halves.
 
 ```swift
-@MainActor struct ScanSheet: View {
-    init(onCandidates: @escaping (ScanReviewSession) -> Void)
+enum ScanCaptureMode: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case live, document
+    var id: String { rawValue }
+    var displayName: String { get }     // "Live" / "Document"
+    var symbolName: String { get }
+    var explanation: String { get }     // one sentence, shown under the selector
+}
+
+enum ScanCaptureCopy { static let title = "Scan core" }
+
+@MainActor struct ScanModeSelector: View {
+    init(mode: ScanCaptureMode, onSelect: @escaping (ScanCaptureMode) -> Void)
+}
+
+@MainActor struct ScanSheet: View {                       // Live
+    init(onCandidates: @escaping (ScanReviewSession) -> Void,
+         onSwitchToDocument: (() -> Void)? = nil)
+}
+
+@MainActor struct DocumentScanSheet: View {               // Document
+    init(startsInCamera: Bool = true,
+         onApply: @escaping ([ScanCandidate]) -> Void,
+         onSwitchToLive: (() -> Void)? = nil)
 }
 ```
 
-Behaviour: on an accepted scan the preview **freezes**, a single `.success` haptic fires, and the
-frozen value plus its candidates are shown with **Use these details**, **Resume scanning**, and
-**Cancel**. Duplicate suppression and the cooldown run through `ScanSessionDeduplicator` fed by
-`AppEnvironment.dateProvider`. Cancelling must leave the intake draft untouched.
+**Switching modes swaps a route, it does not stack a sheet.** `onSwitchToDocument` /
+`onSwitchToLive` ask the host to set `CoreEditorModel.Route.documentScan` / `.scan`, so exactly one
+capture sheet is presented at a time and a dismissal can never race a presentation. A `nil` closure
+hides the selector — that is what the photo-review path passes, because it presents
+`DocumentScanSheet` as a nested sheet and has no route to swap.
+
+`DocumentScanSheet` resolves `DocumentScannerView.isSupported` in its **initialiser** and opens on a
+`.unsupported` explanation when there is no document camera (the Simulator, older hardware). It must
+never render `VNDocumentCameraViewController` on a device that cannot host it — `body` runs before
+any `.task`, so the check cannot live in one. `startsInCamera: false` opens on an `.idle`
+explanation with the mode selector reachable, which is what the unified entry passes.
+
+Behaviour of the Live half is unchanged otherwise: on an accepted read the preview **freezes**, a
+single `.success` haptic fires, and the frozen value plus its candidates are shown with **Use these
+details**, **Resume scanning**, and **Cancel**. Duplicate suppression and the cooldown run through
+`ScanSessionDeduplicator` fed by `AppEnvironment.dateProvider`. Cancelling, and switching modes,
+must leave the intake draft untouched.
 
 ## 11. Routing and entry points
 
 - `CoreEditorModel.Route` gains `case scanReview(ScanReviewSession)` and `case documentScan`.
   `Route.id` must be **unique per associated value** (the existing `.readPhoto` returns a constant
-  id, which prevents re-presentation — do not repeat that mistake).
+  id, which prevents re-presentation — do not repeat that mistake). `.scan` and `.documentScan` are
+  the two halves of the one capture surface and their ids must stay distinct, or the mode swap is a
+  no-op that strands the user on whichever opened first.
 - `CoreEditorView` gains `init(mode: CoreEditorMode, initialRoute: CoreEditorModel.Route? = nil)`
-  so the Dashboard quick action opens the scanner **without duplicating the intake form**.
+  so every quick-scan entry opens capture **without** duplicating the intake form.
 - `DashboardModel.Route` gains `case scanCore`, surfaced as a "Scan core" action using
   `A11y.Dashboard.scanCore`.
 - Settings gains a Scanner Diagnostics row → `ScannerDiagnosticsView`.
+
+**Every external "scan a core" is one route.** The Quick Scan widget's `widgetURL`, `ScanCoreIntent`
+(App Shortcut and Action Button), and any `corecredit://scan` URL all parse to `DeepLink.scan`;
+`MainTabView` answers all of them with `DashboardModel.beginQuickScan()` →
+`CoreEditorView(mode: .create, initialRoute: .scan)`. There is no second scanner anywhere, and no
+entry point may grow one. The widget kind (`"CoreCreditQuickScan"`) and `QuickScanLinks.scanURLString`
+(`"corecredit://scan"`) are frozen: changing either orphans widgets a shop has already placed.
 
 New `A11y` members (add to the app enum **and** the hand-maintained mirror in
 `CoreCreditUITests/UITestSupport.swift` in the same change):
 
 ```swift
 A11y.Dashboard.scanCore          = "dashboard.scanCore"
-A11y.Scan.root                   = "scan.root"
+A11y.Scan.root                   = "scan.root"           // the Live half
+A11y.Scan.documentRoot           = "scan.documentRoot"   // the Document half
+A11y.Scan.modePicker             = "scan.modePicker"     // Live / Document, on both halves
+A11y.Scan.openDocumentCamera     = "scan.openDocumentCamera"
 A11y.Scan.manualEntry            = "scan.manualEntry"
 A11y.Scan.useManual              = "scan.useManual"
 A11y.Scan.resume                 = "scan.resume"
-A11y.Scan.cancel                 = "scan.cancel"
+A11y.Scan.cancel                 = "scan.cancel"         // carried by both halves
+A11y.Editor.referencesSection    = "editor.referencesSection"
 A11y.ScanReview.root             = "scanReview.root"
 A11y.ScanReview.apply            = "scanReview.apply"
 A11y.ScanReview.retake           = "scanReview.retake"

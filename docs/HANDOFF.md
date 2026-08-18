@@ -2,59 +2,54 @@
 
 ## 1. The one thing to know first
 
-This repository is authored on a Windows machine with **no Swift toolchain** — `swift`,
-`swiftc`, `xcodebuild`, and `xcrun` are all absent on the build host. Codemagic performs every
-authoritative build. Every claim below distinguishes what was *verified* from what was
-*reasoned about*.
+This repository is authored on a Windows machine with **no Swift toolchain** — `swift`, `swiftc`,
+`xcodebuild`, `xcrun`, and every simulator are absent, confirmed again at the start of the final
+production sweep. **Codemagic performs every authoritative build.** Nothing below is claimed as
+verified unless something actually executed and produced the result.
 
-### Build status, precisely
+### What was executed during the final production sweep
+
+| Check | How | Result |
+|---|---|---|
+| The three public legal URLs resolve over HTTPS, anonymously | `curl` | **pass** — `/support` 200 (7,652 B), `/privacy` 200 (12,448 B), `/terms` 200 (13,622 B) |
+| GitHub Pages build for `BKimble1/CoreCredit-Legal` | Pages API | **built** |
+| 12 repository invariants | `python3 scripts/verify_repository.py` | **all 12 hold** |
+| The SwiftData guard actually catches a non-additive change | simulated a rename of `Vendor.name` | **pass** — failed with the freeze-the-schemas message, file restored |
+| Legal pages match their generated source, and carry no tracker | in the invariant script | **pass** |
+| Every WCAG ratio in `PaletteThemeTests` and `LaunchScreenTests` | independent implementation of the WCAG 2.1 formulas over the shipping hex | **0 failures** across light, dark, and both with Increase Contrast |
+| Brace/paren balance, string- and comment-aware | custom Swift scanner | **pass** — all files |
+| Banned constructs (`fatalError`, `try!`, `as!`, `TODO`) | invariant script | **pass** — zero |
+
+### What was NOT executed, and therefore is not claimed
 
 | Thing | State |
 |---|---|
-| App target, Debug, iOS Simulator | **compiles** |
-| `CoreCreditQuickScanWidget` extension | **compiles** — the app depends on it and embeds the `.appex`, so a widget error fails the build |
-| App + extension install and launch on a simulator | **yes** |
-| `CoreCreditTests` / `CoreCreditUITests` targets | **compile** |
-| Unit test suite | **260 tests in 23 suites, all passing** (`corecredit-simulator-build`) |
-| UI test suite | **never run** — not wired into either workflow |
-| Release archive / device build / signing | **blocked** on the widget App ID, §2 item 0 |
+| Compiling any of the code written in this sweep | **not done** — no toolchain on this machine |
+| `CoreCreditTests` | **not run in this sweep** |
+| `CoreCreditUITests` | **still never executed anywhere** |
+| Signed archive | **not produced** |
+| TestFlight upload | **not performed** |
+| Any screenshot of the running app | **none exists** |
 
-The architecture, the data model, the money arithmetic, and the business rules are now backed by
-a compiler *and* by an executed test suite. Two things are still unproven: nothing has run on real
-hardware, and no UI test has ever executed, so every claim about layout, Dynamic Type, VoiceOver,
-camera behaviour, and notification delivery remains reasoning rather than evidence.
+The last authoritative *compile* was Codemagic's build of an earlier commit on `main`
+(260 unit tests in 23 suites, all passing). Everything added since — the whole UX pass, the
+appearance rework, the launch screen, backup restore, the barcode card, and the new test suites —
+**has never been through a compiler.** Treat a first Codemagic run on this branch as the real
+smoke test, and expect the usual first-compile class of error: SwiftUI modifier spellings, actor
+isolation, and SwiftData API details.
 
-### What was actually verified
+### Why nothing was merged
 
-| Check | Tool | Result |
-|---|---|---|
-| `project.pbxproj` parses as a valid old-style plist | custom parser | pass — 39 objects |
-| Every object ID referenced is defined and reachable from `rootObject` | custom parser | pass — no dangling or orphaned IDs |
-| Required keys present per `isa` type | custom parser | pass |
-| `CoreCredit.xcscheme` is well-formed XML | `xml.dom.minidom` | pass |
-| `CoreCredit.storekit` is valid JSON with both products in one group | `json` | pass |
-| Asset catalog `Contents.json` files are valid JSON | `json` | pass |
-| Brace/paren/bracket balance, string- and comment-aware | custom Swift scanner | pass — all files |
-| Banned constructs: `fatalError`, `try!`, `as!`, force unwrap, `TODO` | custom Swift scanner | pass — zero occurrences |
-| `OurType.member` references resolve to a declared member | custom Swift scanner | pass — 3 flagged, all false positives (wrapped `case` lists, a nested enum) |
-| Framework imports present for the APIs each file uses | custom Swift scanner | pass — 2 flagged, both false positives (string literals) |
-| Layering: `Domain/` imports only `Foundation` | custom Swift scanner | pass |
-| Cross-file call sites match their declarations | full read-through audit | pass — no blockers across 16 seams |
-| Duplicate top-level declarations | full read-through audit | pass — 204 types, 204 distinct names |
-| `switch` exhaustiveness over 15 enums | full read-through audit | pass — 59 switches, all exhaustive or defaulted |
-| Protocol conformance completeness + actor isolation | full read-through audit | pass |
+The brief for this sweep says not to merge until the branch compiles and the complete automated
+suite passes. Neither could be established from here: this machine has no toolchain, no Codemagic
+API token is present, and GitHub reports **zero check runs** on the repository, so CI can neither
+be triggered nor observed. Merging would have meant asserting a gate that had not been evaluated.
+`main` is also wired to publish to TestFlight on push, so a merge is a release action, not an
+integration one.
 
-### What could NOT be verified
-
-- **The UI test suite.** The 7 UI-test files have never executed — neither workflow runs them,
-  because they drive a full simulator session and belong in a longer job. Their assertions were
-  written against real accessibility identifiers, but none has been evaluated.
-- **Anything on real hardware.** The camera and scanner path, notification delivery, widget
-  rendering on a Home Screen, Siri and Action Button entry, and StoreKit purchases have only ever
-  run against stubs or not at all.
-- **Runtime behaviour**, layout, Dynamic Type reflow, VoiceOver output, PDF rendering, QR
-  scannability, and StoreKit purchase flows.
-- **Code signing and device install.**
+**The smallest owner action that unblocks everything:** open Codemagic, run
+`corecredit-simulator-build` against `ux/final-polish-pass`, and fix or report what it says. That
+workflow now runs the unit suite *and* the UI suite and gates on both.
 
 ---
 
@@ -140,11 +135,24 @@ Honest and specific. Nothing here is a P0 gap.
   pause/resume cycle, `VNDocumentCameraViewController`, haptic timing, and real-world OCR accuracy
   are unverified. The deterministic parts — normalisation, classification, money parsing,
   deduplication, ranking — are unit-tested; the hardware parts are not.
+- **Live text recognition is the newest unverified thing in that layer.** `recognizesText: true`
+  adds `.text()` to the recognised data types and turns on `recognizesMultipleItems`. Whether the
+  barcode decode rate holds up with both active, how crowded the highlights look on a real invoice,
+  and whether a tap reliably lands on the intended line are all questions only a camera can answer.
+  The safety rule is enforced in code rather than by tuning: text is delivered from `didTapOn`
+  only, never from `didAdd`, so nothing can be captured that a person did not point at.
 - **Diagnostics are in-memory and hold only the most recent session.** They are deliberately not
   persisted, so a crash loses them. That is the privacy trade-off: nothing to leak, nothing to
   upload, and no image bytes are ever recorded.
 - **`draft.scannedBarcodeValue` round-trips but has no editor UI.** It is stored, shown in
   diagnostics, and preserved across an edit, but there is no field to view or clear it directly.
+- **Schema versioning is additive-only, and now guarded.** The decision was deliberate: freezing
+  the historical schemas is a seven-model refactor whose correctness can only be shown with real
+  migration fixtures on a Mac, and doing it unproven immediately before release is a worse risk
+  than the one it removes. Instead the persisted shape of all seven `@Model` types is pinned in
+  `scripts/swiftdata-model-manifest.json`, and any rename, retype, or removal fails CI with
+  instructions to freeze the historical schemas first. Additive changes update the manifest in the
+  same commit. Original note follows.
 - **Schema versioning is additive-only.** `CoreCreditSchemaV1.models` returns the live model types,
   so V1 and V2 describe identical entities and the lightweight stage is a structural no-op.
   Existing stores open correctly because the change is purely additive, but the plan cannot express
@@ -156,6 +164,23 @@ Honest and specific. Nothing here is a P0 gap.
   cannot import the app module, so `CoreCreditUITests/UITestSupport.swift` carries a verbatim
   copy of the `A11y` strings. Renaming an identifier in the app will **not** cause a compile
   error — it will cause a query that never resolves. Keep the two in sync by hand.
+
+### Closed in the final production sweep
+
+- **JSON backup import.** Implemented. `BackupRestoreService` validates before it deletes and
+  rolls back on failure; Data & export offers Restore from backup. Two honest limits, stated in
+  the UI and in the legal documents: evidence photos are not in the format, and reminder
+  preferences are not either (the device's own settings are carried across instead).
+- **`draft.scannedBarcodeValue` had no editor UI.** Core detail now shows a Barcode card with
+  copy and clear-with-confirmation, routed through `CoreItemService` so the clear lands in the
+  timeline.
+- **The `Calendar.current` leak in the ledger PDF.** `makeLedgerPDFData` now takes the calendar as
+  a required parameter.
+- **The A11y mirror could drift silently.** `scripts/verify_repository.py` compares the app's
+  identifiers with the UI-test target's hand-copy, string for string, and runs first in CI.
+- **The UI suite had never executed.** Wired into `corecredit-simulator-build`, which now also
+  triggers on every push and pull request. It has still never *passed*, because it has still never
+  been run — see §1.
 
 ### Deliberately out of scope for Version 1
 

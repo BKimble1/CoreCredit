@@ -5,6 +5,7 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// Everything known about one core, and every legal thing that can be done to it.
 ///
@@ -30,6 +31,12 @@ struct CoreDetailView: View {
 
     @State private var model = CoreDetailModel()
 
+    /// Guards the one destructive action on this screen that is not a status move.
+    @State private var isConfirmingBarcodeClear = false
+
+    /// A copy leaves no visible trace of its own, so the screen says it happened.
+    @State private var didCopyBarcode = false
+
     private let item: CoreItem
 
     init(item: CoreItem) {
@@ -37,20 +44,18 @@ struct CoreDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            Palette.background
-                .ignoresSafeArea()
-
+        Group {
             if model.isDeleted {
                 deletedPlaceholder
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: Spacing.xl) {
+                    VStack(alignment: .leading, spacing: Spacing.l) {
                         errorSection
                         headerCard
                         primaryActions
                         moneyCard
                         detailsCard
+                        barcodeCard
                         photosCard
                         returnCard
                         statusCard
@@ -61,7 +66,19 @@ struct CoreDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A pushed screen still sits inside the tab bar's safe-area inset. The background is
+        // painted behind rather than stacked beside the scroll view, for the same reason it is on
+        // the Dashboard: a `ZStack` holding a safe-area-ignoring child grows past that inset and
+        // takes it away from everything else in the stack.
+        .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+        .background {
+            Palette.background.ignoresSafeArea()
+        }
+        // An overlay rather than another stack layer: it covers the screen while an export runs
+        // and must not influence the layout underneath it at any other time.
+        .overlay {
             if model.isAwaitingExport && appEnvironment.exports.inFlight {
                 LoadingOverlay(message: "Building dispute packet…")
             }
@@ -259,6 +276,113 @@ struct CoreDetailView: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(display.text))
+    }
+
+    // MARK: - Details
+
+    // MARK: - Scanned barcode
+
+    /// The raw payload a scanner read, shown only when there is one.
+    ///
+    /// # Why this is its own card, and why it is quiet
+    ///
+    /// The payload is deliberately **not** the part number. A scan of a parts box very often
+    /// returns a UPC or EAN — a retail product code identifying the packaging, not the
+    /// manufacturer's part number — and `BarcodePayloadClassifier` refuses to offer one as a part
+    /// number for exactly that reason. Showing it next to "Part number" in the details card would
+    /// undo that care by implication, so it gets its own heading that says what it is.
+    ///
+    /// It is shown only when the core actually carries a payload. On the overwhelming majority of
+    /// records — every one typed in by hand — this card does not exist at all.
+    @ViewBuilder
+    private var barcodeCard: some View {
+        if let payload = scannedBarcodePayload {
+            SectionCard(title: "Scanned barcode", systemImage: "barcode.viewfinder") {
+                VStack(alignment: .leading, spacing: Spacing.m) {
+                    LabeledValueRow(
+                        "Value",
+                        value: payload,
+                        symbol: "barcode",
+                        isMonospaced: true
+                    )
+
+                    LabeledValueRow(
+                        "Symbol type",
+                        value: scannedBarcodeSymbologyText,
+                        symbol: "tag"
+                    )
+
+                    Text("This is the code exactly as it was read, kept apart from the part "
+                         + "number. A retail UPC or EAN identifies the packaging, not the "
+                         + "manufacturer's part number, so it is never used as one.")
+                        .font(Typography.caption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if didCopyBarcode {
+                        ConfirmationBanner(message: "Barcode copied to the clipboard.",
+                                           onDismiss: { didCopyBarcode = false })
+                    }
+
+                    Button {
+                        UIPasteboard.general.string = payload
+                        didCopyBarcode = true
+                    } label: {
+                        BarcodeActionLabel(title: "Copy barcode value",
+                                           systemImage: "doc.on.doc",
+                                           isDestructive: false)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(A11y.Detail.copyBarcode)
+                    .accessibilityLabel(Text("Copy barcode value"))
+                    .accessibilityHint(Text("Copies the scanned code to the clipboard."))
+
+                    Button(role: .destructive) {
+                        isConfirmingBarcodeClear = true
+                    } label: {
+                        BarcodeActionLabel(title: "Clear barcode",
+                                           systemImage: "trash",
+                                           isDestructive: true)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(A11y.Detail.clearBarcode)
+                    .accessibilityLabel(Text("Clear barcode"))
+                    .accessibilityHint(Text("Forgets the scanned code. The part number is not "
+                                            + "changed."))
+                }
+            }
+            .confirmationDialog(
+                "Clear the scanned barcode?",
+                isPresented: $isConfirmingBarcodeClear,
+                titleVisibility: .visible
+            ) {
+                Button("Clear barcode", role: .destructive) {
+                    clearScannedBarcode()
+                }
+                Button("Keep it", role: .cancel) { }
+            } message: {
+                Text("The code \(payload) is removed from this core and the change is recorded in "
+                     + "its history. The part number is not changed. This cannot be undone.")
+            }
+        }
+    }
+
+    /// The stored payload, or `nil` when there is nothing to show.
+    private var scannedBarcodePayload: String? {
+        guard let value = item.scannedBarcodeValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              value.isEmpty == false else {
+            return nil
+        }
+        return value
+    }
+
+    /// "Alphanumeric barcode", "Numeric product code", and so on — the same vocabulary the scan
+    /// sheet used when the code was read, so the two screens agree about what was found.
+    private var scannedBarcodeSymbologyText: String {
+        guard let raw = item.scannedBarcodeSymbology, raw.isEmpty == false else {
+            return "Not recorded"
+        }
+        return BarcodeSymbologyClass.classify(raw).displayName
     }
 
     // MARK: - Details
@@ -531,6 +655,21 @@ struct CoreDetailView: View {
         }
     }
 
+    /// Forgets the scanned payload, through the service, so the change lands in the timeline.
+    ///
+    /// The confirmed `partNumber` is untouched — clearing the evidence of a scan is not a reason
+    /// to lose the number somebody confirmed off the back of it.
+    private func clearScannedBarcode() {
+        let service = appEnvironment.itemService(modelContext)
+        do {
+            try service.clearScannedBarcode(item)
+            didCopyBarcode = false
+            model.clearError()
+        } catch {
+            model.present(error)
+        }
+    }
+
     private func deleteCore() {
         let service = appEnvironment.itemService(modelContext)
         do {
@@ -767,4 +906,41 @@ private struct DiscrepancyDisplay {
     var text: String
     var symbol: String
     var tint: Color
+}
+
+// MARK: - Barcode action label
+
+/// The label for the two actions on the scanned-barcode card.
+///
+/// Outlined rather than filled. `Palette.accent` marks the one primary action on a screen, and on
+/// a core's detail screen that is the status move — copying a code and forgetting a code are both
+/// supporting actions, and the destructive one is red so it is distinguishable from the other by
+/// more than its wording.
+@MainActor
+private struct BarcodeActionLabel: View {
+
+    let title: String
+    let systemImage: String
+    let isDestructive: Bool
+
+    var body: some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: systemImage)
+                .imageScale(.medium)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Spacing.s)
+        }
+        .foregroundStyle(isDestructive ? Palette.danger : Palette.accent)
+        .padding(.horizontal, Spacing.m)
+        .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
+                .fill((isDestructive ? Palette.danger : Palette.accent).opacity(0.12))
+        )
+        .contentShape(Rectangle())
+    }
 }

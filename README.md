@@ -23,7 +23,7 @@ marketplace, or AI chatbot, and it should not be broadened into one.
 ## Open in Xcode
 
 ```
-Project:  CoreCredit/CoreCredit.xcodeproj
+Project:  CoreCredit.xcodeproj   (repository root)
 Scheme:   CoreCredit
 Target:   iOS 18.0+ (iPhone-first, adapts to iPad)
 Requires: Xcode 16 or later
@@ -93,6 +93,25 @@ always validated by `CoreStatusMachine` first.
 `LaunchOptions`. There is no Redux, no Combine pipeline, no coordinator layer, and no DI
 framework; feature state is `@Observable`, persistence is `@Query`/`ModelContext`.
 
+**The bright scheme is the app icon.** `Palette.accent` is `#0053FD` — the icon's own blue, which
+happens to carry text on white (5.74:1) *and* take white text on itself (5.74:1), so one value
+serves as both a label and a fill. The light ground is that hue washed almost to white. Amber is no
+longer the action colour; it survives as "ready to return" only, private behind `color(for:)`.
+CoreCredit **opens in Light** and the appearance is changed at **Settings → Appearance** — the one
+place in the app that forces a `ColorScheme`. Every surface separation and contrast ratio, in both
+schemes and with Increase Contrast, is measured by `CoreCreditTests/PaletteThemeTests.swift` rather
+than eyeballed, because this repository is built on a machine that cannot take a screenshot.
+
+**Capture is one entry point over two engines.** The Quick Scan widget, the App Shortcut and the
+Action Button, the Dashboard's Scan core button, and the intake form's own all open the same sheet,
+titled **Scan core**, with a Live / Document selector at the top. Live is
+`DataScannerViewController` (barcodes, plus text that is highlighted and only ever *tapped*);
+Document is `VNDocumentCameraViewController` (page-edge detection and perspective correction for an
+invoice). The engines stay separate on purpose — they frame and fail differently — and choosing a
+mode swaps `CoreEditorModel.Route` so exactly one capture sheet is ever presented. Neither can
+write: everything lands in an unsaved `CoreItemDraft` after a confirmation step, and only the
+editor's Save creates a record.
+
 ### The status model
 
 | Status | Counts as unresolved | Meaning |
@@ -115,10 +134,11 @@ only a real credit does. That is the entire point of the product.
 
 ```bash
 # from the repository root, on a Mac with Xcode 16+
-xcodebuild -project CoreCredit/CoreCredit.xcodeproj -scheme CoreCredit \
+# (`CoreCredit.xcodeproj` sits at the repository root, which is also where Codemagic runs it from)
+xcodebuild -project CoreCredit.xcodeproj -scheme CoreCredit \
            -destination 'platform=iOS Simulator,name=iPhone 16' build
 
-xcodebuild -project CoreCredit/CoreCredit.xcodeproj -scheme CoreCredit \
+xcodebuild -project CoreCredit.xcodeproj -scheme CoreCredit \
            -destination 'platform=iOS Simulator,name=iPhone 16' test
 ```
 
@@ -126,9 +146,11 @@ Unit tests use **Swift Testing**; UI tests use **XCTest**. UI tests never touch 
 live StoreKit — they launch with `-uiTesting`, which forces an in-memory store and
 deterministic stubs. See `docs/CONTRACTS.md` §7 for the full launch-argument table.
 
-> **Build status:** this repository was authored on a Windows machine with no Swift toolchain,
-> so it has **never been compiled**. See `docs/HANDOFF.md` for exactly what was verified and
-> what a first compile on a Mac is likely to surface.
+> **Build status:** this repository is authored on a Windows machine with no Swift toolchain, so
+> **Codemagic performs every authoritative build**. The app target, the widget extension, and both
+> test targets compile there, and the unit suite runs there. The UI suite is not wired into either
+> Codemagic workflow and has still never executed. `docs/HANDOFF.md` §1 records exactly what is
+> verified and what is only reasoned about.
 
 ---
 

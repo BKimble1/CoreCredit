@@ -596,7 +596,7 @@ private struct ScanCandidateRowView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                    .strokeBorder(isFocused ? Palette.accent : Palette.hairline,
+                    .strokeBorder(isFocused ? Palette.accent : Palette.fieldBorder,
                                   lineWidth: isFocused ? 2 : 1)
             )
             .accessibilityLabel(Text(row.candidate.kind.displayName + " value"))

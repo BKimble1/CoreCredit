@@ -110,7 +110,7 @@ final class DeepLinkUITests: XCTestCase {
             requireAbsent(textField(app, A11yID.Editor.partName), "the dismissed editor")
 
             // The link selected the Cores tab, so the ledger is what the dismissed sheet reveals.
-            requireExists(element(app, labelled: "No cores tracked yet"),
+            requireExists(element(app, labelled: "No cores yet"),
                           "the ledger's empty state after a cancelled quick scan")
             requireAbsent(element(app, A11yID.Cores.list),
                           "the cores list, which is not built for an empty ledger")
@@ -118,7 +118,7 @@ final class DeepLinkUITests: XCTestCase {
 
         XCTContext.runActivity(named: "And the dashboard still has nothing to count") { _ in
             tapTab(A11yID.Tab.dashboard, in: app)
-            requireExists(element(app, labelled: "No core money on the books yet"),
+            requireExists(element(app, labelled: "No core money at risk"),
                           "the Dashboard's empty state after a cancelled quick scan")
             // A zeroed-out header would be a figure the shop never entered; an empty ledger must
             // not render the headline at all.

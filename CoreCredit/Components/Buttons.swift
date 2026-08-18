@@ -34,7 +34,7 @@ struct PrimaryButtonLabel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
-        .foregroundStyle(Palette.onColor(for: .readyToReturn))
+        .foregroundStyle(Palette.onAccent)
         .padding(.horizontal, Spacing.l)
         .padding(.vertical, Spacing.m)
         .frame(maxWidth: .infinity, minHeight: Spacing.minimumTapTarget)

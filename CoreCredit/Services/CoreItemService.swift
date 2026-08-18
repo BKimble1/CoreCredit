@@ -391,6 +391,44 @@ struct CoreItemService {
         try persist()
     }
 
+    // MARK: - Scanned barcode
+
+    /// Forgets the raw barcode payload recorded against this core.
+    ///
+    /// # Why this is a service method and not a property assignment
+    ///
+    /// `scannedBarcodeValue` is evidence: it is the exact string a scanner read, kept deliberately
+    /// apart from `partNumber` so that "did it misread it, or did somebody change it?" stays
+    /// answerable months later. Removing evidence is a mutation like any other and belongs in the
+    /// append-only timeline, so it goes through here rather than being assigned from a view.
+    ///
+    /// Recorded as `.edited` rather than a new event type. Adding a case to `CoreEventType` would
+    /// break every exhaustive switch over it and change a persisted raw value, which is a large
+    /// change to make for one line of audit text; `.edited` already means "a field on this record
+    /// was changed by hand", which is exactly what happened.
+    ///
+    /// The confirmed `partNumber` is never touched. Clearing the payload does not clear the part
+    /// number, and it never promotes the payload into it.
+    ///
+    /// Does nothing at all when there is no payload, so a double tap cannot write a second event.
+    func clearScannedBarcode(_ item: CoreItem) throws {
+        guard let payload = item.scannedBarcodeValue, payload.isEmpty == false else { return }
+
+        item.scannedBarcodeValue = nil
+        item.scannedBarcodeSymbology = nil
+        item.touch(dateProvider.now)
+
+        appendEvent(.edited,
+                    to: item,
+                    detail: "Scanned barcode cleared: " + payload,
+                    amount: nil,
+                    reference: "",
+                    fromStatus: nil,
+                    toStatus: nil)
+
+        try persist()
+    }
+
     /// Deletes the item and its cascaded attachments and events. The vendor and bin survive.
     func delete(_ item: CoreItem) throws {
         item.vendor = nil

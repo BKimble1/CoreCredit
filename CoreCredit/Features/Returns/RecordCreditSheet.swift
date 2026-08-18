@@ -42,29 +42,31 @@ struct RecordCreditSheet: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Palette.background
-                    .ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: Spacing.l) {
+                    contextCard
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: Spacing.l) {
-                        contextCard
-
-                        if let outcome = savedOutcome {
-                            resultCard(outcome)
-                        } else {
-                            if canRecordCredit == false {
-                                wrongStatusCard
-                            }
-                            entryCard
-                            previewCard
-                            saveCard
+                    if let outcome = savedOutcome {
+                        resultCard(outcome)
+                    } else {
+                        if canRecordCredit == false {
+                            wrongStatusCard
                         }
+                        entryCard
+                        previewCard
+                        saveCard
                     }
-                    .padding(Spacing.l)
-                    .frame(maxWidth: 720, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .center)
                 }
+                .padding(Spacing.l)
+                .frame(maxWidth: 720, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+            // Save is the last thing on this sheet, so the same fix the root screens got: the
+            // background is painted behind the scroll view rather than stacked beside one that
+            // ignores the safe area and drags the whole stack past it.
+            .contentMargins(.bottom, Spacing.scrollBottomBreathingRoom, for: .scrollContent)
+            .background {
+                Palette.background.ignoresSafeArea()
             }
             .navigationTitle("Record credit")
             .navigationBarTitleDisplayMode(.inline)
@@ -562,7 +564,7 @@ private struct CreditFieldWell<Content: View>: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous)
-                        .strokeBorder(Palette.hairline, lineWidth: 1)
+                        .strokeBorder(Palette.fieldBorder, lineWidth: 1)
                 )
 
             if let hint = hint, hint.isEmpty == false {

@@ -105,6 +105,11 @@ final class AppEnvironment {
     /// `ScanDiagnostics.swift`. It starts empty and stays empty until a scanner opens a session.
     let scanDiagnostics: ScanDiagnosticsRecorder
 
+    /// Which appearance the shop chose. Read at the very root of the scene, above the branch that
+    /// picks between the store-failure screen, onboarding, and the tab bar — so it still applies
+    /// on a launch where SwiftData never opened. Defaults to `.light`; see `AppearancePreference`.
+    let appearance: AppearanceController
+
     /// Where an incoming `corecredit://` URL, a Shortcut, or the Action Button leaves its request.
     /// It only *records* the destination; `MainTabView` decides what that means and when, which is
     /// how a link that arrives before the tab bar exists survives a cold start.
@@ -185,6 +190,7 @@ final class AppEnvironment {
         // Diagnostics ---------------------------------------------------------------------
         // In memory, on this device, for the owner to read. No permission, no file, no network.
         self.scanDiagnostics = ScanDiagnosticsRecorder(dateProvider: clock)
+        self.appearance = AppearanceController()
 
         // Deep links -----------------------------------------------------------------------
         // Nothing is navigated by constructing this; it is an empty mailbox until a URL or an
