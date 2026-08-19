@@ -109,22 +109,69 @@ struct PlaceholderAuditTests {
             #expect((url.host ?? "").isEmpty == false)
         }
 
-        #expect(email == "idlery.apps@gmail.com")
+        #expect(email == "support@idlery.com")
         #expect(email.contains("@"))
         #expect(AppConfiguration.isSupportContactConfigured)
 
         // The exact published addresses, spelled out once. Comparing a value to itself through
         // `AppConfiguration` would pass even if the constants were wrong, which is the whole
         // failure mode a release gate exists to catch.
-        #expect(support.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/support")
-        #expect(privacy.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/privacy")
-        #expect(terms.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/terms")
+        #expect(support.absoluteString == "https://corecredit.idlery.com/support")
+        #expect(privacy.absoluteString == "https://corecredit.idlery.com/privacy")
+        #expect(terms.absoluteString == "https://corecredit.idlery.com/terms")
+
+        // Every CoreCredit page is a path under the product's own host, and the company
+        // site is separate. Asserted because the failure this catches is subtle: three
+        // addresses that each resolve, on three different hosts, is a support experience
+        // nobody can navigate.
+        #expect(AppConfiguration.productURLString == "https://corecredit.idlery.com")
+        #expect(AppConfiguration.companyURLString == "https://idlery.com")
+        for address in [support, privacy, terms] {
+            #expect(address.host == "corecredit.idlery.com",
+                    "That address is not on CoreCredit's own host.")
+        }
+    }
+
+    @Test("The support email opens a message addressed to support, with the version in it")
+    func theSupportMailtoIsUsable() throws {
+        let mailto = try #require(AppConfiguration.supportMailtoURL)
+
+        #expect(mailto.scheme == "mailto")
+        #expect(mailto.absoluteString.contains("support@idlery.com"))
+        // The first question a support reply would otherwise have to ask.
+        #expect(mailto.absoluteString.contains("subject="))
+        #expect(mailto.absoluteString.contains(AppConfiguration.appVersion))
+    }
+
+    @Test("Nothing customer-facing points at a host CoreCredit does not control")
+    func noStaleHostSurvives() {
+        // The addresses moved from a project page on a code-hosting site to the product's
+        // own subdomain. A build still pointing at the old one would send App Review, and
+        // every customer, to a page nobody is maintaining.
+        let addresses = [
+            AppConfiguration.supportURLString,
+            AppConfiguration.privacyURLString,
+            AppConfiguration.termsURLString,
+            AppConfiguration.productURLString,
+            AppConfiguration.companyURLString,
+        ]
+        for address in addresses {
+            #expect(address.hasPrefix("https://"), "Every public address must be HTTPS.")
+            #expect(address.contains("github.io") == false)
+            #expect(address.contains("netlify.app") == false)
+            #expect(address.contains("localhost") == false)
+        }
+        #expect(AppConfiguration.supportEmail.hasSuffix("@idlery.com"))
     }
 
     @Test("The publisher is the company, never an individual")
     func thePublisherIsTheCompany() {
         #expect(AppConfiguration.companyName == "Idlery Services LLC")
-        #expect(AppConfiguration.copyrightNotice == "Copyright 2026 Idlery Services LLC")
+        #expect(AppConfiguration.copyrightNotice
+                == "© 2026 Idlery Services LLC. All rights reserved.")
+        #expect(AppConfiguration.companyShortName == "Idlery")
+        #expect(AppConfiguration.operatorStatement
+                == "CoreCredit is operated by Idlery Services LLC.")
         #expect(AppConfiguration.distributionTerritory == "United States")
 
         // Nothing user-facing may carry the account holder's personal name. The bundle identifier

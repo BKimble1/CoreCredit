@@ -1,8 +1,8 @@
 {
   "identifier": "local-data-and-backup",
   "title": "Local Data and Backup",
-  "version": "1.0",
-  "effectiveDate": "2026-08-17",
+  "version": "1.1",
+  "effectiveDate": "2026-08-18",
   "summary": "Your ledger lives on this device only - nothing syncs between devices or employees, and the only copies that exist anywhere else are the ones you export or the device backups you already make.",
   "sections": [
     {
@@ -77,8 +77,8 @@
     {
       "heading": "Questions",
       "paragraphs": [
-        "CoreCredit is published by Idlery Services LLC.",
-        "Questions about your data, an export, or a restore go to idlery.apps@gmail.com."
+        "Questions about your data, an export, or a restore go to support@idlery.com.",
+        "The support page is at https://corecredit.idlery.com/support."
       ]
     }
   ]

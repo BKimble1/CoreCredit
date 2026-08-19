@@ -1,8 +1,8 @@
 {
   "identifier": "privacy-policy",
   "title": "Privacy Policy",
-  "version": "1.0",
-  "effectiveDate": "2026-08-17",
+  "version": "1.1",
+  "effectiveDate": "2026-08-18",
   "summary": "Everything you enter in CoreCredit stays on this device: there is no account, no CoreCredit server, and no analytics, tracking, or advertising of any kind.",
   "sections": [
     {
@@ -32,8 +32,19 @@
       "heading": "Camera, photos, scanning, and text recognition",
       "paragraphs": [
         "The camera is used only at the moment you open a scanning or photo control, and only to capture the image you asked for. The app does not use the camera in the background.",
+        "Choosing an existing photo uses Apple's photo picker, which runs outside CoreCredit. CoreCredit receives only the images you pick, and it is never granted access to your photo library. iOS does not ask you for photo permission for this, because none is needed.",
         "Reading text from an invoice or receipt, and reading a barcode, are done on this device using the frameworks built into iOS. Images and recognised text are not sent anywhere for processing.",
         "Text recognition and barcode reading are imperfect. Always check a recognised amount, part number, reference, or date against the paperwork before relying on it."
+      ]
+    },
+    {
+      "heading": "AI Photo Assist",
+      "paragraphs": [
+        "AI Photo Assist is an optional feature, included with a Pro subscription, that reads up to six photographs of a part, its label or box, and an invoice, and suggests values for the form you are filling in.",
+        "All of the analysis runs on your device, using Apple's Vision framework: the same text recognition and barcode reading described above, plus Apple's general image classifier, which offers a plain-language guess at what the part is. On iPhone and iPad models that have a LiDAR scanner, ARKit scene depth is used while automatic capture is running, to tell an object held up to the camera apart from the background behind it.",
+        "There is no CoreCredit model, no model downloaded from anywhere, no cloud or server processing, and no use of Private Cloud Compute. No photograph, no recognised text, no barcode value, no depth measurement, and no suggestion is transmitted off your device, because CoreCredit makes no network requests of its own at all.",
+        "Photographs added to an assist session are held in memory only for as long as that screen is open, and are released when you close it. They are not saved to your ledger unless you attach them yourself.",
+        "Every suggestion has to be reviewed and ticked by you before it reaches the form, and the form still has to be saved. A suggested amount of money is never ticked for you. A photograph of a part can only ever suggest what the part is called; it is never allowed to produce a part number, a vendor, a reference, or an amount."
       ]
     },
     {
@@ -120,9 +131,9 @@
     {
       "heading": "Who is responsible, and how to get in touch",
       "paragraphs": [
-        "CoreCredit is published by Idlery Services LLC. Idlery Services LLC is the data controller for the purposes of this policy, to the extent any such role applies to an app that collects nothing.",
-        "Questions about this policy, or about the app, go to idlery.apps@gmail.com. That address reaches the people who make CoreCredit.",
-        "The support page is published at https://bkimble1.github.io/CoreCredit-Legal/support and this policy at https://bkimble1.github.io/CoreCredit-Legal/privacy.",
+        "CoreCredit is operated by Idlery Services LLC. Idlery Services LLC is the data controller for the purposes of this policy, to the extent any such role applies to an app that collects nothing.",
+        "Questions about this policy, or about the app, go to support@idlery.com. That address reaches Idlery, and it is read.",
+        "CoreCredit is published at https://corecredit.idlery.com. This policy is at https://corecredit.idlery.com/privacy, the terms at https://corecredit.idlery.com/terms, and the support page at https://corecredit.idlery.com/support. Idlery Services LLC is at https://idlery.com.",
         "No postal address is published for support. Email is the support channel, and it is read."
       ]
     }

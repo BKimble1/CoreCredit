@@ -15,23 +15,13 @@ Everything above it is context for the owner and should not be submitted.
       state — a missing product is silent, never an error.
 - [x] Publish the support and legal pages and point the app at them. Live and verified over
       HTTPS, anonymously, on 2026-08-17:
-      - Support: <https://bkimble1.github.io/CoreCredit-Legal/support>
-      - Privacy: <https://bkimble1.github.io/CoreCredit-Legal/privacy>
-      - Terms:   <https://bkimble1.github.io/CoreCredit-Legal/terms>
+      - Support: <https://corecredit.idlery.com/support>
+      - Privacy: <https://corecredit.idlery.com/privacy>
+      - Terms:   <https://corecredit.idlery.com/terms>
 
-      They are served from `BKimble1/CoreCredit-Legal`, a **public** repository containing only
-      those static pages. The application repository stays private. GitHub Pages cannot publish
-      from a private repository on this account's plan, which is why the pages live in their own
-      repository rather than in `docs/legal-public`.
-- [x] Set the publisher, support address, and territory: **Idlery Services LLC**,
-      **idlery.apps@gmail.com**, **United States only** for Version 1. No individual's name and no
-      postal address appears in the app, the bundled documents, or the published pages.
-- [x] Add the 1024×1024 app icon (`AppIcon.appiconset/AppIcon.png` is real artwork).
-- [ ] Confirm the privacy answers in `docs/PRIVACY.md` still match the shipped build.
-- [ ] Look at the app in **Light and Dark appearance**, at an accessibility text size, on a small
-      iPhone and on an iPad, before submitting. The interface was reworked in a pass that ran on a
-      machine with no Xcode, so no screenshot of the shipped layout exists yet — see
-      `docs/HANDOFF.md` §1.
+      They are served over HTTPS from `corecredit.idlery.com`, CoreCredit's own subdomain
+      of the company site. They are generated from the same JSON the app renders natively
+      offline, so the published wording and the in-app wording cannot drift apart.
 
 ---
 
@@ -39,12 +29,12 @@ Everything above it is context for the owner and should not be submitted.
 
 **Publisher and availability**
 
-CoreCredit is published by **Idlery Services LLC**. Support is **idlery.apps@gmail.com**. Version 1
+CoreCredit is published by **Idlery Services LLC**. Support is **support@idlery.com**. Version 1
 is offered in the **United States** storefront only.
 
-- Support: <https://bkimble1.github.io/CoreCredit-Legal/support>
-- Privacy Policy: <https://bkimble1.github.io/CoreCredit-Legal/privacy>
-- Terms of Use: <https://bkimble1.github.io/CoreCredit-Legal/terms>
+- Support: <https://corecredit.idlery.com/support>
+- Privacy Policy: <https://corecredit.idlery.com/privacy>
+- Terms of Use: <https://corecredit.idlery.com/terms>
 
 The Privacy Policy and Terms of Use are also readable **inside the app**, with no connection, at
 Settings → Legal. The published pages are generated from the same text, so the two cannot differ.

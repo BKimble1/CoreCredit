@@ -28,11 +28,15 @@ import os
 # ----------------------------------------------------------------- owner-supplied constants
 
 COMPANY = "Idlery Services LLC"
-EMAIL = "idlery.apps@gmail.com"
-COPYRIGHT = "Copyright 2026 Idlery Services LLC"
+EMAIL = "support@idlery.com"
+COPYRIGHT = "© 2026 Idlery Services LLC. All rights reserved."
 APP_NAME = "CoreCredit"
 
-SITE_ROOT = "https://bkimble1.github.io/CoreCredit-Legal"
+# CoreCredit's own subdomain of the company site. The pages live at the ROOT of this host, so
+# every in-page link is a plain absolute path — no project prefix, which is what a project-page
+# host required and what made these links wrong the moment the site moved.
+SITE_ROOT = "https://corecredit.idlery.com"
+COMPANY_URL = "https://idlery.com"
 SUPPORT_URL = SITE_ROOT + "/support"
 PRIVACY_URL = SITE_ROOT + "/privacy"
 TERMS_URL = SITE_ROOT + "/terms"
@@ -114,10 +118,10 @@ def page(title, eyebrow, heading, meta, summary, body_html, description):
     """One complete, self-contained HTML document."""
     nav = (
         '<nav class="pages" aria-label="Legal documents">'
-        '<a href="/CoreCredit-Legal/">Home</a>'
-        '<a href="/CoreCredit-Legal/support">Support</a>'
-        '<a href="/CoreCredit-Legal/privacy">Privacy</a>'
-        '<a href="/CoreCredit-Legal/terms">Terms</a>'
+        '<a href="/">Home</a>'
+        '<a href="/support">Support</a>'
+        '<a href="/privacy">Privacy</a>'
+        '<a href="/terms">Terms</a>'
         "</nav>"
     )
     summary_html = (

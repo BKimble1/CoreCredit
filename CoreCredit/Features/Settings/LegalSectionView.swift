@@ -203,7 +203,11 @@ struct LegalSupportView: View {
                 if let email = AppConfiguration.configuredSupportEmail {
                     LabeledValueRow("Support email", value: email, symbol: "envelope")
 
-                    if let mailURL = URL(string: "mailto:" + email) {
+                    // Pre-addressed, with the version in the subject, so a support reply does not
+                    // have to open by asking which build this was. Falls back to a bare `mailto:`
+                    // if the composed URL cannot be built.
+                    if let mailURL = AppConfiguration.supportMailtoURL
+                        ?? URL(string: "mailto:" + email) {
                         externalLinkRow(
                             title: "Send an email",
                             symbol: "square.and.pencil",

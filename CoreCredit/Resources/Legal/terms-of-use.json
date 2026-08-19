@@ -1,8 +1,8 @@
 {
   "identifier": "terms-of-use",
   "title": "Terms of Use",
-  "version": "1.0",
-  "effectiveDate": "2026-08-17",
+  "version": "1.1",
+  "effectiveDate": "2026-08-18",
   "summary": "CoreCredit is an organisational ledger for core returns and vendor credits - it is not accounting, tax, legal, warranty, or financial advice, and every figure in it is the one you entered.",
   "sections": [
     {
@@ -44,6 +44,15 @@
       ]
     },
     {
+      "heading": "Scanned, recognised, and AI-assisted suggestions",
+      "paragraphs": [
+        "CoreCredit can read barcodes, recognise text on invoices and labels, and — with AI Photo Assist — suggest form values from photographs. Everything it produces is a suggestion.",
+        "Machine reading is imperfect, and it is wrong in ways that look plausible: a digit misread, a total mistaken for a core charge, a part identified by its appearance rather than its number. Suggestions are offered with a confidence and with the reason they were made, and you must review them before relying on them.",
+        "Nothing suggested is applied on its own. You tick what is right, and the form still has to be saved by you. An amount of money is never pre-ticked.",
+        "A suggestion is not a statement by Idlery Services LLC that a part number is correct, that a vendor charged a particular core amount, or that a credit is owed. Check the paperwork."
+      ]
+    },
+    {
       "heading": "Vendors and credits",
       "paragraphs": [
         "Whether an old core is accepted, and whether a credit is issued and for how much, is entirely between your shop and that supplier, under whatever terms you agreed with them.",
@@ -67,7 +76,7 @@
     {
       "heading": "Subscription, renewal, and cancellation",
       "paragraphs": [
-        "CoreCredit is usable without a subscription. The optional subscription removes the limit on how many cores can be open at once; records you have already entered are never locked away.",
+        "CoreCredit is usable without a subscription. The optional Pro subscription removes the limit on how many cores can be open at once and unlocks AI Photo Assist, the on-device photo reader described below. Records you have already entered are never locked away, and entering cores by hand, scanning a barcode, and scanning a document all stay available without a subscription.",
         "Subscriptions are sold by Apple through the App Store. Payment is charged to your Apple Account when you confirm the purchase.",
         "A subscription renews automatically unless auto-renew is turned off at least 24 hours before the end of the current period. Your account is charged for renewal within 24 hours of the end of the current period.",
         "Prices shown in the app come from the App Store for your region and can change with notice from Apple.",
@@ -149,10 +158,9 @@
     {
       "heading": "Who provides CoreCredit, and how to get in touch",
       "paragraphs": [
-        "CoreCredit is provided by Idlery Services LLC.",
-        "Questions, problems, and requests go to idlery.apps@gmail.com. The support page is published at https://bkimble1.github.io/CoreCredit-Legal/support and these terms at https://bkimble1.github.io/CoreCredit-Legal/terms.",
-        "No postal address is published for support. Email is the support channel.",
-        "Copyright 2026 Idlery Services LLC. All rights reserved."
+        "CoreCredit is operated by Idlery Services LLC, a limited liability company. CoreCredit itself is a product, not a separate company.",
+        "CoreCredit, its name, and its software are the property of Idlery Services LLC or its licensors. Nothing in these terms transfers any of that to you; you are granted the right to use the app under Apple's standard licence terms and these.",
+        "Questions, problems, and requests go to support@idlery.com. The support page is at https://corecredit.idlery.com/support, these terms at https://corecredit.idlery.com/terms, and the privacy policy at https://corecredit.idlery.com/privacy."
       ]
     }
   ]

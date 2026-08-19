@@ -500,7 +500,7 @@
 				INFOPLIST_FILE = "Config/CoreCredit-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CoreCredit;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSCameraUsageDescription = "CoreCredit uses the camera only to scan part barcodes and to photograph parts, boxes, invoices, and return receipts as evidence for your core-credit records. Photos stay on this device.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "CoreCredit uses the camera to scan part barcodes and to photograph parts, labels, invoices, and receipts for your core records. Images are read on this device and are never sent anywhere.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
@@ -531,7 +531,7 @@
 				INFOPLIST_FILE = "Config/CoreCredit-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = CoreCredit;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSCameraUsageDescription = "CoreCredit uses the camera only to scan part barcodes and to photograph parts, boxes, invoices, and return receipts as evidence for your core-credit records. Photos stay on this device.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "CoreCredit uses the camera to scan part barcodes and to photograph parts, labels, invoices, and receipts for your core records. Images are read on this device and are never sent anywhere.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
@@ -624,7 +624,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/CoreCreditQuickScanWidget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Quick Scan";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "\U00a9 2026 Idlery Services LLC. All rights reserved.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -648,7 +648,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Config/CoreCreditQuickScanWidget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Quick Scan";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "\U00a9 2026 Idlery Services LLC. All rights reserved.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

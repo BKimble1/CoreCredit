@@ -86,9 +86,9 @@
       <header>
         <p class="eyebrow">CoreCredit</p>
         <h1>Privacy Policy</h1>
-        <p class="meta">Version 1.0. Effective 2026-08-17.</p>
+        <p class="meta">Version 1.1. Effective 2026-08-18.</p>
         <div class="summary"><p>Everything you enter in CoreCredit stays on this device: there is no account, no CoreCredit server, and no analytics, tracking, or advertising of any kind.</p></div>
-        <nav class="pages" aria-label="Legal documents"><a href="/CoreCredit-Legal/">Home</a><a href="/CoreCredit-Legal/support">Support</a><a href="/CoreCredit-Legal/privacy">Privacy</a><a href="/CoreCredit-Legal/terms">Terms</a></nav>
+        <nav class="pages" aria-label="Legal documents"><a href="/">Home</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
       </header>
       <main id="content">
         <h2>The short version</h2>
@@ -104,8 +104,15 @@
         <p>All of this lives in the app&#x27;s own storage in its container on this device. It is not uploaded anywhere by the app.</p>
         <h2>Camera, photos, scanning, and text recognition</h2>
         <p>The camera is used only at the moment you open a scanning or photo control, and only to capture the image you asked for. The app does not use the camera in the background.</p>
+        <p>Choosing an existing photo uses Apple&#x27;s photo picker, which runs outside CoreCredit. CoreCredit receives only the images you pick, and it is never granted access to your photo library. iOS does not ask you for photo permission for this, because none is needed.</p>
         <p>Reading text from an invoice or receipt, and reading a barcode, are done on this device using the frameworks built into iOS. Images and recognised text are not sent anywhere for processing.</p>
         <p>Text recognition and barcode reading are imperfect. Always check a recognised amount, part number, reference, or date against the paperwork before relying on it.</p>
+        <h2>AI Photo Assist</h2>
+        <p>AI Photo Assist is an optional feature, included with a Pro subscription, that reads up to six photographs of a part, its label or box, and an invoice, and suggests values for the form you are filling in.</p>
+        <p>All of the analysis runs on your device, using Apple&#x27;s Vision framework: the same text recognition and barcode reading described above, plus Apple&#x27;s general image classifier, which offers a plain-language guess at what the part is. On iPhone and iPad models that have a LiDAR scanner, ARKit scene depth is used while automatic capture is running, to tell an object held up to the camera apart from the background behind it.</p>
+        <p>There is no CoreCredit model, no model downloaded from anywhere, no cloud or server processing, and no use of Private Cloud Compute. No photograph, no recognised text, no barcode value, no depth measurement, and no suggestion is transmitted off your device, because CoreCredit makes no network requests of its own at all.</p>
+        <p>Photographs added to an assist session are held in memory only for as long as that screen is open, and are released when you close it. They are not saved to your ledger unless you attach them yourself.</p>
+        <p>Every suggestion has to be reviewed and ticked by you before it reaches the form, and the form still has to be saved. A suggested amount of money is never ticked for you. A photograph of a part can only ever suggest what the part is called; it is never allowed to produce a part number, a vendor, a reference, or an amount.</p>
         <h2>Scanner diagnostics</h2>
         <p>The Scanner diagnostics screen shows what the most recent scan actually read, so a scan that went wrong can be understood rather than guessed at.</p>
         <p>Those notes are held in memory only, cover only the most recent scanning session, and never include the image itself. They are not uploaded. They disappear when the session is replaced or cleared.</p>
@@ -148,15 +155,15 @@
         <p>This policy carries a version number and an effective date at the top of the screen. The copy you are reading ships inside the app, so it always matches the version of the app you have installed.</p>
         <p>If a future version of the app changes what is stored or where it goes, this document and the app&#x27;s privacy declarations must change in the same release.</p>
         <h2>Who is responsible, and how to get in touch</h2>
-        <p>CoreCredit is published by Idlery Services LLC. Idlery Services LLC is the data controller for the purposes of this policy, to the extent any such role applies to an app that collects nothing.</p>
-        <p>Questions about this policy, or about the app, go to <a href="mailto:idlery.apps@gmail.com">idlery.apps@gmail.com</a>. That address reaches the people who make CoreCredit.</p>
-        <p>The support page is published at <a href="https://bkimble1.github.io/CoreCredit-Legal/support">https://bkimble1.github.io/CoreCredit-Legal/support</a> and this policy at <a href="https://bkimble1.github.io/CoreCredit-Legal/privacy">https://bkimble1.github.io/CoreCredit-Legal/privacy</a>.</p>
+        <p>CoreCredit is operated by Idlery Services LLC. Idlery Services LLC is the data controller for the purposes of this policy, to the extent any such role applies to an app that collects nothing.</p>
+        <p>Questions about this policy, or about the app, go to <a href="mailto:support@idlery.com">support@idlery.com</a>. That address reaches Idlery, and it is read.</p>
+        <p>CoreCredit is published at https://corecredit.idlery.com. This policy is at <a href="https://corecredit.idlery.com/privacy">https://corecredit.idlery.com/privacy</a>, the terms at <a href="https://corecredit.idlery.com/terms">https://corecredit.idlery.com/terms</a>, and the support page at <a href="https://corecredit.idlery.com/support">https://corecredit.idlery.com/support</a>. Idlery Services LLC is at https://idlery.com.</p>
         <p>No postal address is published for support. Email is the support channel, and it is read.</p>
       </main>
       <footer>
         <p>CoreCredit is published by Idlery Services LLC.</p>
-        <p>Questions: <a href="mailto:idlery.apps@gmail.com">idlery.apps@gmail.com</a></p>
-        <p>Copyright 2026 Idlery Services LLC. Version 1 is offered on the App Store in the United States only.</p>
+        <p>Questions: <a href="mailto:support@idlery.com">support@idlery.com</a></p>
+        <p>© 2026 Idlery Services LLC. All rights reserved.. Version 1 is offered on the App Store in the United States only.</p>
       </footer>
     </div>
   </body>

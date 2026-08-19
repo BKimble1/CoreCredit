@@ -23,11 +23,13 @@ import UIKit
 ///    to its retry state rather than reporting anything wrong.
 /// 4. `subscriptionGroupIdentifier` — the local `.storekit` group number. Nothing reads it today,
 ///    so it is metadata; replace it if any code starts querying the group directly.
-/// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — SET, and the
-///    three URLs were fetched over HTTPS and returned the intended pages anonymously. They are
-///    served from `BKimble1/CoreCredit-Legal`, a public repository holding nothing but those
-///    static pages; this repository stays private. App Review rejects builds whose support and
-///    privacy URLs do not resolve, so re-check them if the hosting ever moves.
+/// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — SET. Every
+///    CoreCredit-facing address is a path under `https://corecredit.idlery.com`, and the support
+///    address is `support@idlery.com`. The pages are published from the same JSON the app reads
+///    out of `CoreCredit/Resources/Legal/`, rendered by `docs/tools/render_legal_pages.py`, so the
+///    published wording and the on-device wording cannot drift. **App Review rejects a build whose
+///    support or privacy URL does not resolve**, so confirm all four addresses answer over HTTPS
+///    before every submission — the site is deployed outside this repository.
 /// 6. `defaultCurrencyCode` — only if the shop's default ledger currency is not US dollars.
 ///    Individual shops can still override this in Settings; this is only the seed value.
 /// 7. `urlScheme` — must match the `CFBundleURLSchemes` entry in the target's Info settings if
@@ -68,23 +70,44 @@ enum AppConfiguration {
     // `isPlaceholder(_:)` below decides that at runtime and hides any row that would otherwise show
     // one — and that machinery stays in place as a guard, not because anything here is provisional.
     //
-    // The three URLs are live, static, public pages served over HTTPS from a repository that holds
-    // nothing but those pages. They are generated from the same JSON the app reads natively out of
-    // `CoreCredit/Resources/Legal/`, by `docs/tools/render_legal_pages.py`, so the published wording
-    // and the on-device wording cannot drift apart. The app never fetches them; they exist because
-    // App Review needs an address it can open.
+    // The addresses are static public pages served over HTTPS from `corecredit.idlery.com`, the
+    // product's own subdomain of the company site. They are generated from the same JSON the app
+    // reads natively out of `CoreCredit/Resources/Legal/`, by `docs/tools/render_legal_pages.py`, so
+    // the published wording and the on-device wording cannot drift apart. The app never fetches
+    // them — it renders the bundled JSON, offline — and they exist because App Review needs an
+    // address it can open, and because a customer looking for the policy should find it on the web
+    // rather than have to install the app first.
 
     /// The legal entity that publishes CoreCredit. This is the name that appears in the legal
     /// documents, on the public pages, and as the App Store seller — never an individual's name.
     static let companyName = "Idlery Services LLC"
 
-    /// Shown on the About screen and in the bundled documents.
-    static let copyrightNotice = "Copyright 2026 Idlery Services LLC"
+    /// The same company, said the way a customer would say it.
+    ///
+    /// "Idlery Services LLC" is who is legally responsible and belongs in the documents; "Idlery" is
+    /// who somebody thinks they bought the app from. Both are correct, and using the legal form in a
+    /// place that wants the short one reads like a contract rather than a product.
+    static let companyShortName = "Idlery"
 
-    static let supportURLString = "https://bkimble1.github.io/CoreCredit-Legal/support"
-    static let privacyURLString = "https://bkimble1.github.io/CoreCredit-Legal/privacy"
-    static let termsURLString   = "https://bkimble1.github.io/CoreCredit-Legal/terms"
-    static let supportEmail     = "idlery.apps@gmail.com"
+    /// One sentence of attribution, so no screen has to compose its own.
+    static let operatorStatement = "CoreCredit is operated by Idlery Services LLC."
+
+    /// Shown on the About screen and in the bundled documents.
+    static let copyrightNotice = "© 2026 Idlery Services LLC. All rights reserved."
+
+    /// The company, and its broader portfolio.
+    static let companyURLString = "https://idlery.com"
+
+    /// CoreCredit's own public home. Every CoreCredit-specific page lives beneath this, which is why
+    /// the three below are paths under it rather than three unrelated addresses.
+    static let productURLString = "https://corecredit.idlery.com"
+
+    static let supportURLString = "https://corecredit.idlery.com/support"
+    static let privacyURLString = "https://corecredit.idlery.com/privacy"
+    static let termsURLString   = "https://corecredit.idlery.com/terms"
+
+    /// The one address a customer writes to. Reaches Idlery, not an individual.
+    static let supportEmail     = "support@idlery.com"
 
     /// Version 1 ships to the United States App Store storefront only. Stated here because the
     /// legal documents say so and a claim in a legal document should have exactly one source.
@@ -97,6 +120,24 @@ enum AppConfiguration {
     static var supportURL: URL { URL(string: supportURLString) ?? fallbackURL }
     static var privacyURL: URL { URL(string: privacyURLString) ?? fallbackURL }
     static var termsURL: URL   { URL(string: termsURLString) ?? fallbackURL }
+    static var companyURL: URL { URL(string: companyURLString) ?? fallbackURL }
+    static var productURL: URL { URL(string: productURLString) ?? fallbackURL }
+
+    /// A pre-addressed support email, with the app version in the subject.
+    ///
+    /// The version is there because the first question any support reply has to ask otherwise is
+    /// "which build?", and a shop owner who has just lost an afternoon should not have to go and
+    /// find it. `nil` when the device has no mail client configured, which the caller must handle
+    /// rather than presenting a control that does nothing.
+    static var supportMailtoURL: URL? {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = supportEmail
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: displayName + " " + appVersion + " support")
+        ]
+        return components.url
+    }
 
     /// True while a value is still one of the stand-ins shipped above.
     ///

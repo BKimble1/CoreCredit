@@ -101,7 +101,7 @@ verified unless something actually executed and produced the result.
 | Check | How | Result |
 |---|---|---|
 | The three public legal URLs resolve over HTTPS, anonymously | `curl` | **pass** — `/support` 200 (7,652 B), `/privacy` 200 (12,448 B), `/terms` 200 (13,622 B) |
-| GitHub Pages build for `BKimble1/CoreCredit-Legal` | Pages API | **built** |
+| GitHub Pages build for `BKimble1/CoreCredit-Legal` | Pages API | **built** — *superseded: the canonical host is now `corecredit.idlery.com`; see the legal cleanup below* |
 | 12 repository invariants | `python3 scripts/verify_repository.py` | **all 12 hold** |
 | The SwiftData guard actually catches a non-additive change | simulated a rename of `Vendor.name` | **pass** — failed with the freeze-the-schemas message, file restored |
 | Legal pages match their generated source, and carry no tracker | in the invariant script | **pass** |
