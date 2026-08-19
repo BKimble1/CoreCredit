@@ -327,6 +327,30 @@ struct PhotoAssistSessionTests {
         #expect(acrossTheRoom.reason.contains("background"))
     }
 
+    @Test("A depth scanner that has not measured anything yet claims nothing")
+    func depthIsNotClaimedBeforeItHasMeasured() async throws {
+        // The device has a scanner, and no reading has arrived — which is the state for the whole
+        // time somebody is importing photos from their library, because there is no AR session
+        // running then. Saying depth is in use here would be claiming a sense that is switched off.
+        let session = makeSession(
+            lines: [],
+            labels: [ClassifiedLabel(identifier: "alternator", confidence: 0.5)],
+            depth: StubDepthProvider(isSceneDepthSupported: true, summary: nil)
+        )
+        _ = await session.add(photo(0))
+        await session.analyze()
+
+        #expect(session.isDepthSupported)
+        #expect(session.depthSummary == nil)
+
+        let result = try #require(session.phase.result)
+        let name = try #require(result.candidates.first { $0.kind == .partName })
+        #expect(name.reason.localizedLowercase.contains("depth") == false,
+                """
+                The reason may only mention depth once depth has actually said something. A                 sentence about a sensor that has not been asked anything is the same unearned                 confidence this feature refuses everywhere else.
+                """)
+    }
+
     // MARK: - The persistence boundary
 
     @Test("A whole session, start to finish, writes nothing to the store")

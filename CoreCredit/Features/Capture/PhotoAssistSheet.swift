@@ -79,7 +79,13 @@ struct PhotoAssistSheet: View {
             }
         }
         .task { prepareSession() }
-        .onDisappear { session?.cancel() }
+        .onDisappear {
+            session?.cancel()
+            // Belt and braces. The preview's own onDisappear normally does this, but a sheet
+            // dismissed while it is on screen is exactly the case where a held camera would
+            // survive the screen that asked for it.
+            appEnvironment.depthProvider.stop()
+        }
         .fullScreenCover(isPresented: $isShowingCamera) {
             CameraCaptureView(
                 onImage: { image in
@@ -141,15 +147,23 @@ struct PhotoAssistSheet: View {
         .accessibilityValue(Text(isTaken ? "Added" : "Not added yet"))
     }
 
-    /// One honest line about which senses this particular device actually has.
+    /// One honest line about which senses this particular device actually has, and is using.
     ///
     /// A phone without a LiDAR scanner is not told it is missing anything, because it is not: the
     /// feature is identical without depth, and saying "no LiDAR" to somebody who cannot do anything
     /// about it is noise dressed up as transparency.
+    ///
+    /// Nor does a phone that *has* one get told depth is being used before it is. Depth is only
+    /// measured while automatic capture is running — that is the only moment there is a live AR
+    /// session — so the line says "can use" until a reading has actually arrived, and "using" only
+    /// once one has. Claiming a sense the app is not currently exercising is the same kind of
+    /// unearned confidence this whole feature is built to refuse.
     private func capabilityLine(for session: PhotoAssistSession) -> String {
-        session.isDepthSupported
-            ? "Using this device's depth scanner to separate the part from the background."
-            : "Standard camera analysis."
+        guard session.isDepthSupported else { return "Standard camera analysis." }
+        return session.depthSummary == nil
+            ? "This device has a depth scanner. Auto capture uses it to separate the part from the "
+                + "background."
+            : "Using this device's depth scanner to separate the part from the background."
     }
 
     // MARK: - Photographs
@@ -339,6 +353,11 @@ struct PhotoAssistSheet: View {
                 isCollecting: canAddMore
             )
             .frame(height: PhotoAssistSheet.autoPreviewHeight)
+            // The depth session's entire lifetime. It begins when this preview appears and ends
+            // when it goes away, which is also what happens when the toggle is switched off or the
+            // sheet is closed. Nothing measures anything outside this view being on screen.
+            .onAppear { appEnvironment.depthProvider.start() }
+            .onDisappear { appEnvironment.depthProvider.stop() }
             .clipShape(RoundedRectangle(cornerRadius: Spacing.cornerRadius, style: .continuous))
             .accessibilityHidden(true)
 
@@ -362,6 +381,11 @@ struct PhotoAssistSheet: View {
     /// downsampled, it is de-duplicated, and it counts against the same six.
     private func addAutomatic(_ data: Data) async {
         guard let session, session.canAddMorePhotos else { return }
+
+        // Sampled at the moment the frame was collected, which is the only moment it means
+        // anything: it says something about what the camera was pointed at, not about the session.
+        session.recordDepth(await appEnvironment.depthProvider.currentDepthSummary())
+
         guard let prepared = try? await ImageProcessor.prepare(data: data) else { return }
         let outcome = await session.add(prepared.data, shot: session.missingShots.first)
         switch outcome {

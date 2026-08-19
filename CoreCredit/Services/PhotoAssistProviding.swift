@@ -127,6 +127,21 @@ protocol DepthCaptureProviding: Sendable {
 
     /// The most recent depth reading, if this provider is running and has one.
     func currentDepthSummary() async -> DepthSummary?
+
+    /// Begins measuring. Called when a capture screen that can use depth appears — never earlier.
+    ///
+    /// A depth session holds the camera, so its lifetime is deliberately the screen's and not the
+    /// app's. Providers that cannot measure anything do nothing here, which is why both of these
+    /// have default implementations: a caller should not have to ask whether asking is worthwhile.
+    func start()
+
+    /// Stops measuring and forgets the last reading.
+    func stop()
+}
+
+extension DepthCaptureProviding {
+    func start() {}
+    func stop() {}
 }
 
 /// What depth contributed, in the only terms this app is willing to state.
