@@ -4,9 +4,8 @@
     python3 marketing/appstore/tools/build.py
 
 Run from the repository root. Reads only the committed sources -- the raw
-captures (Dashboard.png, Cores.png) and the Image 3 template layers -- and
-writes the marketing captures plus the finished composite. Nothing it reads is
-ever overwritten.
+captures and the template layers -- and writes the marketing captures plus the
+finished composites. Nothing it reads is ever overwritten.
 """
 
 import argparse
@@ -16,14 +15,23 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import statusbar
+import top_cleanup
 import bottom_cleanup
 import compose
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 FONTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 REFERENCE = "Dashboard.png"          # status-bar treatment is measured from this
-CAPTURES = {"Cores.png": "Cores_Marketing.png",
-            "Dashboard.png": "Dashboard_Marketing.png"}
+# Each capture, and what its screen needs cleaning of beyond the status bar.
+# `top` lifts a previous section blurred under the navigation bar; `separator`
+# is the first row below the last full list row; `through_bar` also evens out a
+# next-section card that reads through the floating tab bar.
+CAPTURES = {
+    "Cores.png": dict(out="Cores_Marketing.png"),
+    "Dashboard.png": dict(out="Dashboard_Marketing.png"),
+    "image4.PNG": dict(out="Returns_Marketing.png", top=True,
+                       separator=1816, through_bar=True),
+}
 TEMPLATE_BG = "CoreCredit_AppStore_03_Refined_Background.png"
 TEMPLATE_OV = "CoreCredit_AppStore_03_Refined_Device_Overlay.png"
 OUTPUT = "CoreCredit_AppStore_03_Track_Every_Core.png"
@@ -39,13 +47,21 @@ def main():
     os.chdir(ROOT)
     report = {}
 
-    for src, dst in CAPTURES.items():
-        tmp = dst + ".statusbar.tmp.png"
-        report[dst] = {
-            "status_bar": statusbar.finalize(src, REFERENCE, tmp, args.fonts),
-            "bottom_edge": bottom_cleanup.clean(tmp, dst),
-        }
-        os.remove(tmp)
+    for src, spec in CAPTURES.items():
+        dst = spec["out"]
+        step = src
+        entry = report[dst] = {}
+        if spec.get("top"):
+            step = dst + ".top.tmp.png"
+            entry["top_edge"] = top_cleanup.clean(src, step)
+        bar = dst + ".statusbar.tmp.png"
+        entry["status_bar"] = statusbar.finalize(step, REFERENCE, bar, args.fonts)
+        entry["bottom_edge"] = bottom_cleanup.clean(
+            bar, dst, separator_y=spec.get("separator", bottom_cleanup.SEPARATOR_Y),
+            through_bar=spec.get("through_bar", False))
+        for tmp in (step, bar):
+            if tmp != src:
+                os.remove(tmp)
 
     report[OUTPUT] = compose.compose(TEMPLATE_BG, TEMPLATE_OV,
                                      "Cores_Marketing.png", OUTPUT)

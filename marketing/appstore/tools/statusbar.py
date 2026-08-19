@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
 # ---------------------------------------------------------------- constants
-BG = np.array([232, 236, 248], dtype=float)   # status-bar background, both captures
+BG_BAND = (0, 20, 946, 36)          # bare status-bar background, x0, y0, x1, y1
 INK = np.array([0, 0, 0], dtype=float)        # black Light Mode ink
 BAR_GRAY = np.array([185, 189, 200], dtype=float)   # unfilled cellular bar
 BATT_GRAY = np.array([163, 165, 177], dtype=float)  # unfilled battery track
@@ -37,10 +37,10 @@ def _font(weight, size):
     return ImageFont.truetype(f"{FONT_DIR}/Inter-{weight}.ttf", size)
 
 
-def _coverage(px, fill):
-    """Per-pixel coverage of `fill` over BG, from an anti-aliased composite."""
-    num = (BG - px).sum(axis=-1)
-    den = (BG - fill).sum()
+def _coverage(px, fill, bg):
+    """Per-pixel coverage of `fill` over `bg`, from an anti-aliased composite."""
+    num = (bg - px).sum(axis=-1)
+    den = (bg - fill).sum()
     return np.clip(num / den, 0.0, 1.0)
 
 
@@ -108,6 +108,12 @@ def _digit_cells(text, font, advance):
 
 
 # ---------------------------------------------------------------- treatment
+def _background(img):
+    """The capture's own bare status-bar background."""
+    x0, y0, x1, y1 = BG_BAND
+    return np.median(img[y0:y1, x0:x1].reshape(-1, 3), axis=0)
+
+
 def finalize(target_png, reference_png, out_png, font_dir):
     """Write `target_png` with the finalized marketing status bar applied."""
     global FONT_DIR
@@ -117,10 +123,21 @@ def finalize(target_png, reference_png, out_png, font_dir):
     ref = np.array(Image.open(reference_png).convert("RGB")).astype(float)
     report = {}
 
+    # Captures of different screens can sit a level or two apart in the status
+    # bar's flat background. Every constant below was measured against the
+    # reference's level, so rebase the reference onto the target's instead of the
+    # other way round: the target keeps its own pixels and its own black ink, and
+    # the icons transplanted out of the reference land on the tone they will sit
+    # on. The captures the constants came from are already on that level, so
+    # their offset is zero and their output is untouched.
+    bg = _background(tgt)
+    ref = ref + (bg - _background(ref))
+    report["background"] = [round(v, 2) for v in bg]
+
     # 1. Transplant the reference capture's right-hand icon cluster verbatim.
-    #    Both captures share an identical flat #E8ECF8 status-bar background,
-    #    so this is a seamless pixel copy: same Wi-Fi glyph, same bar shapes,
-    #    same battery shell, same spacing, same margins.
+    #    Rebased above onto the target's own flat status-bar background, this is
+    #    a seamless pixel copy: same Wi-Fi glyph, same bar shapes, same battery
+    #    shell, same spacing, same margins.
     x0, y0, x1, y1 = ICON_BAND
     tgt[y0:y1, x0:x1] = ref[y0:y1, x0:x1]
     report["icon_band_copied"] = ICON_BAND
@@ -129,29 +146,29 @@ def finalize(target_png, reference_png, out_png, font_dir):
     bx0, by0, bx1, by1 = BARS_BOX
     box = tgt[by0:by1, bx0:bx1]
     grey = np.abs(box - BAR_GRAY).sum(axis=-1) < 200
-    near_bg = np.abs(box - BG).sum(axis=-1) < 6
+    near_bg = np.abs(box - bg).sum(axis=-1) < 6
     touch = grey | (~near_bg & (np.abs(box - INK).sum(axis=-1) > 60))
-    cov = _coverage(box, BAR_GRAY)
+    cov = _coverage(box, BAR_GRAY, bg)
     cov = np.where(touch, cov, 0.0)
     box[:] = np.where(touch[..., None],
-                      BG * (1 - cov[..., None]) + INK * cov[..., None],
+                      bg * (1 - cov[..., None]) + INK * cov[..., None],
                       box)
     report["bars_filled"] = int(touch.sum())
 
     # 3. Battery: fill the shell solid, then set the numerals to 100.
     ex0, ey0, ex1, ey1 = BATT_BODY
     shell = tgt[ey0:ey1, ex0:ex1]
-    notbg = np.abs(shell - BG).sum(axis=-1) > 25
+    notbg = np.abs(shell - bg).sum(axis=-1) > 25
     body = _fill_holes(notbg)                      # numerals are interior holes
     # The shell edge is anti-aliased against two different fills (the black
     # charged part and the grey track), so recover each rim pixel's true
-    # coverage from whichever BG->fill ramp its colour actually sits on.
-    cov = np.where(_nearer(shell, INK, BATT_GRAY),
-                   _coverage(shell, INK), _coverage(shell, BATT_GRAY))
+    # coverage from whichever background->fill ramp its colour sits on.
+    cov = np.where(_nearer(shell, INK, BATT_GRAY, bg),
+                   _coverage(shell, INK, bg), _coverage(shell, BATT_GRAY, bg))
     cov = np.where(_erode(body), 1.0, cov)         # solid interior
     cov = np.where(body, cov, 0.0)                 # never paint outside the shell
     shell[:] = np.where(body[..., None],
-                        BG * (1 - cov[..., None]) + INK * cov[..., None],
+                        bg * (1 - cov[..., None]) + INK * cov[..., None],
                         shell)
     report["battery_body_px"] = int(body.sum())
 
@@ -163,20 +180,20 @@ def finalize(target_png, reference_png, out_png, font_dir):
 
     # 4. Clock: 9:41, matched to the reference's ink height, centre and baseline.
     tx0, ty0, tx1, ty1 = TIME_BAND
-    tgt[ty0:ty1, tx0:tx1] = BG
+    tgt[ty0:ty1, tx0:tx1] = bg
     report["time"] = _blit_text(tgt, "9:41", _font("SemiBold", 42), INK,
                                 TIME_CENTER_X, TIME_INK_TOP)
 
-    Image.fromarray(tgt.astype(np.uint8)).save(out_png)
+    Image.fromarray(np.clip(tgt, 0, 255).astype(np.uint8)).save(out_png)
     return report
 
 
-def _nearer(px, fill_a, fill_b):
-    """True where px sits closer to the BG->fill_a ramp than the BG->fill_b one."""
+def _nearer(px, fill_a, fill_b, bg):
+    """True where px sits closer to the bg->fill_a ramp than the bg->fill_b one."""
     def dist(fill):
-        d = fill - BG
-        t = np.clip(((px - BG) * d).sum(-1) / (d * d).sum(), 0.0, 1.0)
-        return np.linalg.norm(px - (BG + t[..., None] * d), axis=-1)
+        d = fill - bg
+        t = np.clip(((px - bg) * d).sum(-1) / (d * d).sum(), 0.0, 1.0)
+        return np.linalg.norm(px - (bg + t[..., None] * d), axis=-1)
     return dist(fill_a) <= dist(fill_b)
 
 
