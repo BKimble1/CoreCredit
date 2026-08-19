@@ -35,6 +35,30 @@ before concluding anything from a log.
 | Every `A11yID` path used by the UI target | cross-check against `UITestSupport` | **resolves** |
 | Identifier mirror | invariant script | **103 shared identifiers agree** |
 
+### The ARKit audit, and its two caveats
+
+Before the device-compile step was added, four independent reviewers audited every line behind
+`#if canImport(ARKit) && !targetEnvironment(simulator)` against the iOS 18 SDK — API surface, the
+raw-pointer arithmetic over `CVPixelBuffer`, the frame-to-JPEG path, and the conditional-compilation
+structure itself. **Zero compile-blocking findings**, each verified specifically rather than waved
+through: the `advanced(by:) -> assumingMemoryBound(to:) -> advanced(by:) -> pointee` chain order,
+`CVPixelBufferLockFlags.readOnly` as a bare member, `ARConfidenceLevel`'s `Int` raw value, bare
+`case .high:` patterns matching an `ARConfidenceLevel?`, `jpegRepresentation(of:colorSpace:options:)`
+argument labels, `dismantleUIView` being static, and all ten `#if` lines being byte-identical.
+
+Two things that audit deliberately did not clear:
+
+1. **Swift 6 language mode would break this.** Several constructs here — a `@MainActor` static
+   witnessing a nonisolated `UIViewRepresentable` requirement, and `Task` closures capturing a
+   non-Sendable `(Data) -> Void` — are warnings under Swift 5 with
+   `SWIFT_STRICT_CONCURRENCY = minimal` and errors under Swift 6. Raising the language mode is not
+   a free change for this file.
+2. **The device compile covers the app and the widget, not the test targets.** The scheme's Build
+   action lists only `CoreCredit.app`, so `PhotoAssistUITests.swift` is never device-compiled. That
+   is correct — tests run on the simulator — but it means the device step proves nothing about them.
+
+Compiling is still not running. Nothing in these two files has executed on hardware.
+
 ### What was NOT executed, and is therefore not claimed
 
 | Thing | State |
