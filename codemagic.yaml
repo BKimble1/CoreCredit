@@ -27,6 +27,24 @@ workflows:
       # otherwise be found twenty minutes later by a failing UI test, or not at all: a drifted
       # accessibility identifier, a non-additive SwiftData change, a placeholder support URL, a
       # launch screen quietly disabled, a legal page edited by hand instead of regenerated.
+      # Say out loud what is being built, before anything else runs.
+      #
+      # This exists because a TestFlight build was once inspected for a feature that was not in it,
+      # and a test run was once read as evidence about a commit it did not contain. Both were the
+      # same mistake: a build log that never states which commit it is a log *of*. Two seconds of
+      # output removes a whole category of wasted afternoon.
+      - name: Announce the commit under test
+        script: |
+          echo "=================================================================="
+          echo " BUILDING"
+          echo "   branch : ${CM_BRANCH:-<unknown>}"
+          echo "   commit : $(git rev-parse HEAD)"
+          echo "   subject: $(git log -1 --pretty=%s)"
+          echo "   date   : $(git log -1 --pretty=%cI)"
+          echo "   UI tests present: $(grep -rh '    func test' CoreCreditUITests/*.swift | wc -l | tr -d ' ')"
+          echo "   AI Photo Assist present: $(test -f CoreCredit/Domain/PhotoAssistFusion.swift && echo YES || echo NO)"
+          echo "=================================================================="
+
       - name: Verify repository invariants
         script: |
           python3 scripts/verify_repository.py
@@ -51,6 +69,23 @@ workflows:
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO \
             | tee "$CM_BUILD_DIR/xcodebuild.log"
+
+      # Compile for a real device, unsigned.
+      #
+      # The simulator build above cannot see a single line of the ARKit code: AI Photo Assist's
+      # depth provider and automatic capture are `#if canImport(ARKit) && !targetEnvironment(
+      # simulator)`, so on a simulator they compile to nothing. Without this step the first
+      # compiler ever to look at them would be the one producing a *signed TestFlight archive* —
+      # which is both the slowest place to find a syntax error and the worst, because it fails
+      # after signing, after the archive, and after somebody was told a build was on its way.
+      #
+      # `CODE_SIGNING_ALLOWED=NO` with a generic device destination compiles arm64 without needing
+      # a certificate, so this stays in the unsigned workflow and costs a couple of minutes.
+      - name: Compile for a real device (unsigned) — the only place ARKit code is checked
+        script: |
+          set -o pipefail
+
+          xcodebuild build             -project CoreCredit.xcodeproj             -scheme CoreCredit             -configuration Debug             -sdk iphoneos             -destination "generic/platform=iOS"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             | tee "$CM_BUILD_DIR/xcodebuild-device.log"
 
       # A concrete simulator is required here: `generic/platform=iOS Simulator` is a build-only
       # destination and cannot run a test bundle. The device is *discovered* rather than named,
@@ -223,6 +258,24 @@ workflows:
     scripts:
       # The same gate as the test workflow. A signed build that ships a placeholder support URL is
       # an App Review rejection, and this is the cheapest possible place to catch one.
+      # Say out loud what is being built, before anything else runs.
+      #
+      # This exists because a TestFlight build was once inspected for a feature that was not in it,
+      # and a test run was once read as evidence about a commit it did not contain. Both were the
+      # same mistake: a build log that never states which commit it is a log *of*. Two seconds of
+      # output removes a whole category of wasted afternoon.
+      - name: Announce the commit under test
+        script: |
+          echo "=================================================================="
+          echo " BUILDING"
+          echo "   branch : ${CM_BRANCH:-<unknown>}"
+          echo "   commit : $(git rev-parse HEAD)"
+          echo "   subject: $(git log -1 --pretty=%s)"
+          echo "   date   : $(git log -1 --pretty=%cI)"
+          echo "   UI tests present: $(grep -rh '    func test' CoreCreditUITests/*.swift | wc -l | tr -d ' ')"
+          echo "   AI Photo Assist present: $(test -f CoreCredit/Domain/PhotoAssistFusion.swift && echo YES || echo NO)"
+          echo "=================================================================="
+
       - name: Verify repository invariants
         script: |
           set -e
