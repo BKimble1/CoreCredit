@@ -473,7 +473,7 @@ struct PhotoAssistSheet: View {
                                        systemImage: "checklist")
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier(A11y.PhotoAssist.analyze)
+                .accessibilityIdentifier(A11y.PhotoAssist.review)
             }
         }
     }

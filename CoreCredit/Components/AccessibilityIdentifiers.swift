@@ -120,6 +120,11 @@ enum A11y {
         static let autoCapture = "photoAssist.autoCapture"
         /// Runs the analysis over every gathered photograph.
         static let analyze = "photoAssist.analyze"
+        /// Hands the finished result to the shared review sheet. A separate identifier from
+        /// `analyze` because they are different acts: one reads the photos, the other accepts
+        /// what was read. Sharing one made a UI test tap "read" and then wait forever for a
+        /// sheet that only "review" opens.
+        static let review = "photoAssist.review"
         /// Progress while analysis runs.
         static let progress = "photoAssist.progress"
         /// Shown when nothing identified the part.

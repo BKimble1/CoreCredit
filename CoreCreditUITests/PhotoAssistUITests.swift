@@ -56,11 +56,24 @@ final class PhotoAssistUITests: XCTestCase {
                         in: app)
     }
 
+    /// Reads the gathered photographs. Leaves the sheet in its finished state.
     private func analyze(in app: XCUIApplication) {
         let read = control(app, A11yID.PhotoAssist.analyze)
         XCTAssertTrue(scrollUntilHittable(read, in: app),
                       "The action that reads the gathered photos never became reachable.")
         read.tap()
+    }
+
+    /// Accepts the result and opens the shared review sheet.
+    ///
+    /// A separate step from `analyze` on purpose: reading the photos and accepting what was read
+    /// are two decisions, and the screen keeps them apart so nothing reaches the form on the
+    /// strength of a tap that only meant "have a look".
+    private func acceptResult(in app: XCUIApplication) {
+        let review = control(app, A11yID.PhotoAssist.review)
+        XCTAssertTrue(scrollUntilHittable(review, in: app),
+                      "Analysis finished but the action that opens the review never appeared.")
+        review.tap()
     }
 
     // MARK: - The gate
@@ -132,6 +145,7 @@ final class PhotoAssistUITests: XCTestCase {
         openAssistant(in: app)
         gatherSamples(in: app)
         analyze(in: app)
+        acceptResult(in: app)
 
         XCTContext.runActivity(named: "The review sheet is the same one every capture path uses") { _ in
             let review = element(app, A11yID.ScanReview.root)
@@ -163,6 +177,7 @@ final class PhotoAssistUITests: XCTestCase {
         openAssistant(in: app)
         gatherSamples(in: app)
         analyze(in: app)
+        acceptResult(in: app)
 
         let review = element(app, A11yID.ScanReview.root)
         XCTAssertTrue(review.waitForExistence(timeout: UITestTimeout.standard),

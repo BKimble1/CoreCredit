@@ -114,6 +114,7 @@ enum A11yID {
         static let addSamples = "photoAssist.addSamples"
         static let autoCapture = "photoAssist.autoCapture"
         static let analyze = "photoAssist.analyze"
+        static let review = "photoAssist.review"
         static let progress = "photoAssist.progress"
         static let noMatch = "photoAssist.noMatch"
         static let capability = "photoAssist.capability"
