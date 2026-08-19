@@ -6,6 +6,23 @@ A Pro-only, entirely on-device multi-photo assistant inside the existing Scan co
 from `ux/final-polish-pass` rather than from `main`, because the unified Scan core surface it
 attaches to exists only on that branch — `main` (51c0d119) predates it.
 
+### Which commit CI is building — read this before reading any build log
+
+Two failures were once reported against this feature that were not about it.
+
+`main` is now `a8571b1`, the merge of PR #1 — merged at `fa83853`, **not** at the polish branch's
+head `c749f7e`. So `main` does not contain the two UI fixes in `c749f7e`, and never contained AI
+Photo Assist at all. The TestFlight workflow triggers on push to `main`, so that merge produced:
+
+* a UI run of 31 tests with 9 failures — `main`'s tree, identical to `fa83853`; this branch has 38
+  UI tests, and the reported failure at `RestoreAndBarcodeUITests.swift:36` is a *comment* here and
+  a `tapWhenHittable` there, which is how the commit was identified;
+* a TestFlight build with no AI Photo Assist in it, for the same reason.
+
+Neither was a code problem. Both workflows now print branch, SHA, subject, date, the number of UI
+tests present, and whether `PhotoAssistFusion.swift` exists, as their first step. Check that banner
+before concluding anything from a log.
+
 ### What was executed, and what it proves
 
 | Check | How | Result |
@@ -35,10 +52,13 @@ The deterministic half — fusion, capping, conflict detection, precedence, limi
 rejection, staleness, and the Pro gate — is pure, is covered by tests, and is the half where a bug
 would put a wrong number in a shop's ledger.
 
-The half that has never executed is the half that touches hardware. Within that, **the ARKit code
-is the single riskiest thing in this change**: it is excluded from the Simulator build, so CI can
-neither break on it nor vouch for it, and the first build that compiles it will be a signed device
-archive. If a TestFlight build fails where a simulator build passed, look there first.
+The half that has never executed is the half that touches hardware.
+
+The ARKit code *was* the single riskiest thing here, because it is excluded from the Simulator build
+and CI builds only for the Simulator — the first compiler to see it would have been the one making a
+signed archive. `corecredit-simulator-build` now runs an unsigned `-sdk iphoneos -destination
+"generic/platform=iOS"` compile before the tests, which covers exactly that code. It is still never
+*run* anywhere: compiling is not the same as knowing a depth session behaves.
 
 Recognition quality is not a promise anyone can make from a keyboard. `docs/DEVICE_ACCEPTANCE.md`
 §14 is the checklist, and every line of it is unchecked.
