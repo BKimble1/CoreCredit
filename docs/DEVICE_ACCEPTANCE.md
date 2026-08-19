@@ -241,8 +241,10 @@ scanner.** The two devices take genuinely different paths.
 
 | # | Check | Pass |
 |---|---|---|
-| 14.5.1 | LiDAR device: the capability line mentions the depth scanner | ☐ |
-| 14.5.2 | Non-LiDAR device: it reads "Standard camera analysis" and everything still works | ☐ |
+| 14.5.1 | LiDAR device, **before** Auto capture is on: says the device *has* a scanner and that Auto will use it — **not** that it is using one | ☐ |
+| 14.5.2 | LiDAR device, **after** a frame is auto-captured: only now says "Using this device's depth scanner" | ☐ |
+| 14.5.2a | Non-LiDAR device: reads "Standard camera analysis" and everything still works | ☐ |
+| 14.5.2b | Switching Auto off, or closing the sheet, releases the camera — confirm the indicator goes out | ☐ |
 | 14.5.3 | A part held at arm's length and the same part across the room produce the **same** suggestions, differing only in the explanation | ☐ |
 | 14.5.4 | No measurement appears anywhere, and none is written into notes | ☐ |
 

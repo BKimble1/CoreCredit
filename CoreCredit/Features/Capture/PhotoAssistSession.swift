@@ -93,11 +93,6 @@ final class PhotoAssistSession {
         /// Analysis could not run at all. Manual entry is unaffected, and the copy says so.
         case failed(String)
 
-        var isAnalyzing: Bool {
-            if case .analyzing = self { return true }
-            return false
-        }
-
         var result: PhotoAssistFusionResult? {
             if case .finished(let result) = self { return result }
             return nil
