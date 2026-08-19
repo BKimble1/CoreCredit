@@ -22,8 +22,12 @@ import compose
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 FONTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
 REFERENCE = "Dashboard.png"          # status-bar treatment is measured from this
-CAPTURES = {"Cores.png": "Cores_Marketing.png",
-            "Dashboard.png": "Dashboard_Marketing.png"}
+# refine_tab_bar also rebuilds the translucent bar's material and the ghosting
+# hugging its outer edge. Image 3's capture is built with it; the Dashboard
+# capture is the visual reference the gallery is matched against and is left
+# exactly as it was finalized.
+CAPTURES = {"Cores.png": ("Cores_Marketing.png", True),
+            "Dashboard.png": ("Dashboard_Marketing.png", False)}
 TEMPLATE_BG = "CoreCredit_AppStore_03_Refined_Background.png"
 TEMPLATE_OV = "CoreCredit_AppStore_03_Refined_Device_Overlay.png"
 OUTPUT = "CoreCredit_AppStore_03_Track_Every_Core.png"
@@ -39,11 +43,11 @@ def main():
     os.chdir(ROOT)
     report = {}
 
-    for src, dst in CAPTURES.items():
+    for src, (dst, refine) in CAPTURES.items():
         tmp = dst + ".statusbar.tmp.png"
         report[dst] = {
             "status_bar": statusbar.finalize(src, REFERENCE, tmp, args.fonts),
-            "bottom_edge": bottom_cleanup.clean(tmp, dst),
+            "bottom_edge": bottom_cleanup.clean(tmp, dst, refine_tab_bar=refine),
         }
         os.remove(tmp)
 

@@ -38,9 +38,19 @@ checked against the numbers in the commit that introduced it.
 2. **`bottom_cleanup.py` — the half-scrolled next row.**
    A live capture catches the next list row under the floating tab bar. That
    ghosting is detected as local deviation from a smooth estimate of the scroll
-   background and repaired against a second estimate that excludes it. The tab
-   bar keeps every one of its own pixels, as does everything above the last full
-   row's divider.
+   background and repaired against a second estimate that excludes it. Nothing
+   above the last full row's divider is touched, and neither is the bar's own
+   design.
+
+   With `refine_tab_bar` the same idea reaches the bar itself. The bar is a
+   translucent material, so the scrolled row shows *through* it as well; that
+   pass flattens the material back to the smooth field it is with nothing
+   behind it, and clears the slivers of ghosting that hug its outer edge. Every
+   mark the bar draws — edge highlight, icons, labels, the selected tab's chip
+   and that chip's edge — is masked out of the repair, so the navigation comes
+   through pixel for pixel. Image 3's capture is built with it; the Dashboard
+   capture is the reference the gallery is matched against and is left as it was
+   finalized.
 
 3. **`compose.py` — the template.**
    The screen aperture is flood-filled out of the overlay's alpha channel, so no
