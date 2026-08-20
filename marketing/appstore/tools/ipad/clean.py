@@ -151,17 +151,18 @@ NAV_XS = list(range(950, 1330))        # flat stretch of the Alternator nav bar
 
 
 def clean_alternator(a):
-    """Drop the blurred 'Delete core' ghost bleeding through the nav bar, then
-    give the back button more room by moving it right (its vertical centre is
-    shared with the 'Alternator' title, so it must not move down)."""
-    fill_flat(a, 20, 88, 1360, 1665, xs=NAV_XS)
+    """Drop the blurred 'Delete core' ghost bleeding through the nav bar.
 
-    box = (696, 56, 802, 162)
-    dx = 18
-    x0, y0, x1, y1 = box
-    btn = a[y0:y1, x0:x1, :].copy()
-    fill_flat(a, y0, y1, x0, x1, xs=NAV_XS)
-    a[y0:y1, x0 + dx:x1 + dx, :] = btn
+    The back button is deliberately left where the app puts it. Giving it more
+    breathing room means moving it, and it cannot be moved without leaving a
+    seam: only ~40px separate the sidebar card's edge from the button, and that
+    gap is a shadow gully both of them cast into. Every candidate boundary for a
+    shifted region except the top and right sits in non-flat pixels (the gully
+    on the left, the History card below), and a radial blend wide enough to
+    cover the old circle drags the card's bright edge into the dark gully. So
+    the button stays put rather than carrying a rectangle of erased shadow.
+    """
+    fill_flat(a, 20, 88, 1360, 1665, xs=NAV_XS)
 
 
 def clean_returns(a):

@@ -63,9 +63,17 @@ exist in the captures themselves — no app UI is redrawn and no data is invente
 
 3. **Alternator — the `Delete core` ghost.** A blurred red menu item was
    bleeding through the nav bar above the title. That band is flat per row, so
-   it is refilled from its own background. The back button is then moved 18px
-   right for breathing room; its vertical centre is shared with the `Alternator`
-   title, so it is not moved down.
+   it is refilled from its own background.
+
+   The back button is left exactly where the app puts it. Giving it more
+   breathing room means moving it, and it cannot be moved without leaving a
+   seam: only ~40px separate the sidebar card's edge from the button, and that
+   gap is a shadow gully both of them cast into. Every candidate boundary for a
+   shifted region except the top and the right sits in non-flat pixels — the
+   gully on the left, the History card below — and a radial blend wide enough to
+   cover the button's old position drags the sidebar card's bright edge into the
+   dark gully. An earlier revision did move it and carried a rectangle of erased
+   shadow with it, which showed as hard edges beside the button.
 
 Everything else is untouched: sidebar selection, search bar, Filters chip, the
 varied status rows, the open-returns and waiting-on-credit sections, and the
