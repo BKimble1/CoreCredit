@@ -552,6 +552,16 @@ extension XCTestCase {
     /// hierarchy immediately (plain `VStack`s, not lazy), so `exists` is true while `isHittable`
     /// is false. Swiping on the application taps the frontmost scroller, which is what a presented
     /// sheet needs.
+    /// **This only ever scrolls one way — forwards.** `swipeUp` reveals content *below* the
+    /// viewport, so a control that has ended up *above* it gets further away with every swipe, and
+    /// this returns false after `maxSwipes` on something that was on screen a moment earlier.
+    ///
+    /// The fix is to drive a screen in the order it is laid out rather than to teach this to swipe
+    /// both ways. A downward swipe is not a safe general move: every editor and review screen in
+    /// this app is presented as a sheet, and a downward drag on a sheet that is already at the top
+    /// of its scroll view dismisses the sheet — losing whatever the test had typed and failing
+    /// somewhere far away from the cause. `dismissKeyboard(in:)` avoids swiping for the same
+    /// reason.
     @discardableResult
     func scrollUntilHittable(_ element: XCUIElement,
                              in app: XCUIApplication,

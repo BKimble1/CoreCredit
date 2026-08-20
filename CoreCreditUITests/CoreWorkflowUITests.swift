@@ -278,6 +278,22 @@ final class CoreWorkflowUITests: XCTestCase {
                          in: app,
                          file: file,
                          line: line)
+            // Filled in the order the form puts them in — part name, part number, expected
+            // credit, then the optional References section underneath.
+            //
+            // This used to fill References first and come back up for the expected credit, which
+            // is what a person never does and what XCTest cannot do: by then the form has scrolled
+            // down past the amount field, leaving it *above* the viewport, and
+            // `scrollUntilHittable` only ever swipes up — revealing content below and carrying the
+            // field further away with every swipe. It failed as "exists but never became hittable"
+            // on a field that was on screen a moment earlier.
+            clearAndType("86.50",
+                         into: textField(app, A11yID.Editor.amount),
+                         "the expected credit field",
+                         in: app,
+                         file: file,
+                         line: line)
+
             // References is optional and folds away while it is empty, so it is opened before the
             // two fields inside it are typed into. Guarded rather than tapped blind: a section
             // holding a value is forced open and has no toggle at all, and tapping the header then
@@ -293,14 +309,6 @@ final class CoreWorkflowUITests: XCTestCase {
             clearAndType("1024",
                          into: textField(app, A11yID.Editor.repairOrder),
                          "the repair order field",
-                         in: app,
-                         file: file,
-                         line: line)
-            dismissKeyboard(in: app)
-
-            clearAndType("86.50",
-                         into: textField(app, A11yID.Editor.amount),
-                         "the expected credit field",
                          in: app,
                          file: file,
                          line: line)
