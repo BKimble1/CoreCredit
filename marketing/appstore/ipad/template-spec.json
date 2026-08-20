@@ -1,0 +1,21 @@
+{
+  "canvas": {
+    "width": 2752,
+    "height": 2064
+  },
+  "screenAperture": {
+    "x": 1106,
+    "y": 461,
+    "width": 1496,
+    "height": 1122,
+    "cornerRadius": 38,
+    "aspect": "1496:1122 (exactly 4:3)"
+  },
+  "deviceBody": {
+    "x": 1076,
+    "y": 431,
+    "width": 1556,
+    "height": 1182
+  },
+  "scaleFromFullCapture": 0.543605
+}
