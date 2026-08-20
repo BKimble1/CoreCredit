@@ -572,14 +572,26 @@ extension XCTestCase {
     /// travels the length of the drag and stops there. One step is one known distance, which makes
     /// overshoot bounded instead of unbounded.
     ///
-    /// # Coming back
+    /// # Steering, not stepping
     ///
-    /// Bounded steps make the reverse direction safe, which it was not before. A downward drag on
-    /// a sheet whose scroll view sits at its top dismisses the sheet — losing whatever the test had
-    /// typed, and failing somewhere far from the cause. That is why this used to be forwards-only.
-    /// The recovery pass below can only run *after* forward steps have been taken, and never takes
-    /// more steps back than were taken forward, so the scroll view it drags on is never at its top
-    /// and the sheet is never at risk.
+    /// Both earlier versions of this function stepped blind: swipe, ask "hittable yet?", swipe
+    /// again. "No" is the same answer whether the control is a little below the fold or a long way
+    /// above it, so the loop could not tell which way to go, and every step in the wrong direction
+    /// made things worse.
+    ///
+    /// `element.frame` is reported whether or not the element is on screen — the References header
+    /// came back as `y = 1023` in a window `844` tall — so the *sign* of the error is available and
+    /// this steers on it. A control below the band is reached by revealing content below; one above
+    /// it, by revealing content above. Overshoot corrects itself on the next step instead of
+    /// running the loop out.
+    ///
+    /// That is also what makes the reverse direction safe. A downward drag on a sheet whose scroll
+    /// view sits at its top dismisses the sheet — losing whatever the test had typed, and failing
+    /// far from the cause. It is only ever taken here to chase a control that is *above* the
+    /// viewport, which means the scroll view is not at its top.
+    ///
+    /// A run of steps that does not move the content at all stops early. Twelve steps against a
+    /// scroll view that is not scrolling is half a minute spent confirming the first two.
     ///
     /// Driving a screen in the order it is laid out is still the right way to write a test — see
     /// `check_ui_tests_run_top_to_bottom` in `scripts/verify_repository.py`, which enforces it.
@@ -588,25 +600,52 @@ extension XCTestCase {
     @discardableResult
     func scrollUntilHittable(_ element: XCUIElement,
                              in app: XCUIApplication,
-                             maxSteps: Int = 10) -> Bool {
-        if element.exists && element.isHittable { return true }
+                             maxSteps: Int = 12) -> Bool {
+        guard element.exists else { return false }
+        if element.isHittable { return true }
 
-        var stepsTaken = 0
-        while stepsTaken < maxSteps {
-            dragContent(in: app, revealing: .below)
-            stepsTaken += 1
-            if element.exists && element.isHittable { return true }
-        }
+        var previousMidY: CGFloat?
+        var stalledSteps = 0
 
-        // Everything below this line only runs on a path that was already going to fail, so its
-        // cost is paid by failures alone.
-        while stepsTaken > 0 {
-            dragContent(in: app, revealing: .above)
-            stepsTaken -= 1
-            if element.exists && element.isHittable { return true }
+        for _ in 0..<maxSteps {
+            guard element.exists else { return false }
+
+            let midY = element.frame.midY
+            let band = reachableBand(of: app)
+
+            if band.contains(midY) { return element.isHittable }
+
+            if previousMidY == midY {
+                // Two steps with the content in exactly the same place is not a scroll view that
+                // needs more steps. It is one that is not moving, and the remaining steps would
+                // add half a minute to a failure that is already decided.
+                stalledSteps += 1
+                if stalledSteps >= 2 { return false }
+            } else {
+                stalledSteps = 0
+            }
+            previousMidY = midY
+
+            dragContent(in: app, revealing: midY > band.upperBound ? .below : .above)
         }
 
         return element.exists && element.isHittable
+    }
+
+    /// The vertical span of the screen a control has to sit in before it can be tapped.
+    ///
+    /// Not the whole window. A navigation bar sits over the top of every screen in this app, and
+    /// the core editor pins its Save bar to the bottom through `safeAreaInset`. A control whose
+    /// centre is underneath either one is on screen and still not tappable, so "on screen" is the
+    /// wrong target to steer towards.
+    func reachableBand(of app: XCUIApplication) -> ClosedRange<CGFloat> {
+        let frame = app.frame
+        let top = frame.minY + 96
+        let bottom = frame.maxY - 140
+
+        // A window too short to have a band at all would make the range itself invalid.
+        guard bottom > top else { return frame.midY...frame.midY }
+        return top...bottom
     }
 
     /// Which way `dragContent(in:revealing:)` moves the content.
@@ -713,18 +752,41 @@ extension XCTestCase {
             )
             let result = XCTWaiter().wait(for: [expectation], timeout: timeout)
             guard result == .completed else {
+                let band = reachableBand(of: app)
+                let frame = element.frame
+
                 // The frames are here because their absence cost three CI runs. "Exists but never
                 // became hittable" is true of a control below the fold, above it, behind a
-                // keyboard, and underneath another view, and those want four different fixes.
-                // Printing where the thing actually is tells the next reader which one it was.
-                let keyboard = app.keyboards.count > 0
-                    ? "A keyboard was up."
-                    : "No keyboard was up."
-                XCTFail("\(description) exists but never became hittable within \(timeout)s. "
-                        + "Its frame was \(element.frame) inside an app frame of \(app.frame). "
-                        + keyboard,
-                        file: file,
-                        line: line)
+                // keyboard, and underneath another view, and those want different fixes. Where the
+                // thing actually is says which.
+                guard band.contains(frame.midY) else {
+                    let keyboard = app.keyboards.count > 0
+                        ? "A keyboard was up."
+                        : "No keyboard was up."
+                    XCTFail("\(description) was never scrolled into reach within \(timeout)s. "
+                            + "Its frame was \(frame), the app's was \(app.frame), and the "
+                            + "reachable band was \(band.lowerBound) to \(band.upperBound). "
+                            + keyboard,
+                            file: file,
+                            line: line)
+                    return
+                }
+
+                // On screen, clear of the navigation bar and the pinned save bar, and still not
+                // hittable. Position is not the problem here; hit-testing is. Tap the centre of
+                // the frame directly — the point a person's finger would land on.
+                //
+                // Nothing is weakened by this. It is not an assertion, it is a way of pressing a
+                // control, and it is the *following* assertion that decides whether the press
+                // worked: if something really is covering this control, the tap lands on that
+                // instead, the section does not open, and the next `clearAndType` fails on the
+                // real symptom rather than on a timeout twenty lines earlier.
+                XCTContext.runActivity(
+                    named: "Tapping \(description) by coordinate: it is on screen but reports "
+                        + "itself as not hittable"
+                ) { _ in
+                    element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                }
                 return
             }
         }
