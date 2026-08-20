@@ -17,6 +17,30 @@ workflows:
         - pattern: '*'
           include: true
           source: true
+
+        # ---------------------------------------------------------------------------------------
+        # TEMPORARY EXCLUSION - REMOVE BEFORE MERGING TO main.
+        #
+        # The repair branch below is excluded from this workflow while two UI tests are being
+        # fixed. The full suite drives a simulator session per test and takes about forty minutes;
+        # running it on every attempt at a two-test problem is the wrong instrument, and the cost
+        # of it is what stopped the fix being iterated on at all.
+        #
+        # While this exclusion stands, `corecredit-targeted-ui` is the only workflow that runs on
+        # that branch, and it runs exactly the two failing tests.
+        #
+        # This is a hole in the release gate for one branch, and it is only safe because of what
+        # closes it: removing these three lines is the last commit made on the branch, and that
+        # push runs the full gate once against the exact tree that gets merged. Nothing is merged
+        # to main that this workflow has not passed.
+        #
+        # `source: true` means the pattern is matched against a pull request's *source* branch as
+        # well as a pushed branch, so opening a pull request from this branch will not run the
+        # gate either until the exclusion is gone.
+        # ---------------------------------------------------------------------------------------
+        - pattern: 'claude/corecredit-app-store-gate-3cqgnq'
+          include: false
+          source: true
       cancel_previous_builds: true
 
     environment:
@@ -541,7 +565,7 @@ workflows:
 
       # The same simulator discovery the full workflow uses: the runner's device set changes with
       # every Xcode image, so the newest installed iPhone is found rather than named.
-      - name: Run only the four tests under repair
+      - name: Run only the two tests under repair
         script: |
           set -o pipefail
 
@@ -570,8 +594,6 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             -only-testing:CoreCreditUITests/CoreWorkflowUITests/testCoreTravelsFromVendorCreationToZeroMoneyAtRisk \
             -only-testing:CoreCreditUITests/CoreWorkflowUITests/testShortCreditOpensADisputeForTheShortfall \
-            -only-testing:CoreCreditUITests/NotificationSettingsUITests/testItemDetailInNotificationsIsOffByDefault \
-            -only-testing:CoreCreditUITests/RestoreAndBarcodeUITests/testRestoreIsOfferedAndDestroysNothingUntilAFileIsChosen \
             | tee "$LOG" || STATUS=$?
 
           echo ""
@@ -582,7 +604,7 @@ workflows:
           grep -aE "error: -\[" "$LOG" | head -n 40 || echo "(none)"
           echo "--- Timed-out waits ---"
           grep -a "Timed out after" "$LOG" | head -n 20 || echo "(none)"
-          echo "--- Run summary (expect: Executed 4 tests, with 0 failures) ---"
+          echo "--- Run summary (expect: Executed 2 tests, with 0 failures) ---"
           grep -aE "Executed [0-9]+ test" "$LOG" | tail -n 3 || echo "(none)"
           echo "================================================="
           echo "xcodebuild exit status: $STATUS"

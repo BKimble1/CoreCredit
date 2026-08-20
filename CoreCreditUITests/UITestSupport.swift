@@ -14,6 +14,7 @@
 //  the test fails on its wait with the message naming the identifier.
 //
 
+import CoreGraphics
 import XCTest
 
 // MARK: - Identifier mirror
@@ -550,40 +551,102 @@ extension XCTestCase {
     /// Several primary actions in this app sit at the bottom of a `ScrollView` — the credit sheet's
     /// Save, the batch sheet's Confirm, the detail screen's status moves. They exist in the
     /// hierarchy immediately (plain `VStack`s, not lazy), so `exists` is true while `isHittable`
-    /// is false. Swiping on the application taps the frontmost scroller, which is what a presented
-    /// sheet needs.
-    /// **This only ever scrolls one way — forwards.** `swipeUp` reveals content *below* the
-    /// viewport, so a control that has ended up *above* it gets further away with every swipe, and
-    /// this returns false after `maxSwipes` on something that was on screen a moment earlier.
+    /// is false. Dragging on the application drives the frontmost scroller, which is what a
+    /// presented sheet needs.
     ///
-    /// The fix is to drive a screen in the order it is laid out rather than to teach this to swipe
-    /// both ways. A downward swipe is not a safe general move: every editor and review screen in
-    /// this app is presented as a sheet, and a downward drag on a sheet that is already at the top
-    /// of its scroll view dismisses the sheet — losing whatever the test had typed and failing
-    /// somewhere far away from the cause. `dismissKeyboard(in:)` avoids swiping for the same
-    /// reason.
-    /// The swipe is deliberately `.slow`, and there are more of them than a full-speed scroll would
-    /// need.
+    /// # Why this does not use `swipeUp()`
     ///
-    /// A default-velocity `swipeUp()` throws the content several hundred points. That is fine when
-    /// the target is far below, and wrong when it is just past the fold: the gesture carries it
-    /// straight over the top of the viewport, the next check still says "not hittable", and every
-    /// remaining swipe lands in a scroll view already at its end. The editor's References header
-    /// failed exactly that way — reachable in one big swipe while the form sat near the top, and
-    /// unreachable in eight once the form had scrolled down to the amount field and left only a
-    /// short distance to travel. A slow swipe moves a fraction of that and cannot overshoot a
-    /// nearby control.
+    /// A swipe is a fling. Its distance is decided by the momentum the system gives it, not by the
+    /// caller, and neither `swipeUp()` nor `swipeUp(velocity: .slow)` can say *how far*. That is
+    /// fine when the target is a long way down and wrong when it is just past the fold: the
+    /// gesture carries the content straight over the top of the viewport, `isHittable` still
+    /// answers false, and every remaining swipe lands in a scroll view already at its end.
+    ///
+    /// The core editor's References header failed exactly that way, twice, and the log is
+    /// unambiguous about it: nine swipes, the element reported as existing after every one, and
+    /// hittable after none. An element that exists throughout and is never reachable has been
+    /// scrolled *past*, not scrolled *towards*.
+    ///
+    /// So each step here is a press-drag-**hold**-release over a fixed fraction of the screen.
+    /// Holding at the end of the drag before lifting is what removes the momentum: the content
+    /// travels the length of the drag and stops there. One step is one known distance, which makes
+    /// overshoot bounded instead of unbounded.
+    ///
+    /// # Coming back
+    ///
+    /// Bounded steps make the reverse direction safe, which it was not before. A downward drag on
+    /// a sheet whose scroll view sits at its top dismisses the sheet — losing whatever the test had
+    /// typed, and failing somewhere far from the cause. That is why this used to be forwards-only.
+    /// The recovery pass below can only run *after* forward steps have been taken, and never takes
+    /// more steps back than were taken forward, so the scroll view it drags on is never at its top
+    /// and the sheet is never at risk.
+    ///
+    /// Driving a screen in the order it is laid out is still the right way to write a test — see
+    /// `check_ui_tests_run_top_to_bottom` in `scripts/verify_repository.py`, which enforces it.
+    /// This is what happens when the layout order is right and the control is simply a little
+    /// further down than one step.
     @discardableResult
     func scrollUntilHittable(_ element: XCUIElement,
                              in app: XCUIApplication,
-                             maxSwipes: Int = 14) -> Bool {
-        var remaining = maxSwipes
-        while remaining > 0 {
+                             maxSteps: Int = 10) -> Bool {
+        if element.exists && element.isHittable { return true }
+
+        var stepsTaken = 0
+        while stepsTaken < maxSteps {
+            dragContent(in: app, revealing: .below)
+            stepsTaken += 1
             if element.exists && element.isHittable { return true }
-            app.swipeUp(velocity: .slow)
-            remaining -= 1
         }
+
+        // Everything below this line only runs on a path that was already going to fail, so its
+        // cost is paid by failures alone.
+        while stepsTaken > 0 {
+            dragContent(in: app, revealing: .above)
+            stepsTaken -= 1
+            if element.exists && element.isHittable { return true }
+        }
+
         return element.exists && element.isHittable
+    }
+
+    /// Which way `dragContent(in:revealing:)` moves the content.
+    enum ScrollReveal {
+
+        /// Finger moves up the screen: content below the viewport comes into it.
+        case below
+
+        /// Finger moves down the screen: content above the viewport comes back into it.
+        case above
+    }
+
+    /// One momentum-free scroll step, a third of the screen at a time.
+    ///
+    /// `thenHoldForDuration` is the important argument and the reason this is not a swipe: the
+    /// touch is stationary for a moment before it lifts, so the gesture recogniser sees a release
+    /// velocity of zero and adds no inertia. The content moves the length of the drag and stops.
+    ///
+    /// The drag runs between 0.68 and 0.35 of the app's height — inside the scrolling content on
+    /// every screen in this app, clear of the navigation bar at the top and of the home indicator
+    /// and any keyboard toolbar at the bottom.
+    func dragContent(in app: XCUIApplication, revealing direction: ScrollReveal) {
+        let lower = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.68))
+        let upper = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+
+        let start: XCUICoordinate
+        let end: XCUICoordinate
+        switch direction {
+        case .below:
+            start = lower
+            end = upper
+        case .above:
+            start = upper
+            end = lower
+        }
+
+        start.press(forDuration: 0.05,
+                    thenDragTo: end,
+                    withVelocity: .slow,
+                    thenHoldForDuration: 0.1)
     }
 
     /// Scrolls the frontmost scrolling content until `element` **exists**.
@@ -618,12 +681,12 @@ extension XCTestCase {
 
         if element.isHittable == false {
             // A keyboard left up by the previous field covers the bottom of the screen, and no
-            // amount of swiping moves it: `scrollUntilHittable` below would swipe eight times and
-            // the control would still be behind it, which is exactly how both core-editor
-            // walkthroughs failed on the References section header — typed into Part number, then
-            // reached for a header the keyboard was sitting on. Put the keyboard away first, the
-            // way a person would. A no-op when there is no keyboard up, and only ever reached on
-            // a path that was otherwise going to time out.
+            // amount of scrolling moves it: `scrollUntilHittable` below would drag the content
+            // back and forth and the control would still be behind it, which is exactly how both
+            // core-editor walkthroughs failed on the References section header — typed into Part
+            // number, then reached for a header the keyboard was sitting on. Put the keyboard away
+            // first, the way a person would. A no-op when there is no keyboard up, and only ever
+            // reached on a path that was otherwise going to time out.
             dismissKeyboard(in: app)
         }
 
@@ -638,7 +701,16 @@ extension XCTestCase {
             )
             let result = XCTWaiter().wait(for: [expectation], timeout: timeout)
             guard result == .completed else {
-                XCTFail("\(description) exists but never became hittable within \(timeout)s.",
+                // The frames are here because their absence cost three CI runs. "Exists but never
+                // became hittable" is true of a control below the fold, above it, behind a
+                // keyboard, and underneath another view, and those want four different fixes.
+                // Printing where the thing actually is tells the next reader which one it was.
+                let keyboard = app.keyboards.count > 0
+                    ? "A keyboard was up."
+                    : "No keyboard was up."
+                XCTFail("\(description) exists but never became hittable within \(timeout)s. "
+                        + "Its frame was \(element.frame) inside an app frame of \(app.frame). "
+                        + keyboard,
                         file: file,
                         line: line)
                 return

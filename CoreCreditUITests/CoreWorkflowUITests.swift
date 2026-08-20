@@ -78,8 +78,9 @@ final class CoreWorkflowUITests: XCTestCase {
 
             // Memo number before amount: that is the order the credit form puts them in — credit
             // date, credit memo number, amount credited. Filling the amount first and reaching
-            // back up for the memo is the same backwards reach that broke the core editor, and
-            // `scrollUntilHittable` cannot recover it.
+            // back up for the memo is the same backwards reach that broke the core editor.
+            // `scrollUntilHittable` can now walk back to a control it has scrolled past, but a
+            // test that needs it to is describing a screen nobody uses that way.
             clearAndType("CM-8841",
                          into: textField(app, A11yID.Credit.reference),
                          "the credit memo field",
@@ -289,11 +290,11 @@ final class CoreWorkflowUITests: XCTestCase {
             //
             // This used to jump around: References first, back up for the expected credit, and
             // the vendor picker last of all, a hundred lines of form above where it had just been
-            // typing. That is what a person never does and what XCTest cannot do. Once the form
-            // has scrolled down, a control above the viewport is unreachable —
-            // `scrollUntilHittable` only ever swipes up, which reveals content *below* and carries
-            // the target further away with every swipe. It fails as "exists but never became
-            // hittable" on a control that was on screen moments earlier.
+            // typing. That is what a person never does, and it fails as "exists but never became
+            // hittable" on a control that was on screen moments earlier. `scrollUntilHittable`
+            // will now walk backwards to find such a control, but only after exhausting every
+            // forward step first — a slow, indirect way to reach something the screen would have
+            // handed over in order.
             //
             // The vendor is a `Menu`, not a text field: tap the row, then the vendor.
             tapWhenHittable(control(app, A11yID.Editor.vendor),
