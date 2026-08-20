@@ -596,6 +596,17 @@ extension XCTestCase {
         }
 
         if element.isHittable == false {
+            // A keyboard left up by the previous field covers the bottom of the screen, and no
+            // amount of swiping moves it: `scrollUntilHittable` below would swipe eight times and
+            // the control would still be behind it, which is exactly how both core-editor
+            // walkthroughs failed on the References section header — typed into Part number, then
+            // reached for a header the keyboard was sitting on. Put the keyboard away first, the
+            // way a person would. A no-op when there is no keyboard up, and only ever reached on
+            // a path that was otherwise going to time out.
+            dismissKeyboard(in: app)
+        }
+
+        if element.isHittable == false {
             scrollUntilHittable(element, in: app)
         }
 
