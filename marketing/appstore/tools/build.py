@@ -51,8 +51,11 @@ GALLERY = [
          # top instead, so Waiting on credit and the total sit clear of the
          # canvas edge. Only status-bar margin goes; nothing is lost.
          shift_up=24,
-         # the second row under Open returns: Fleet line Diesel, $180.00
-         callout=dict(source=(41, 975, 905, 1103), width=1014, right=1152)),
+         # The second row under Open returns: Fleet line Diesel, $180.00. The
+         # callout runs 12 px past the screen onto the black bezel either side
+         # -- far enough to read as a layer above the device, nowhere near the
+         # gradient, so it still belongs to the phone.
+         callout=dict(source=(41, 975, 905, 1103), width=1024, right=1157)),
 ]
 EXPECTED_CANVAS = (1290, 2796)
 

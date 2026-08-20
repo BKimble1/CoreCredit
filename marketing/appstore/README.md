@@ -90,6 +90,8 @@ margin is spent, and what it buys is *Waiting on credit* and the total sitting
 clear of the canvas edge with the tab bar's own background under it.
 
 The callout takes the second row under *Open returns* — Fleet line Diesel,
-$180.00 — from 41, 975 to 905, 1103 in the capture, enlarges it ×1.1644 (×1.10
-against the screen behind it) and sets it at 138–1152, centred on the row at
-1666–1823. It clears the ink of the rows either side by 7 px and 9 px.
+$180.00 — from 41, 975 to 905, 1103 in the capture, enlarges it ×1.1759 (×1.11
+against the screen behind it) and sets it at 133–1156, centred on the row at
+1665–1823. It clears the ink of the rows either side, and runs 12 px past the
+screen onto the black bezel on both sides — far enough to read as a layer above
+the device, and still 33 px clear of the gradient, so it stays part of the phone.
