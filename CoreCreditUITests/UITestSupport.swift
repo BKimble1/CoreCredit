@@ -562,14 +562,25 @@ extension XCTestCase {
     /// of its scroll view dismisses the sheet — losing whatever the test had typed and failing
     /// somewhere far away from the cause. `dismissKeyboard(in:)` avoids swiping for the same
     /// reason.
+    /// The swipe is deliberately `.slow`, and there are more of them than a full-speed scroll would
+    /// need.
+    ///
+    /// A default-velocity `swipeUp()` throws the content several hundred points. That is fine when
+    /// the target is far below, and wrong when it is just past the fold: the gesture carries it
+    /// straight over the top of the viewport, the next check still says "not hittable", and every
+    /// remaining swipe lands in a scroll view already at its end. The editor's References header
+    /// failed exactly that way — reachable in one big swipe while the form sat near the top, and
+    /// unreachable in eight once the form had scrolled down to the amount field and left only a
+    /// short distance to travel. A slow swipe moves a fraction of that and cannot overshoot a
+    /// nearby control.
     @discardableResult
     func scrollUntilHittable(_ element: XCUIElement,
                              in app: XCUIApplication,
-                             maxSwipes: Int = 8) -> Bool {
+                             maxSwipes: Int = 14) -> Bool {
         var remaining = maxSwipes
         while remaining > 0 {
             if element.exists && element.isHittable { return true }
-            app.swipeUp()
+            app.swipeUp(velocity: .slow)
             remaining -= 1
         }
         return element.exists && element.isHittable
