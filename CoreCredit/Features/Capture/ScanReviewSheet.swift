@@ -179,6 +179,13 @@ struct ScanCandidateReview: View {
             actionSection
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Same reason as `CoreListView` and `OnboardingView`: this root is a `VStack`, not an
+        // accessibility element, so `scanReview.root` propagated down and overwrote
+        // `scanReview.apply` on the Apply button. The suite could find the sheet and then not the
+        // one control that commits the review, which is the assertion that matters most on this
+        // screen. `.contain` binds the identifier here and leaves every row, the raw-lines
+        // disclosure, and all three actions individually queryable.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(A11y.ScanReview.root)
         .task(id: session.id) {
             previewImage = ScanCandidateReview.makePreviewImage(from: session.previewImageData)
