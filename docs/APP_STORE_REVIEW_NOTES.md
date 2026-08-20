@@ -29,9 +29,17 @@ Everything above it is context for the owner and should not be submitted.
 - [x] Add the 1024×1024 app icon (`AppIcon.appiconset/AppIcon.png` is real artwork).
 - [ ] Confirm the privacy answers in `docs/PRIVACY.md` still match the shipped build.
 - [ ] Look at the app in **Light and Dark appearance**, at an accessibility text size, on a small
-      iPhone and on an iPad, before submitting. The interface was reworked in a pass that ran on a
-      machine with no Xcode, so no screenshot of the shipped layout exists yet — see
-      `docs/HANDOFF.md` §1.
+      iPhone and on an iPad, before submitting.
+
+      Partly done: device captures of the running app exist in the repository root — `Dashboard.png`
+      and `Cores.png` (iPhone, light) and `IMG_0309/0313/0314/0315.PNG` (iPad landscape, light,
+      dated Wed Aug 19). They show the shipping layout: the iPhone tab bar, the iPad
+      sidebar-and-detail split, Money at risk, the status badges, and the overdue treatment. Every
+      status is carried by an icon and a word as well as a colour.
+
+      What those captures do **not** cover, and what this box is still about: **Dark appearance**,
+      **accessibility text sizes**, and a **small (compact) iPhone**. Do those three before
+      submitting.
 
 ---
 

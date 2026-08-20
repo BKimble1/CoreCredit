@@ -185,20 +185,29 @@ workflows:
   # App Store Connect auth comes from the Codemagic "CoreCredit App Store"
   # integration, whose signing key lives in Codemagic and never in this repository.
   corecredit-testflight:
-    name: CoreCredit TestFlight
+    name: CoreCredit TestFlight (manual — publishes)
     max_build_duration: 60
 
     integrations:
       app_store_connect: "CoreCredit App Store"
 
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
-      cancel_previous_builds: true
+    # DELIBERATELY NO `triggering:` SECTION — this workflow is started by hand.
+    #
+    # It used to trigger on every push to `main`, which made *merging* a release action: any
+    # commit landing on the shipping branch — a documentation fix, an audit, a typo — uploaded a
+    # new build to TestFlight as a side effect. That is the wrong default for the one workflow in
+    # this file that publishes to App Store Connect. Testers would receive builds nobody decided
+    # to cut, and the build number would advance for changes that were never meant to ship.
+    #
+    # Publishing is now an explicit decision: open Codemagic and start this workflow. Everything
+    # that *gates* quality still runs automatically on every push and pull request — see
+    # `corecredit-simulator-build` above, which builds the app and the widget and runs both test
+    # suites. `corecredit-release-archive` below proves the signed Release archive without
+    # uploading anything.
+    #
+    # OWNER CHECK, ONCE: codemagic.yaml is not the only place a trigger can live. Confirm in the
+    # Codemagic UI (Applications -> CoreCredit -> this workflow) that no automatic build trigger
+    # is configured there either, or the removal below is cosmetic. See docs/RELEASE.md.
 
     environment:
       xcode: 26.4
@@ -310,3 +319,169 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
+
+  # ---------------------------------------------------------------------------------------------
+  # The archive/signing gate. Signs exactly what TestFlight would sign, and uploads nothing.
+  #
+  # This exists because the two questions "does the Release configuration archive and sign?" and
+  # "should testers get a new build?" used to have one answer. Separating them means the expensive,
+  # failure-prone half — Release compilation, managed signing, the widget extension's own profile,
+  # export options — can be proven on demand without spending a TestFlight build number or sending
+  # testers something nobody decided to release.
+  #
+  # Identical to `corecredit-testflight` except that it has no `publishing:` section, and that it
+  # inspects the .ipa it produced. Manual start only, same as that workflow.
+  # ---------------------------------------------------------------------------------------------
+  corecredit-release-archive:
+    name: CoreCredit Signed Release Archive (manual — publishes nothing)
+    max_build_duration: 60
+
+    integrations:
+      app_store_connect: "CoreCredit App Store"
+
+    environment:
+      xcode: 26.4
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.blakekimble.corecredit
+
+    scripts:
+      - name: Verify repository invariants
+        script: |
+          set -e
+          python3 scripts/verify_repository.py
+
+      - name: Verify Xcode project
+        script: |
+          set -e
+          xcodebuild -version
+          xcodebuild -list -project "$CM_BUILD_DIR/CoreCredit.xcodeproj"
+
+      # The app and the widget must both compile under the configuration that actually ships.
+      # `corecredit-simulator-build` only ever builds Debug, so a Release-only failure — a
+      # whole-module-optimisation diagnostic, an `#if DEBUG` that was holding something together —
+      # would otherwise be found for the first time by the archive step below, or by App Review.
+      - name: Build Release configuration for the simulator
+        script: |
+          set -o pipefail
+          set -e
+          xcodebuild clean build \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$CM_BUILD_DIR/xcodebuild-release.log"
+
+      - name: Fetch the widget extension's provisioning profile
+        script: |
+          set +e
+          app-store-connect fetch-signing-files "com.blakekimble.corecredit.widget" \
+            --type IOS_APP_STORE \
+            --create
+          echo "fetch-signing-files exit status: $?"
+          exit 0
+
+      - name: Apply App Store signing
+        script: |
+          set -e
+          xcode-project use-profiles \
+            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+
+          echo ""
+          echo "=========== INSTALLED PROVISIONING PROFILES ==========="
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          if ls "$PROFILE_DIR"/*.mobileprovision >/dev/null 2>&1; then
+            for profile in "$PROFILE_DIR"/*.mobileprovision; do
+              plist=$(security cms -D -i "$profile" 2>/dev/null || echo "")
+              name=$(printf '%s' "$plist" | plutil -extract Name raw - 2>/dev/null || echo "?")
+              appid=$(printf '%s' "$plist" \
+                | plutil -extract Entitlements.application-identifier raw - 2>/dev/null || echo "?")
+              echo "  $appid    ($name)"
+            done
+          else
+            echo "  none installed"
+          fi
+          echo "  Both of these must appear above, prefixed with team id 7GNFT94A9L:"
+          echo "    com.blakekimble.corecredit"
+          echo "    com.blakekimble.corecredit.widget"
+          echo "======================================================="
+
+      # No `agvtool new-version` here on purpose. A build number is a release artefact; burning one
+      # to answer "does it sign?" makes the next real TestFlight build's number misleading.
+      - name: Build signed IPA (not uploaded)
+        script: |
+          set -e
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/CoreCredit.xcodeproj" \
+            --scheme CoreCredit
+
+      # The evidence the release gate actually wants: what is inside the thing that would ship.
+      - name: Inspect the signed archive
+        script: |
+          set -e
+          IPA=$(ls build/ios/ipa/*.ipa | head -n 1)
+          echo "Inspecting $IPA"
+
+          WORK="$CM_BUILD_DIR/ipa-inspect"
+          rm -rf "$WORK" && mkdir -p "$WORK"
+          unzip -q "$IPA" -d "$WORK"
+          APP=$(ls -d "$WORK"/Payload/*.app | head -n 1)
+
+          echo ""
+          echo "=============== APP BUNDLE ==============="
+          plutil -p "$APP/Info.plist" | grep -E \
+            'CFBundleIdentifier|CFBundleShortVersionString|CFBundleVersion|CFBundleDisplayName|MinimumOSVersion|ITSAppUsesNonExemptEncryption|NSCameraUsageDescription|UILaunchScreen' \
+            || true
+
+          echo ""
+          echo "--- Privacy manifest present? ---"
+          test -f "$APP/PrivacyInfo.xcprivacy" \
+            && echo "  yes: $APP/PrivacyInfo.xcprivacy" \
+            || { echo "  NO — the privacy manifest did not make it into the bundle"; exit 1; }
+
+          echo ""
+          echo "--- App icon present in the asset catalog? ---"
+          if [ -f "$APP/Assets.car" ]; then
+            echo "  Assets.car present"
+            xcrun assetutil --info "$APP/Assets.car" 2>/dev/null \
+              | grep -iE '"Name".*AppIcon|AppIcon' | head -n 5 || echo "  (assetutil listed no AppIcon rows)"
+          else
+            echo "  NO Assets.car"; exit 1
+          fi
+
+          echo ""
+          echo "--- Embedded extensions ---"
+          ls "$APP/PlugIns" 2>/dev/null || echo "  none"
+          WIDGET="$APP/PlugIns/CoreCreditQuickScanWidget.appex"
+          test -d "$WIDGET" \
+            && plutil -p "$WIDGET/Info.plist" \
+                 | grep -E 'CFBundleIdentifier|CFBundleVersion|CFBundleShortVersionString|NSExtensionPointIdentifier' \
+            || { echo "  WIDGET MISSING — the .appex was not embedded"; exit 1; }
+
+          echo ""
+          echo "--- A .storekit configuration must NOT be in the bundle ---"
+          if find "$APP" -name '*.storekit' | grep -q .; then
+            echo "  FOUND a .storekit file inside the shipping bundle:"
+            find "$APP" -name '*.storekit'
+            exit 1
+          fi
+          echo "  none — correct"
+
+          echo ""
+          echo "--- Code signature and entitlements ---"
+          codesign -dv --verbose=4 "$APP" 2>&1 | sed 's/^/  /'
+          echo ""
+          codesign -d --entitlements :- "$APP" 2>/dev/null | sed 's/^/  /' || true
+          echo ""
+          codesign -dv --verbose=2 "$WIDGET" 2>&1 | sed 's/^/  /'
+          echo "=========================================="
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - $CM_BUILD_DIR/xcodebuild-release.log
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    # NO `publishing:` SECTION. That absence is the entire point of this workflow.
