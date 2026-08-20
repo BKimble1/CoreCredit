@@ -317,6 +317,13 @@ private struct SubscriptionStatusContent: View {
         .contentShape(Rectangle())
     }
 
+    /// Main-actor isolated deliberately. This function is reached from a `Task` inside a
+    /// `@ViewBuilder` property, which carries no isolation of its own, so without the annotation
+    /// the body would run on the cooperative pool: `AppStore.showManageSubscriptions(in:)` would
+    /// be asked to present a sheet from a background thread, and — worse, because it is silent —
+    /// `manageErrorMessage` would be written off the main actor while SwiftUI reads it on. Same
+    /// class of mistake as the notification-delegate crash in `NotificationResponder`.
+    @MainActor
     private func presentManageSubscriptions(in scene: UIWindowScene) async {
         do {
             try await AppStore.showManageSubscriptions(in: scene)

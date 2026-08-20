@@ -14,7 +14,7 @@ interchangeable and collapsing them is how a release claims more than it has.
 
 | Check | How | Result |
 |---|---|---|
-| 17 repository invariants | `python3 scripts/verify_repository.py` | **all 17 hold** |
+| 19 repository invariants | `python3 scripts/verify_repository.py` | **all 19 hold** |
 | App icon is 1024x1024, opaque, no alpha channel | PNG `IHDR`/`tRNS` chunks parsed directly | **pass** — 1024x1024, 8-bit RGB, no alpha, no `tRNS` |
 | No `.storekit` file can reach a shipping bundle | all four `PBXResourcesBuildPhase` blocks read | **pass** — every one is empty; the file is a scheme reference only |
 | No third-party code of any kind | pbxproj, `Package.resolved`, Podfile, Cartfile, embedded binaries | **pass** — zero SPM/CocoaPods/Carthage dependencies, zero embedded frameworks |

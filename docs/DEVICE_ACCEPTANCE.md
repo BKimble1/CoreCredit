@@ -83,6 +83,14 @@ Tester / date:        ______________________________________
 | 6.4 | Tapping a reminder opens **that core** | ☐ |
 | 6.5 | Settling a core cancels its pending reminders | ☐ |
 | 6.6 | With *Show detail* off, no money appears on the lock screen | ☐ |
+| 6.7 | Tapping a notification while the app is **closed** launches it without crashing | ☐ |
+| 6.8 | Tapping the test reminder — which carries no route — opens the app and does nothing else | ☐ |
+| 6.9 | *View Item*, *Scan Core*, and *Snooze 1 Day* each act once, from the lock screen | ☐ |
+
+> 6.7 and 6.8 are the crash that killed build 38. The notification delegate was written in its
+> `async` form, which let UserNotifications call UIKit back on a background thread during the
+> launch a tap causes. It reproduces on a device and not in the simulator, so it has to be walked
+> here. See `NotificationResponder` and the `notification delegate` repository invariant.
 
 ## 7. Widget, Shortcut, Siri, Action Button
 

@@ -837,6 +837,65 @@ def check_ui_tests_run_top_to_bottom():
         note("ui test order: every typed and tapped sequence runs down the screen, never back up")
 
 
+def check_notification_delegate_is_completion_handler_based():
+    """The notification delegate must keep its completion-handler signatures, not the `async` ones.
+
+    `UNUserNotificationCenterDelegate` is an Objective-C protocol whose two methods end in a
+    completion handler. Swift offers an `async` spelling for each, and it looks like the better
+    one. It is not: the compiler turns it into an `@objc` entry point that starts a task, runs the
+    body, and then calls UserNotifications' completion handler from wherever that task finished —
+    the cooperative pool. UIKit updates the window scene's snapshot and state-restoration archive
+    inside that handler on the way in from a tap, and asserts it is on the main thread while doing
+    it.
+
+    Build 38 crashed on exactly that, 391ms into a launch from a tapped notification. Nothing about
+    the `async` version reads as wrong, no test can see it, and the simulator does not reproduce
+    it — which is what makes it worth a check here rather than a comment.
+    """
+    path = os.path.join("CoreCredit", "Services", "NotificationResponder.swift")
+    try:
+        source = read(path)
+    except IOError:
+        fail("notification delegate", "%s is missing" % path)
+        return
+
+    lines = source.replace(CRLF, LF).split(LF)
+    signatures = []
+    index = 0
+    while index < len(lines):
+        if "func userNotificationCenter(" in lines[index]:
+            signature = []
+            while index < len(lines):
+                signature.append(lines[index].strip())
+                if lines[index].rstrip().endswith("{"):
+                    break
+                index += 1
+            signatures.append(" ".join(signature))
+        index += 1
+
+    # Two methods, no more and no fewer: `willPresent` and `didReceive`. A third would mean the
+    # protocol grew a member this check has never seen and should be looked at by a person.
+    if len(signatures) != 2:
+        fail("notification delegate",
+             "expected 2 `userNotificationCenter` implementations in %s, found %d — this check no "
+             "longer knows what it is guarding" % (path, len(signatures)))
+        return
+
+    for signature in signatures:
+        if "withCompletionHandler" not in signature:
+            fail("notification delegate",
+                 "`%s` does not take a completion handler. The `async` spelling of a "
+                 "`UNUserNotificationCenterDelegate` method calls UIKit back off the main thread "
+                 "and crashes on a notification tap." % signature)
+        if ") async" in signature:
+            fail("notification delegate",
+                 "`%s` is declared `async`. Use the completion-handler form and call the handler "
+                 "from the main actor." % signature)
+
+    if not any(f.startswith("notification delegate") for f in FAILURES):
+        note("notification delegate keeps its completion-handler signatures")
+
+
 def main():
     check_identifier_mirror()
     check_identifier_references_resolve()
@@ -856,6 +915,7 @@ def main():
     check_project_file()
     check_release_is_never_a_side_effect()
     check_ui_tests_run_top_to_bottom()
+    check_notification_delegate_is_completion_handler_based()
 
     print("CoreCredit repository invariants")
     print("=" * 72)
