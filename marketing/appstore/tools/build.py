@@ -47,8 +47,12 @@ GALLERY = [
          ov="CoreCredit_AppStore_04_Refined_Device_Overlay.png",
          shot="Returns_Marketing.png",
          out="CoreCredit_AppStore_04_Track_Every_Step.png",
+         # Spend part of the crop the canvas takes at the phone's bottom on its
+         # top instead, so Waiting on credit and the total sit clear of the
+         # canvas edge. Only status-bar margin goes; nothing is lost.
+         shift_up=24,
          # the second row under Open returns: Fleet line Diesel, $180.00
-         callout=dict(source=(41, 975, 905, 1103), width=1090, right=1190)),
+         callout=dict(source=(41, 975, 905, 1103), width=1014, right=1152)),
 ]
 EXPECTED_CANVAS = (1290, 2796)
 
@@ -83,11 +87,12 @@ def main():
         callout = image.get("callout")
         target = out + ".compose.tmp.png" if callout else out
         entry = report[out] = {"composite": compose.compose(
-            image["bg"], image["ov"], image["shot"], target)}
+            image["bg"], image["ov"], image["shot"], target,
+            shift_up=image.get("shift_up", 0))}
         if callout:
             entry["callout"] = spotlight.place(
                 target, image["shot"], out,
-                aperture_top=entry["composite"]["aperture"]["top"],
+                origin_top=entry["composite"]["origin"][1],
                 scale=entry["composite"]["scale"], **callout)
             os.remove(target)
         if tuple(entry["composite"]["canvas"]) != EXPECTED_CANVAS:

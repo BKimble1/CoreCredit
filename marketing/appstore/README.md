@@ -84,8 +84,12 @@ falls off the right edge, which is the template's intended device crop.
 **Image 4.** Aperture 145, 670, 1000 px wide and 2126 px tall, the phone standing
 centred with the canvas taking its bottom. Screenshot 946 × 2048 scaled
 ×1.057082 to 1000 × 2165 — again one factor on both axes. Nothing is cropped
-horizontally; 39 px (1.8 %) falls off the bottom, all of it below the tab bar.
+horizontally. Of the 39 px the height is short, 24 go off the top and 15 off the
+bottom: the capture's first 23 rows are a single flat colour, so only status-bar
+margin is spent, and what it buys is *Waiting on credit* and the total sitting
+clear of the canvas edge with the tab bar's own background under it.
+
 The callout takes the second row under *Open returns* — Fleet line Diesel,
-$180.00 — from 41, 975 to 905, 1103 in the capture, enlarges it ×1.2477 (×1.18
-against the screen behind it) and sets it across the device's own width, 100 to
-1190, centred on the row at 1682–1854. It clears the ink of the rows either side.
+$180.00 — from 41, 975 to 905, 1103 in the capture, enlarges it ×1.1644 (×1.10
+against the screen behind it) and sets it at 138–1152, centred on the row at
+1666–1823. It clears the ink of the rows either side by 7 px and 9 px.

@@ -11,12 +11,12 @@ crop pushes off the canvas.
 from PIL import Image, ImageDraw, ImageFilter
 import numpy as np
 
-RADIUS = 30             # corner radius of the callout, canvas px
-BORDER = 6              # blue rule around it
+RADIUS = 26             # corner radius of the callout, canvas px
+BORDER = 4              # blue rule around it, thin enough to read as a rule
 BORDER_RGB = (0, 64, 196)           # the app's own accent blue, measured
-SHADOW_BLUR = 22
-SHADOW_OFFSET = 12
-SHADOW_ALPHA = 0.30
+SHADOW_BLUR = 18
+SHADOW_OFFSET = 8
+SHADOW_ALPHA = 0.18
 
 
 def _rounded(size, radius, fill, mode="RGBA"):
@@ -26,13 +26,13 @@ def _rounded(size, radius, fill, mode="RGBA"):
     return card
 
 
-def place(canvas_png, capture_png, out_png, source, width, right, aperture_top,
+def place(canvas_png, capture_png, out_png, source, width, right, origin_top,
           scale):
     """Set a callout of `source` (x0, y0, x1, y1 in the capture) on the canvas.
 
     `width` is the callout's full width in canvas pixels and `right` its right
     edge; it is centred on the row's own position on the canvas, which the
-    template's aperture top and the compositing scale fix exactly.
+    canvas row the capture starts on and the compositing scale fix exactly.
     """
     canvas = Image.open(canvas_png).convert("RGBA")
     x0, y0, x1, y1 = source
@@ -49,7 +49,7 @@ def place(canvas_png, capture_png, out_png, source, width, right, aperture_top,
     card.alpha_composite(inner, (BORDER, BORDER))
 
     left = right - width
-    top = int(round(aperture_top + (y0 + y1) / 2.0 * scale)) - height // 2
+    top = int(round(origin_top + (y0 + y1) / 2.0 * scale)) - height // 2
 
     shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
     shadow.paste(Image.new("RGBA", (width, height),

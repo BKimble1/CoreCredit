@@ -48,7 +48,7 @@ def aperture(overlay_png, inside=(1000, 1400)):
             int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1), mask)
 
 
-def compose(background_png, overlay_png, screenshot_png, out_png):
+def compose(background_png, overlay_png, screenshot_png, out_png, shift_up=0):
     bg = Image.open(background_png).convert("RGBA")
     ov = Image.open(overlay_png).convert("RGBA")
     if bg.size != ov.size:
@@ -69,12 +69,19 @@ def compose(background_png, overlay_png, screenshot_png, out_png):
 
     canvas = np.array(bg)
     px = np.array(scaled)
+    # `shift_up` spends part of the crop the template already takes at the far
+    # side on the near side instead, moving the screen's content up inside the
+    # phone. It can never exceed the slack, so the aperture stays covered.
+    slack = scaled_h - height
+    if not 0 <= shift_up <= max(slack, 0):
+        raise ValueError(f"shift_up {shift_up} outside the crop's slack of {slack}")
     take_w = min(scaled_w, canvas.shape[1] - left, visible_w)
-    take_h = min(scaled_h, height)
+    take_h = min(scaled_h - shift_up, height)
 
     sub = canvas[top:top + take_h, left:left + take_w]
     sub_mask = mask[top:top + take_h, left:left + take_w]
-    sub[..., :3] = np.where(sub_mask[..., None], px[:take_h, :take_w], sub[..., :3])
+    sub[..., :3] = np.where(sub_mask[..., None],
+                            px[shift_up:shift_up + take_h, :take_w], sub[..., :3])
 
     out = Image.alpha_composite(Image.fromarray(canvas), ov).convert("RGB")
     out.save(out_png)
@@ -84,6 +91,7 @@ def compose(background_png, overlay_png, screenshot_png, out_png):
         "aperture": {"left": left, "top": top, "height": height,
                      "visible_width": visible_w,
                      "design_width": round(design_w, 2)},
+        "origin": [left, top - shift_up],     # where the capture's (0, 0) lands
         "screenshot": (sw, sh),
         "scale": round(scale, 6),
         "scaled": (scaled_w, scaled_h),
@@ -91,8 +99,11 @@ def compose(background_png, overlay_png, screenshot_png, out_png):
         "aspect_device_screen": round(DEVICE_SCREEN_RATIO, 6),
         "aspect_width_delta_px": round(scaled_w - design_w, 2),
         "driven_by": "width" if visible_w / sw > height / sh else "height",
+        "shift_up_px": shift_up,
+        "cropped_top_px": shift_up,
         "cropped_right_px": scaled_w - take_w,
         "cropped_right_pct": round(100.0 * (scaled_w - take_w) / scaled_w, 2),
-        "cropped_bottom_px": scaled_h - take_h,
-        "cropped_bottom_pct": round(100.0 * (scaled_h - take_h) / scaled_h, 2),
+        "cropped_bottom_px": scaled_h - shift_up - take_h,
+        "cropped_bottom_pct": round(
+            100.0 * (scaled_h - shift_up - take_h) / scaled_h, 2),
     }
