@@ -732,6 +732,111 @@ def check_release_is_never_a_side_effect():
          % (len(workflows), len(publishing), ", ".join(publishing)))
 
 
+# ------------------------------------ 18. UI tests drive a screen the way the screen is laid out
+
+# Reaches that look backwards but are not, each for a stated reason. Anything *not* listed here is
+# a control the test scrolls past and then reaches back for, which XCTest cannot recover from.
+BACKWARD_REACH_ALLOWED = {
+    # The vendor row sits high enough that typing into the amount field never scrolls it away.
+    ("Editor.amount", "Editor.vendor"),
+    # The vendor editor is a short sheet; Save is on screen without scrolling.
+    ("Settings.vendorWindow", "Settings.vendorSave"),
+    # Different onboarding *steps*, rendered one at a time. Source order says nothing about them.
+    ("Onboarding.next", "Onboarding.shopName"),
+}
+
+INTERACTION_HELPERS = re.compile(r"\b(clearAndType|tapWhenHittable)\b")
+
+
+def identifier_declaration_sites():
+    """{"Editor.amount": ("CoreEditorView.swift", 384)} — where each identifier is applied.
+
+    Line order inside one file approximates top-to-bottom order on screen, which is all this needs.
+    """
+    sites = {}
+    for path in swift_sources("CoreCredit"):
+        name = os.path.basename(path)
+        text = io.open(path, encoding="utf-8", newline="").read().replace(CRLF, LF)
+        for number, line in enumerate(text.split(LF), 1):
+            if not re.search(r"accessibilityIdentifier|identifier:|fieldIdentifier:"
+                             r"|disclosureIdentifier:", line):
+                continue
+            for match in re.finditer(r"A11y\.(\w+)\.(\w+)\b", line):
+                sites.setdefault(match.group(1) + "." + match.group(2), (name, number))
+    return sites
+
+
+def check_ui_tests_run_top_to_bottom():
+    """A UI test must not scroll past a control and then reach back up for it.
+
+    `scrollUntilHittable` only swipes *up*, which reveals content below — so a control that has
+    ended up above the viewport gets further away with every swipe, and the test fails as "exists
+    but never became hittable" on something that was on screen moments earlier. It cannot swipe the
+    other way either: every editor and review screen here is a sheet, and a downward drag on a
+    sheet at the top of its scroll view dismisses it.
+
+    This cost four full CI cycles to find twice — once on the core editor's expected-credit field,
+    once on the credit sheet's memo number — at roughly forty minutes each. Two seconds here
+    instead.
+    """
+    sites = identifier_declaration_sites()
+    offenders = []
+
+    for path in swift_sources("CoreCreditUITests"):
+        name = os.path.basename(path)
+        if name == "UITestSupport.swift":
+            continue
+
+        lines = io.open(path, encoding="utf-8", newline="").read().replace(CRLF, LF).split(LF)
+        function = None
+        sequence = []
+        pending = None
+
+        def inspect(owner, ordered):
+            for (first, _), (second, where) in zip(ordered, ordered[1:]):
+                if first not in sites or second not in sites:
+                    continue
+                first_file, first_line = sites[first]
+                second_file, second_line = sites[second]
+                # Different screens, or different identifier groups, say nothing about order.
+                if first_file != second_file:
+                    continue
+                if first.split(".")[0] != second.split(".")[0]:
+                    continue
+                if second_line >= first_line:
+                    continue
+                if (first, second) in BACKWARD_REACH_ALLOWED:
+                    continue
+                offenders.append(
+                    "%s:%d in %s() reaches %s (%s:%d) after %s (%s:%d) — %d lines back up the "
+                    "screen" % (name, where, owner, second, second_file, second_line,
+                                first, first_file, first_line, first_line - second_line)
+                )
+
+        for number, line in enumerate(lines, 1):
+            declared = re.match(r"\s*(?:private )?func (\w+)", line)
+            if declared:
+                if function:
+                    inspect(function, sequence)
+                function, sequence = declared.group(1), []
+            if INTERACTION_HELPERS.search(line):
+                pending = number
+            if pending is not None:
+                used = re.search(r"A11yID\.(\w+)\.(\w+)\b", line)
+                if used and number - pending <= 3:
+                    sequence.append((used.group(1) + "." + used.group(2), number))
+                    pending = None
+        if function:
+            inspect(function, sequence)
+
+    if offenders:
+        fail("ui-test order",
+             "a UI test scrolls past a control and reaches back for it, which cannot succeed: "
+             + "; ".join(offenders))
+    else:
+        note("ui test order: every typed and tapped sequence runs down the screen, never back up")
+
+
 def main():
     check_identifier_mirror()
     check_identifier_references_resolve()
@@ -750,6 +855,7 @@ def main():
     check_module_imports()
     check_project_file()
     check_release_is_never_a_side_effect()
+    check_ui_tests_run_top_to_bottom()
 
     print("CoreCredit repository invariants")
     print("=" * 72)

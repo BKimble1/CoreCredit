@@ -76,13 +76,17 @@ final class CoreWorkflowUITests: XCTestCase {
                             "the Record vendor credit button",
                             in: app)
 
-            clearAndType("86.50",
-                         into: textField(app, A11yID.Credit.amount),
-                         "the credited amount field",
-                         in: app)
+            // Memo number before amount: that is the order the credit form puts them in — credit
+            // date, credit memo number, amount credited. Filling the amount first and reaching
+            // back up for the memo is the same backwards reach that broke the core editor, and
+            // `scrollUntilHittable` cannot recover it.
             clearAndType("CM-8841",
                          into: textField(app, A11yID.Credit.reference),
                          "the credit memo field",
+                         in: app)
+            clearAndType("86.50",
+                         into: textField(app, A11yID.Credit.amount),
+                         "the credited amount field",
                          in: app)
             dismissKeyboard(in: app)
 
@@ -139,13 +143,15 @@ final class CoreWorkflowUITests: XCTestCase {
                             "the Record vendor credit button",
                             in: app)
 
-            clearAndType("75.00",
-                         into: textField(app, A11yID.Credit.amount),
-                         "the credited amount field",
-                         in: app)
+            // Memo number before amount, matching the form's own order — see the note in
+            // `testCoreTravelsFromVendorCreationToZeroMoneyAtRisk`.
             clearAndType("CM-8841",
                          into: textField(app, A11yID.Credit.reference),
                          "the credit memo field",
+                         in: app)
+            clearAndType("75.00",
+                         into: textField(app, A11yID.Credit.amount),
+                         "the credited amount field",
                          in: app)
             dismissKeyboard(in: app)
 
@@ -278,15 +284,25 @@ final class CoreWorkflowUITests: XCTestCase {
                          in: app,
                          file: file,
                          line: line)
-            // Filled in the order the form puts them in — part name, part number, expected
-            // credit, then the optional References section underneath.
+            // Everything below runs in the order the form lays out — part name, part number,
+            // vendor, expected credit, then the optional References section underneath.
             //
-            // This used to fill References first and come back up for the expected credit, which
-            // is what a person never does and what XCTest cannot do: by then the form has scrolled
-            // down past the amount field, leaving it *above* the viewport, and
-            // `scrollUntilHittable` only ever swipes up — revealing content below and carrying the
-            // field further away with every swipe. It failed as "exists but never became hittable"
-            // on a field that was on screen a moment earlier.
+            // This used to jump around: References first, back up for the expected credit, and
+            // the vendor picker last of all, a hundred lines of form above where it had just been
+            // typing. That is what a person never does and what XCTest cannot do. Once the form
+            // has scrolled down, a control above the viewport is unreachable —
+            // `scrollUntilHittable` only ever swipes up, which reveals content *below* and carries
+            // the target further away with every swipe. It fails as "exists but never became
+            // hittable" on a control that was on screen moments earlier.
+            //
+            // The vendor is a `Menu`, not a text field: tap the row, then the vendor.
+            tapWhenHittable(control(app, A11yID.Editor.vendor),
+                            "the vendor picker",
+                            in: app,
+                            file: file,
+                            line: line)
+            tapMenuItem("NAPA", in: app, file: file, line: line)
+
             clearAndType("86.50",
                          into: textField(app, A11yID.Editor.amount),
                          "the expected credit field",
@@ -313,14 +329,6 @@ final class CoreWorkflowUITests: XCTestCase {
                          file: file,
                          line: line)
             dismissKeyboard(in: app)
-
-            // The vendor is a `Menu`, not a text field: tap the row, then the vendor.
-            tapWhenHittable(control(app, A11yID.Editor.vendor),
-                            "the vendor picker",
-                            in: app,
-                            file: file,
-                            line: line)
-            tapMenuItem("NAPA", in: app, file: file, line: line)
 
             tapWhenHittable(control(app, A11yID.Editor.save),
                             "the editor's Save button",
