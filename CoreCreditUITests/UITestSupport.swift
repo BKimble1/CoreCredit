@@ -973,6 +973,7 @@ extension XCTestCase {
     func dismissKeyboard(in app: XCUIApplication) {
         guard app.keyboards.count > 0 else { return }
 
+        // 1. The keyboard toolbar's Done, where the screen supplies one.
         let keyboardDone = app.toolbars.buttons["Done"].firstMatch
         if keyboardDone.exists && keyboardDone.isHittable {
             keyboardDone.tap()
@@ -983,8 +984,28 @@ extension XCTestCase {
             if keyboardIsGone(in: app) { return }
         }
 
-        // A sheet leaves the presenting screen's navigation bar in the tree behind it, so the
-        // first *hittable* bar is the one in front rather than simply the first one found.
+        // 2. The keyboard's own return key. A default keyboard has one; a decimal pad does not,
+        //    which is exactly why the rungs below this exist.
+        for title in ["Return", "return"] {
+            let returnKey = app.keyboards.buttons[title].firstMatch
+            if returnKey.exists && returnKey.isHittable {
+                returnKey.tap()
+                if keyboardIsGone(in: app) { return }
+                break
+            }
+        }
+
+        // 3. Drag the keyboard away, the way a person does on a screen with no Done — every
+        //    text-entry screen in this app carries `.scrollDismissesKeyboard(.interactively)`.
+        //
+        //    The old fear of a downward drag was that it dismisses a sheet sitting at the top of
+        //    its scroll view. It cannot here: this rung is only reached with a keyboard up, and
+        //    the interactive dismissal takes the gesture before the sheet does.
+        dragContent(in: app, revealing: .above)
+        if keyboardIsGone(in: app) { return }
+
+        // 4. A sheet leaves the presenting screen's navigation bar in the tree behind it, so the
+        //    first *hittable* bar is the one in front rather than simply the first one found.
         for navigationBar in app.navigationBars.allElementsBoundByIndex
         where navigationBar.exists && navigationBar.isHittable {
             navigationBar.tap()
