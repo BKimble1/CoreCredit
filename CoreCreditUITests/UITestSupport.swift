@@ -165,6 +165,7 @@ enum A11yID {
         static let vendorName = "settings.vendorName"
         static let vendorWindow = "settings.vendorWindow"
         static let vendorSave = "settings.vendorSave"
+        static let dataExport = "settings.dataExport"
         static let diagnostics = "settings.diagnostics"
         static let notifications = "settings.notifications"
         static let appearance = "settings.appearance"

@@ -169,6 +169,15 @@ enum A11y {
         /// `NavigationStack` behind it.
         static let subscriptionScreen = "settings.subscriptionScreen"
         static let exportCSV = "settings.exportCSV"
+        /// The Data & export row in the Settings list. The screen it pushes owns the `Data.*`
+        /// identifiers.
+        ///
+        /// This row was the only navigable row in Settings without an identifier, which forced
+        /// `RestoreAndBarcodeUITests` to find it by matching a label fragment against
+        /// `XCUIApplication.buttons`. A `NavigationLink` inside a `List` does not publish as a
+        /// button, so that query could never resolve and the test failed the first time the UI
+        /// suite was ever executed.
+        static let dataExport = "settings.dataExport"
         /// The Scanner diagnostics row in the Settings list.
         static let diagnostics = "settings.diagnostics"
         /// The Notifications row in the Settings list. The screen it pushes is

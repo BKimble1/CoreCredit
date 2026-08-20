@@ -33,7 +33,12 @@ final class RestoreAndBarcodeUITests: XCTestCase {
 
         XCTContext.runActivity(named: "Data & export offers a restore") { _ in
             tapTab(A11yID.Tab.settings, in: app)
-            tapWhenHittable(button(app, labelContaining: "Data & export"),
+
+            // By identifier, not by a label fragment matched against `buttons`. A `NavigationLink`
+            // inside a `List` publishes as a cell rather than a button, so the label query could
+            // never resolve — which is what failed here the first time this suite was executed.
+            // `control(_:_:)` looks through buttons, then cells, then anything.
+            tapWhenHittable(control(app, A11yID.Settings.dataExport),
                             "the Data & export row",
                             in: app)
 
