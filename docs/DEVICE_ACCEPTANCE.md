@@ -117,6 +117,21 @@ Tester / date:        ______________________________________
 | 9.7 | Only the creation of a **sixth unresolved** core is blocked | ☐ |
 | 9.8 | *Manage Subscription* opens Apple's sheet | ☐ |
 | 9.9 | With no network, cached entitlement keeps Pro rather than demoting | ☐ |
+| 9.10 | **Cancelling** the App Store sheet leaves the app on Free, charges nothing, shows no error | ☐ |
+| 9.11 | Tapping a plan twice quickly starts **one** purchase — both rows disable while it runs | ☐ |
+| 9.12 | *Restore Purchases* with no subscription says so plainly instead of doing nothing visible | ☐ |
+| 9.13 | Turning **auto-renew off** in Apple's sheet keeps Pro until the paid period actually ends | ☐ |
+| 9.14 | Settings → Subscription reads **"Current period ends"** and the date matches Apple's own Subscriptions screen | ☐ |
+| 9.15 | Ask to Buy (a managed child account) shows "Waiting for approval", not a failure | ☐ |
+| 9.16 | With products unavailable (Airplane Mode from cold), the paywall shows a message **and a working Retry** | ☐ |
+
+> **9.14 is the row that answers a question already asked once.** A monthly subscription bought in
+> a test environment shows a period ending the same day or the next one, because Apple accelerates
+> them: a sandbox month is **5 minutes** by default, and in TestFlight *every* duration renews in
+> **1 day**. That is the environment, not a bug — and the word "Renews" comes from Apple's screen,
+> never from CoreCredit, which says "Current period ends" and prints
+> `Transaction.expirationDate` verbatim. What this row is checking is that the two screens agree.
+> A real monthly period can only be seen in production. See `docs/RELEASE.md` §5.
 
 ## 10. Appearance and type
 

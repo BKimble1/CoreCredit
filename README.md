@@ -59,7 +59,7 @@ CoreCredit/
 CoreCreditTests/     Swift Testing unit suites
 CoreCreditUITests/   XCTest UI smoke suites
 StoreKit/            CoreCredit.storekit (local StoreKit configuration)
-docs/                CONTRACTS.md · HANDOFF.md · APP_STORE_REVIEW_NOTES.md · PRIVACY.md
+docs/                CONTRACTS.md · HANDOFF.md · RELEASE.md · APP_STORE_REVIEW_NOTES.md · PRIVACY.md
 ```
 
 `docs/CONTRACTS.md` is the authoritative API contract for the codebase and is worth reading
@@ -146,16 +146,27 @@ Unit tests use **Swift Testing**; UI tests use **XCTest**. UI tests never touch 
 live StoreKit — they launch with `-uiTesting`, which forces an in-memory store and
 deterministic stubs. See `docs/CONTRACTS.md` §7 for the full launch-argument table.
 
-> **Build status:** this repository is authored on a Windows machine with no Swift toolchain, so
-> **Codemagic performs every authoritative build**. The app target, the widget extension, and both
-> test targets compile there, and the unit suite runs there. The UI suite is not wired into either
-> Codemagic workflow and has still never executed. `docs/HANDOFF.md` §1 records exactly what is
-> verified and what is only reasoned about.
+> **Build status:** this repository is authored on machines with no Swift toolchain, so
+> **Codemagic performs every authoritative build**. `corecredit-simulator-build` runs on every
+> push and every pull request, on every branch: it checks the repository invariants, builds the
+> app *and* the embedded widget, then runs the **unit suite and the UI suite** as separate steps
+> and gates on both. Neither suite is excluded, quarantined, or allowed to fail.
+>
+> A result belongs to the commit that produced it. Read it in Codemagic for the commit you care
+> about rather than trusting a count written down here. `docs/HANDOFF.md` §1 separates what was
+> established without a toolchain, what Codemagic establishes, and what only a device or App Store
+> Connect can.
 
 ---
 
 ## Before you ship
 
-Everything the owner must supply — Apple Developer team, final bundle ID, real product setup,
-support and privacy URLs, and the app icon — is listed in **`docs/HANDOFF.md`**.
-All of it is centralised in `CoreCredit/App/AppConfiguration.swift`.
+**`docs/RELEASE.md`** is the authoritative release procedure: which workflow builds, which one
+signs, which one publishes, and in what order. The short version is that publishing is never a
+side effect — `corecredit-testflight` is started by hand, and a repository invariant fails the
+build if any workflow both triggers automatically and publishes.
+
+Identity, product identifiers, and the public addresses are all centralised in
+`CoreCredit/App/AppConfiguration.swift` and are set. What is left for the owner — the widget's
+App ID and provisioning profile, the two App Store Connect subscriptions, and the App Store
+metadata — is listed in **`docs/HANDOFF.md`** §2.

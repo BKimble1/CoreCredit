@@ -29,8 +29,13 @@ import Testing
 struct SubscriptionPeriodPresentationTests {
 
     /// Fixed so an assertion is about the wording and the day, never about the machine's region.
+    ///
+    /// The time zone is the suite's own UTC calendar's, rather than a second one built here: every
+    /// date in this file comes from `TestClock`, and formatting them against a different zone would
+    /// silently shift a day boundary and make an expected string wrong for a reason that has
+    /// nothing to do with subscriptions.
     private static let locale = Locale(identifier: "en_US_POSIX")
-    private static let timeZone = TimeZone(secondsFromGMT: 0) ?? TimeZone.gmt
+    private static let timeZone = TestClock.calendar.timeZone
 
     private static func pro(expiring expiration: Date?) -> Entitlement {
         Entitlement(tier: .pro,
