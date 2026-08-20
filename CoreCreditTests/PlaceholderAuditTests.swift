@@ -116,9 +116,9 @@ struct PlaceholderAuditTests {
         // The exact published addresses, spelled out once. Comparing a value to itself through
         // `AppConfiguration` would pass even if the constants were wrong, which is the whole
         // failure mode a release gate exists to catch.
-        #expect(support.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/support")
-        #expect(privacy.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/privacy")
-        #expect(terms.absoluteString == "https://bkimble1.github.io/CoreCredit-Legal/terms")
+        #expect(support.absoluteString == "https://corecredit.idlery.com/support")
+        #expect(privacy.absoluteString == "https://corecredit.idlery.com/privacy")
+        #expect(terms.absoluteString == "https://corecredit.idlery.com/terms")
     }
 
     @Test("The publisher is the company, never an individual")

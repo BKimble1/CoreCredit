@@ -23,11 +23,16 @@ import UIKit
 ///    to its retry state rather than reporting anything wrong.
 /// 4. `subscriptionGroupIdentifier` — the local `.storekit` group number. Nothing reads it today,
 ///    so it is metadata; replace it if any code starts querying the group directly.
-/// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — SET, and the
-///    three URLs were fetched over HTTPS and returned the intended pages anonymously. They are
-///    served from `BKimble1/CoreCredit-Legal`, a public repository holding nothing but those
-///    static pages; this repository stays private. App Review rejects builds whose support and
-///    privacy URLs do not resolve, so re-check them if the hosting ever moves.
+/// 5. `supportURLString`, `privacyURLString`, `termsURLString`, `supportEmail` — SET. The three
+///    pages are published on the owner's own domain, `corecredit.idlery.com`. The exact HTML that
+///    host is expected to serve is generated into `docs/legal-public/` from the same JSON the app
+///    reads on device, so the published wording and the on-device wording cannot drift.
+///
+///    **Not verified from this repository.** The session that moved these addresses could not
+///    reach the host — its network policy blocks it — so nothing here has seen the pages answer.
+///    App Review rejects a build whose support or privacy URL does not resolve, and that
+///    rejection costs a review cycle. Open all three in a browser before every submission, and
+///    again whenever the hosting moves.
 /// 6. `defaultCurrencyCode` — only if the shop's default ledger currency is not US dollars.
 ///    Individual shops can still override this in Settings; this is only the seed value.
 /// 7. `urlScheme` — must match the `CFBundleURLSchemes` entry in the target's Info settings if
@@ -81,9 +86,9 @@ enum AppConfiguration {
     /// Shown on the About screen and in the bundled documents.
     static let copyrightNotice = "Copyright 2026 Idlery Services LLC"
 
-    static let supportURLString = "https://bkimble1.github.io/CoreCredit-Legal/support"
-    static let privacyURLString = "https://bkimble1.github.io/CoreCredit-Legal/privacy"
-    static let termsURLString   = "https://bkimble1.github.io/CoreCredit-Legal/terms"
+    static let supportURLString = "https://corecredit.idlery.com/support"
+    static let privacyURLString = "https://corecredit.idlery.com/privacy"
+    static let termsURLString   = "https://corecredit.idlery.com/terms"
     static let supportEmail     = "idlery.apps@gmail.com"
 
     /// Version 1 ships to the United States App Store storefront only. Stated here because the

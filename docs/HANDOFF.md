@@ -24,7 +24,7 @@ interchangeable and collapsing them is how a release claims more than it has.
 | Test-only code cannot grant Pro | `StubSubscriptionEngine` construction traced through `AppEnvironment` | **pass** — reachable only when `LaunchOptions.isUITesting`; `-uiTestTier pro` alone does nothing |
 | The free-tier gate is on the save boundary | every `createItem(` call site in shipping code | **pass** — exactly one, in `CoreEditorModel.save`, immediately after `EntitlementPolicy.blockingTrigger` |
 | The word "Renews" has never been in this app | `git log -S Renews --all` over every blob and branch | **pass** — no commit on any branch has ever contained it |
-| Published legal pages match the app's own copies | byte comparison against `BKimble1/CoreCredit-Legal` | **pass** — all four files identical, zero external resources |
+| Published legal pages match the app's own copies | regenerated from `CoreCredit/Resources/Legal/` and compared | **pass** — all four files identical to their source, zero external resources |
 | GitHub Pages deployment for the legal site | GitHub Actions API | **success**, commit `4a5639e` |
 
 ### 2. Executed by Codemagic (automatic, every push and pull request)
@@ -43,7 +43,7 @@ Do not restate a number from a previous run as if it described the current tree.
 | Live camera, live text, document scan, OCR accuracy | a physical device — `docs/DEVICE_ACCEPTANCE.md` |
 | Delivered local notifications | a physical device |
 | Real StoreKit purchase, restore, expiry, grace period | sandbox or TestFlight on a device |
-| That the three public URLs resolve | any browser — this session's network policy blocks `bkimble1.github.io` |
+| That the three public URLs resolve | any browser — this session's network policy blocks `corecredit.idlery.com` |
 | App Store Connect product, agreement, tax and banking state | App Store Connect |
 
 ### 4. What changed about releasing
@@ -104,15 +104,21 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
    `subscriptionGroupIdentifier` is still the local `.storekit` number; nothing reads it.
 4. **Support / privacy / terms URLs — SET.** No longer stand-ins:
 
-   - `https://bkimble1.github.io/CoreCredit-Legal/support`
-   - `https://bkimble1.github.io/CoreCredit-Legal/privacy`
-   - `https://bkimble1.github.io/CoreCredit-Legal/terms`
+   - `https://corecredit.idlery.com/support`
+   - `https://corecredit.idlery.com/privacy`
+   - `https://corecredit.idlery.com/terms`
 
-   Static HTML served from `BKimble1/CoreCredit-Legal`, a public repository holding nothing but
-   those four pages; this repository stays private. The pages carry **no** script, stylesheet, web
-   font, image, cookie, or tracker — checked in the invariant script, and checked again against the
-   published repository during the release gate, where all four files were byte-identical to
-   `docs/legal-public/`. GitHub's Pages deployment for that commit is recorded as successful.
+   Static HTML on the owner's own domain. The pages carry **no** script, stylesheet, web font,
+   image, cookie, or tracker — checked in the invariant script. The generated copies in
+   `docs/legal-public/` are the exact files that host is expected to serve; their navigation is
+   relative rather than root-absolute, so the same four files work from a domain root or a
+   subdirectory.
+
+   **Unverified here.** These three addresses have not been fetched from this repository — the
+   network policy of every session that has edited this file blocks the host. The previous
+   addresses under `bkimble1.github.io/CoreCredit-Legal` *were* verified over HTTPS anonymously on
+   2026-08-17, and that copy still exists as a fallback origin. Open all three before submitting:
+   an unreachable support or privacy URL is a rejection.
 
    `AppConfiguration.isPlaceholder(_:)` stays in place as a guard rather than because anything is
    provisional: it is what keeps a stand-in off the screen if one is ever reintroduced.
