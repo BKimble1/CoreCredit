@@ -477,7 +477,11 @@ extension XCTestCase {
                        file: StaticString = #filePath,
                        line: UInt = #line) -> Bool {
         if element.waitForExistence(timeout: timeout) { return true }
-        XCTFail("Timed out after \(timeout)s waiting for \(description) to appear.",
+        // `XCUIApplication()` rather than a passed-in reference: this helper is called from
+        // dozens of places that have no app in hand, and a fresh proxy addresses the same running
+        // target, which is all a query needs.
+        XCTFail("Timed out after \(timeout)s waiting for \(description) to appear. "
+                + onScreenSummary(in: XCUIApplication()),
                 file: file,
                 line: line)
         return false
@@ -630,6 +634,34 @@ extension XCTestCase {
         }
 
         return element.exists && element.isHittable
+    }
+
+    /// What is on screen right now, for a failure message.
+    ///
+    /// Buttons first, because they name the screen: the Dashboard's tab bar and "Add core", a
+    /// credit sheet's "Save credit", a result card's "Done". Then any sentence-length text, which
+    /// is where an error banner lives — a save that was refused says so on the screen, and a test
+    /// that only reports "the button never appeared" throws that sentence away.
+    ///
+    /// Only ever called on a path that is already failing, so its cost does not matter.
+    func onScreenSummary(in app: XCUIApplication) -> String {
+        let buttons = app.buttons.allElementsBoundByAccessibilityElement
+            .prefix(15)
+            .map { $0.label }
+            .filter { $0.isEmpty == false }
+
+        // Sentences, not labels. A banner's message is long; a row title is not.
+        let sentences = app.staticTexts.allElementsBoundByAccessibilityElement
+            .prefix(40)
+            .map { $0.label }
+            .filter { $0.count > 40 }
+            .prefix(3)
+
+        var summary = "Buttons on screen: " + buttons.joined(separator: " | ")
+        if sentences.isEmpty == false {
+            summary += ". Messages on screen: " + sentences.joined(separator: " // ")
+        }
+        return summary
     }
 
     /// Scrolls a field out from under anything pinned over the bottom of the screen.
@@ -831,6 +863,22 @@ extension XCTestCase {
             scrollUntilHittable(element, in: app)
         }
 
+        // A disabled control is the suite's blind spot. XCTest taps one without complaint and
+        // reports success, so the screen simply does nothing and the test carries on into a state
+        // that makes no sense — twenty lines later something unrelated times out. Four buttons in
+        // this app are conditionally disabled, and "Save credit" and "Create return" are both on
+        // the path these two tests walk.
+        //
+        // This is not a weakened assertion. It is a failure that was already happening, said out
+        // loud at the point it happens.
+        if element.exists && element.isEnabled == false {
+            XCTFail("\(description) is on screen but disabled, so tapping it does nothing. "
+                    + onScreenSummary(in: app),
+                    file: file,
+                    line: line)
+            return
+        }
+
         if element.isHittable == false {
             let expectation = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "hittable == true"),
@@ -932,16 +980,10 @@ extension XCTestCase {
             // XCTest raises "No matches found" from inside `tap()`, naming the query rather than
             // the cause.
             guard element.exists else {
-                let onScreen = app.buttons.allElementsBoundByAccessibilityElement
-                    .prefix(15)
-                    .map { $0.label }
-                    .filter { $0.isEmpty == false }
-                let labels = onScreen.joined(separator: " | ")
-
                 XCTFail("\(description) disappeared between being tapped and being typed into. "
                         + "The tap raised no keyboard, so it never landed on the field — and "
-                        + "whatever it did land on took the field away. Buttons on screen: "
-                        + labels,
+                        + "whatever it did land on took the field away. "
+                        + onScreenSummary(in: app),
                         file: file,
                         line: line)
                 return
@@ -1119,16 +1161,9 @@ extension XCTestCase {
         // or opened with its items published as something neither query looks for. Those are three
         // different bugs. Listing what is actually on screen says which: an open vendor menu always
         // carries "Add new vendor…" alongside the vendor names.
-        let onScreen = app.buttons.allElementsBoundByAccessibilityElement
-            .prefix(15)
-            .map { $0.label }
-            .filter { $0.isEmpty == false }
-
-        let labels = onScreen.joined(separator: " | ")
-
         XCTFail("The menu item \"\(title)\" never appeared. "
                 + "Menu containers on screen: \(app.menus.count). "
-                + "Buttons on screen: \(labels)",
+                + onScreenSummary(in: app),
                 file: file,
                 line: line)
     }
