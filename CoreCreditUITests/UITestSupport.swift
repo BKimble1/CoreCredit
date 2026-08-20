@@ -634,15 +634,47 @@ extension XCTestCase {
                       in app: XCUIApplication,
                       file: StaticString = #filePath,
                       line: UInt = #line) {
+        // Put the keyboard away before reaching for the next field.
+        //
+        // Tapping a second field while the first still holds the keyboard is tapping a moving
+        // target: SwiftUI's keyboard avoidance is scrolling the form, and XCTest aims its
+        // synthesized tap at the frame the element had when the query resolved. The tap lands
+        // somewhere else, the field never takes focus, and `typeText` fails with "Neither element
+        // nor any descendant has keyboard focus".
+        //
+        // That is exactly how both core-editor walkthroughs failed, on the hop from Part name to
+        // Part number — the worst case in this app, because those two fields ask for different
+        // keyboard types, so iOS is tearing down and rebuilding the keyboard at the same moment
+        // the form is scrolling. The accessibility snapshot showed the field present, labelled,
+        // and on screen the whole time; nothing was wrong with it or with the app.
+        //
+        // With no keyboard up the form is stationary, and the tap lands where the query said it
+        // would.
+        dismissKeyboard(in: app)
+
         tapWhenHittable(element, description, in: app, file: file, line: line)
         guard element.exists else { return }
 
+        // The keyboard is the proof that the tap took focus — no field on any of these screens
+        // raises one without being focused. Checked rather than assumed, and answered with one
+        // bounded re-tap rather than a sleep: by now the form has finished settling, so the
+        // second tap lands on a stationary field.
+        if app.keyboards.firstMatch.waitForExistence(timeout: UITestTimeout.short) == false {
+            element.tap()
+            guard app.keyboards.firstMatch.waitForExistence(timeout: UITestTimeout.standard) else {
+                XCTFail("The keyboard never appeared after tapping \(description), so there was "
+                        + "nothing focused to type into.",
+                        file: file,
+                        line: line)
+                return
+            }
+        }
+
+        // One `typeText`, not two. Every extra call is another opportunity for focus to move
+        // between clearing the field and refilling it.
         let reported = (element.value as? String) ?? ""
         let deletions = min(reported.count + 2, 64)
-        if deletions > 0 {
-            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: deletions))
-        }
-        element.typeText(text)
+        element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: deletions) + text)
     }
 
     /// Resigns the keyboard without dismissing the screen behind it.
