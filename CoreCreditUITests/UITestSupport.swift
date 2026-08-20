@@ -999,11 +999,43 @@ extension XCTestCase {
             }
         }
 
+        // Put the caret at the end before deleting anything.
+        //
+        // iOS drops the caret where the finger lands. `tapWhenHittable` taps the centre of a
+        // field, which for an *empty* one is the same as the end — and every field in this suite
+        // was empty until the credit sheet, whose amount arrives pre-filled with the expected
+        // credit. Tapping the middle of "86.50" left the caret after "86", the deletes ate
+        // backwards from there, and the typed text landed in front of what was left: "86.50.50",
+        // which is not a number. The app said so plainly and disabled Save; the suite could not
+        // see either, and spent a run finding out.
+        //
+        // The right-hand edge is past the last character whichever way a field is aligned — the
+        // money fields are trailing-aligned so the text ends there, and the leading-aligned ones
+        // have empty space there. Either way the caret lands at the end.
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+
         // One `typeText`, not two. Every extra call is another opportunity for focus to move
         // between clearing the field and refilling it.
+        //
+        // The count is an upper bound, not a length: several fields override their accessibility
+        // value — `CurrencyTextField` reports "$86.50", the vendor window its clamped integer, an
+        // empty field its placeholder — and a delete against an empty field does nothing. The
+        // floor is there because a short reported value is not proof of a short field.
         let reported = (element.value as? String) ?? ""
-        let deletions = min(reported.count + 2, 64)
+        let deletions = min(max(reported.count + 4, 16), 64)
         element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: deletions) + text)
+
+        // And check it went in. Typing is the one step in this file that can half-succeed: the
+        // field keeps focus, no query fails, and the wrong value sits there until something far
+        // away refuses to accept it. Every field either reports what it holds or a decorated form
+        // of it, so containment is the honest test.
+        let afterTyping = (element.value as? String) ?? ""
+        if afterTyping.contains(text) == false {
+            XCTFail("\(description) reads \"\(afterTyping)\" after typing \"\(text)\" into it. "
+                    + "The field was not cleared before the new value went in.",
+                    file: file,
+                    line: line)
+        }
     }
 
     /// Resigns the keyboard without dismissing the screen behind it.
