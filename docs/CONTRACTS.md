@@ -47,10 +47,15 @@ and pure `enum` namespaces should be `Sendable` where free.
 ```swift
 import Foundation
 
-/// Single place to change the working name, identifiers, and placeholder URLs before release.
+/// Single place to change the working name, identifiers, and public addresses.
+///
+/// This block records the *shape* of the contract — which constants exist and what reads them.
+/// The values below are the shipping ones as of the final release gate; `AppConfiguration.swift`
+/// is the source of truth, and it carries the reasoning for each. The public addresses were
+/// stand-ins during development and are not any more.
 enum AppConfiguration {
     static let displayName = "CoreCredit"
-    static let bundleIdentifier = "com.example.corecredit"
+    static let bundleIdentifier = "com.blakekimble.corecredit"
 
     // MARK: StoreKit — must match StoreKit/CoreCredit.storekit and App Store Connect
     static let monthlyProductID = "com.blakekimble.corecredit.pro.monthly"
@@ -58,11 +63,12 @@ enum AppConfiguration {
     static let subscriptionGroupIdentifier = "21500000"
     static var subscriptionProductIDs: [String] { [monthlyProductID, annualProductID] }
 
-    // MARK: Placeholder URLs — owner must replace before submission
-    static let supportURLString = "https://example.com/corecredit/support"
-    static let privacyURLString = "https://example.com/corecredit/privacy"
-    static let termsURLString   = "https://example.com/corecredit/terms"
-    static let supportEmail     = "support@example.com"
+    // MARK: Publisher and public addresses — configured, served as static HTML over HTTPS
+    static let companyName = "Idlery Services LLC"
+    static let supportURLString = "https://bkimble1.github.io/CoreCredit-Legal/support"
+    static let privacyURLString = "https://bkimble1.github.io/CoreCredit-Legal/privacy"
+    static let termsURLString   = "https://bkimble1.github.io/CoreCredit-Legal/terms"
+    static let supportEmail     = "idlery.apps@gmail.com"
 
     static let fallbackURL = URL(fileURLWithPath: "/")
     static var supportURL: URL { URL(string: supportURLString) ?? fallbackURL }

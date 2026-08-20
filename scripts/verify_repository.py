@@ -653,6 +653,85 @@ def check_project_file():
     note("pbxproj: parses, and all four targets use synchronized folder groups")
 
 
+# ------------------------------------------------------- 17. releasing is never a side effect
+
+
+def codemagic_workflow_keys():
+    """The keys declared directly under each workflow in `codemagic.yaml`.
+
+    A deliberately tiny reader rather than PyYAML: this script's contract is "Python 3 and no other
+    dependency", and the shape being read is two levels of plain mapping keys. Comment lines are
+    skipped, which matters — the file *talks about* `triggering:` in prose.
+    """
+    workflows = {}
+    current = None
+    inside = False
+
+    for line in read("codemagic.yaml").replace(CRLF, LF).split(LF):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        if re.match(r"^workflows:\s*$", line):
+            inside = True
+            continue
+        if not inside:
+            continue
+        if re.match(r"^[A-Za-z0-9_-]+:", line):
+            # A new top-level key ends the workflows mapping.
+            inside = False
+            continue
+
+        named = re.match(r"^  ([A-Za-z0-9_.-]+):\s*$", line)
+        if named:
+            current = named.group(1)
+            workflows[current] = set()
+            continue
+
+        key = re.match(r"^    ([A-Za-z0-9_-]+):", line)
+        if key and current is not None:
+            workflows[current].add(key.group(1))
+
+    return workflows
+
+
+def check_release_is_never_a_side_effect():
+    """No workflow may both start by itself and publish to App Store Connect.
+
+    `corecredit-testflight` used to trigger on every push to `main`. That made *merging* a release
+    action: a documentation fix, an audit, a typo — anything landing on the shipping branch sent a
+    new build to TestFlight, advancing the build number for a release nobody decided to cut.
+
+    Publishing has to be a decision somebody makes. Gating — building, testing — should be
+    automatic. This check keeps the two apart, because the failure is entirely silent: re-adding a
+    `triggering:` block breaks nothing, produces no warning, and is only noticed by testers
+    receiving a build.
+    """
+    workflows = codemagic_workflow_keys()
+    if not workflows:
+        fail("release triggers",
+             "no workflows parsed from codemagic.yaml — either the file or this reader changed "
+             "shape, and the check is no longer guarding anything")
+        return
+
+    for name in sorted(workflows):
+        keys = workflows[name]
+        if "publishing" in keys and "triggering" in keys:
+            fail("release triggers",
+                 "workflow '%s' both triggers automatically and publishes. Merging would ship a "
+                 "build as a side effect. Drop its `triggering:` block and start it by hand — see "
+                 "docs/RELEASE.md." % name)
+
+    publishing = sorted(name for name in workflows if "publishing" in workflows[name])
+    if not publishing:
+        fail("release triggers",
+             "no workflow publishes at all — the release path is gone, not merely gated")
+        return
+
+    note("release triggers: %d workflows, %d publishing (%s), none self-triggering"
+         % (len(workflows), len(publishing), ", ".join(publishing)))
+
+
 def main():
     check_identifier_mirror()
     check_identifier_references_resolve()
@@ -670,6 +749,7 @@ def main():
     check_multiline_string_literals()
     check_module_imports()
     check_project_file()
+    check_release_is_never_a_side_effect()
 
     print("CoreCredit repository invariants")
     print("=" * 72)

@@ -141,11 +141,14 @@ private struct SubscriptionStatusContent: View {
             VStack(alignment: .leading, spacing: Spacing.s) {
                 LabeledValueRow("Current plan", value: controller.entitlement.tier.displayName)
 
-                if let expiration = controller.entitlement.expirationDate {
-                    LabeledValueRow(
-                        "Current period ends",
-                        value: expiration.formatted(date: .abbreviated, time: .omitted)
-                    )
+                // Wording and tense live in `SubscriptionPeriodPresentation`, so the one sentence
+                // this app says about a paid period is a thing the test suite can pin. The date is
+                // the store's own `expirationDate`, formatted and never computed.
+                if let period = SubscriptionPeriodPresentation.row(
+                    for: controller.entitlement,
+                    now: Date()
+                ) {
+                    LabeledValueRow(period.label, value: period.value)
                 }
 
                 if controller.isPro {

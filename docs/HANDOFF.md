@@ -2,54 +2,57 @@
 
 ## 1. The one thing to know first
 
-This repository is authored on a Windows machine with **no Swift toolchain** — `swift`, `swiftc`,
-`xcodebuild`, `xcrun`, and every simulator are absent, confirmed again at the start of the final
-production sweep. **Codemagic performs every authoritative build.** Nothing below is claimed as
-verified unless something actually executed and produced the result.
+CoreCredit is authored on machines with **no Swift toolchain** — `swift`, `swiftc`, `xcodebuild`,
+`xcrun`, and every simulator are absent. This was confirmed again at the start of the final App
+Store release gate, on a Linux container. **Codemagic performs every authoritative build.**
 
-### What was executed during the final production sweep
+Nothing in this repository is called verified unless something actually executed and produced the
+result. The four kinds of evidence below are kept apart on purpose, because they are not
+interchangeable and collapsing them is how a release claims more than it has.
+
+### 1. Executed here, on a machine with no toolchain
 
 | Check | How | Result |
 |---|---|---|
-| The three public legal URLs resolve over HTTPS, anonymously | `curl` | **pass** — `/support` 200 (7,652 B), `/privacy` 200 (12,448 B), `/terms` 200 (13,622 B) |
-| GitHub Pages build for `BKimble1/CoreCredit-Legal` | Pages API | **built** |
-| 12 repository invariants | `python3 scripts/verify_repository.py` | **all 12 hold** |
-| The SwiftData guard actually catches a non-additive change | simulated a rename of `Vendor.name` | **pass** — failed with the freeze-the-schemas message, file restored |
-| Legal pages match their generated source, and carry no tracker | in the invariant script | **pass** |
-| Every WCAG ratio in `PaletteThemeTests` and `LaunchScreenTests` | independent implementation of the WCAG 2.1 formulas over the shipping hex | **0 failures** across light, dark, and both with Increase Contrast |
-| Brace/paren balance, string- and comment-aware | custom Swift scanner | **pass** — all files |
-| Banned constructs (`fatalError`, `try!`, `as!`, `TODO`) | invariant script | **pass** — zero |
+| 17 repository invariants | `python3 scripts/verify_repository.py` | **all 17 hold** |
+| App icon is 1024x1024, opaque, no alpha channel | PNG `IHDR`/`tRNS` chunks parsed directly | **pass** — 1024x1024, 8-bit RGB, no alpha, no `tRNS` |
+| No `.storekit` file can reach a shipping bundle | all four `PBXResourcesBuildPhase` blocks read | **pass** — every one is empty; the file is a scheme reference only |
+| No third-party code of any kind | pbxproj, `Package.resolved`, Podfile, Cartfile, embedded binaries | **pass** — zero SPM/CocoaPods/Carthage dependencies, zero embedded frameworks |
+| No network code in the app or the widget | source sweep for `URLSession`, `WKWebView`, `URLRequest`, `dataTask` | **pass** — none. Nothing but StoreKit talks to a server |
+| No privacy-sensitive API beyond camera and notifications | sweep for location, contacts, calendar, Health, Motion, microphone, Bluetooth, ATT, IDFA, PhotoKit | **pass** — `AVCaptureDevice` for `.video` only; `PhotosPicker` out of process; no `import Photos` |
+| No console logging in shipping code | sweep for `print`, `NSLog`, `debugPrint`, `os_log`, `Logger` | **pass** — zero |
+| Test-only code cannot grant Pro | `StubSubscriptionEngine` construction traced through `AppEnvironment` | **pass** — reachable only when `LaunchOptions.isUITesting`; `-uiTestTier pro` alone does nothing |
+| The free-tier gate is on the save boundary | every `createItem(` call site in shipping code | **pass** — exactly one, in `CoreEditorModel.save`, immediately after `EntitlementPolicy.blockingTrigger` |
+| The word "Renews" has never been in this app | `git log -S Renews --all` over every blob and branch | **pass** — no commit on any branch has ever contained it |
+| Published legal pages match the app's own copies | byte comparison against `BKimble1/CoreCredit-Legal` | **pass** — all four files identical, zero external resources |
+| GitHub Pages deployment for the legal site | GitHub Actions API | **success**, commit `4a5639e` |
 
-### What was NOT executed, and therefore is not claimed
+### 2. Executed by Codemagic (automatic, every push and pull request)
 
-| Thing | State |
+`corecredit-simulator-build` builds the app and the embedded widget for the simulator and runs
+**both** test suites, gating on each. Its result for any given commit is in Codemagic, not here.
+Do not restate a number from a previous run as if it described the current tree.
+
+### 3. Not executed anywhere from an authoring machine — by nature, not by omission
+
+| Thing | Where it can be established |
 |---|---|
-| Compiling any of the code written in this sweep | **not done** — no toolchain on this machine |
-| `CoreCreditTests` | **not run in this sweep** |
-| `CoreCreditUITests` | **still never executed anywhere** |
-| Signed archive | **not produced** |
-| TestFlight upload | **not performed** |
-| Any screenshot of the running app | **none exists** |
+| Compiling anything | Codemagic — `corecredit-simulator-build` |
+| Release-configuration build, signing, archive | Codemagic — `corecredit-release-archive` (added by the release gate; publishes nothing) |
+| `CoreCreditTests` / `CoreCreditUITests` results | Codemagic — same simulator workflow |
+| Live camera, live text, document scan, OCR accuracy | a physical device — `docs/DEVICE_ACCEPTANCE.md` |
+| Delivered local notifications | a physical device |
+| Real StoreKit purchase, restore, expiry, grace period | sandbox or TestFlight on a device |
+| That the three public URLs resolve | any browser — this session's network policy blocks `bkimble1.github.io` |
+| App Store Connect product, agreement, tax and banking state | App Store Connect |
 
-The last authoritative *compile* was Codemagic's build of an earlier commit on `main`
-(260 unit tests in 23 suites, all passing). Everything added since — the whole UX pass, the
-appearance rework, the launch screen, backup restore, the barcode card, and the new test suites —
-**has never been through a compiler.** Treat a first Codemagic run on this branch as the real
-smoke test, and expect the usual first-compile class of error: SwiftUI modifier spellings, actor
-isolation, and SwiftData API details.
+### 4. What changed about releasing
 
-### Why nothing was merged
-
-The brief for this sweep says not to merge until the branch compiles and the complete automated
-suite passes. Neither could be established from here: this machine has no toolchain, no Codemagic
-API token is present, and GitHub reports **zero check runs** on the repository, so CI can neither
-be triggered nor observed. Merging would have meant asserting a gate that had not been evaluated.
-`main` is also wired to publish to TestFlight on push, so a merge is a release action, not an
-integration one.
-
-**The smallest owner action that unblocks everything:** open Codemagic, run
-`corecredit-simulator-build` against `ux/final-polish-pass`, and fix or report what it says. That
-workflow now runs the unit suite *and* the UI suite and gates on both.
+`main` no longer publishes to TestFlight on push. `corecredit-testflight` has no `triggering:`
+block: it is started by hand, and a repository invariant now fails the build if any workflow both
+triggers automatically and publishes. Merging is an integration action again. See
+**`docs/RELEASE.md`** for the release procedure, and run `corecredit-release-archive` to prove
+signing without spending a build number.
 
 ---
 
@@ -99,12 +102,32 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
    Prices: **US $14.99/month** and **US $119.99/year**, held only in the `.storekit` file and App
    Store Connect. There is no price string in any Swift source, by design.
    `subscriptionGroupIdentifier` is still the local `.storekit` number; nothing reads it.
-4. **Support / privacy / terms URLs.** All three point at `example.com`. The About screen
-   visibly marks them as placeholders; replace them with live pages.
+4. **Support / privacy / terms URLs — SET.** No longer stand-ins:
+
+   - `https://bkimble1.github.io/CoreCredit-Legal/support`
+   - `https://bkimble1.github.io/CoreCredit-Legal/privacy`
+   - `https://bkimble1.github.io/CoreCredit-Legal/terms`
+
+   Static HTML served from `BKimble1/CoreCredit-Legal`, a public repository holding nothing but
+   those four pages; this repository stays private. The pages carry **no** script, stylesheet, web
+   font, image, cookie, or tracker — checked in the invariant script, and checked again against the
+   published repository during the release gate, where all four files were byte-identical to
+   `docs/legal-public/`. GitHub's Pages deployment for that commit is recorded as successful.
+
+   `AppConfiguration.isPlaceholder(_:)` stays in place as a guard rather than because anything is
+   provisional: it is what keeps a stand-in off the screen if one is ever reintroduced.
+
+   **Still worth thirty seconds before submitting:** open all three in a browser. App Review opens
+   the privacy and support URLs, and a 404 is a rejection. The URLs are extensionless
+   (`/privacy`, not `/privacy.html`) and depend on GitHub Pages resolving them; the release gate
+   could not confirm that from its own network.
 5. **App icon — supplied.** `AppIcon.appiconset/AppIcon.png` is real 1024×1024 artwork
    (opaque, no alpha channel, metadata stripped) and `Contents.json` references it. Nothing is
    required here before submission; replace the PNG in place if the branding changes.
-6. **Support email.** `AppConfiguration.supportEmail` is `support@example.com`.
+6. **Support email — SET.** `AppConfiguration.supportEmail` is `idlery.apps@gmail.com`, matching
+   the address printed on the published support page. The publisher is
+   `AppConfiguration.companyName` — **Idlery Services LLC** — which is the name in the legal
+   documents, on the public pages, and expected as the App Store seller.
 
 ### Recommended
 
