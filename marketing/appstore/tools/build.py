@@ -18,6 +18,7 @@ import statusbar
 import top_cleanup
 import bottom_cleanup
 import compose
+import spotlight
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 FONTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
@@ -32,9 +33,23 @@ CAPTURES = {
     "image4.PNG": dict(out="Returns_Marketing.png", top=True,
                        separator=1816, through_bar=True),
 }
-TEMPLATE_BG = "CoreCredit_AppStore_03_Refined_Background.png"
-TEMPLATE_OV = "CoreCredit_AppStore_03_Refined_Device_Overlay.png"
-OUTPUT = "CoreCredit_AppStore_03_Track_Every_Core.png"
+# Each finished gallery image: its template's two layers, the marketing capture
+# that goes in the phone, and any zoom callout set over the composite. A
+# callout names the row it magnifies as a box in the capture, plus the width and
+# right edge it takes on the canvas; where it lands vertically follows from the
+# row's own position, which the compositing report fixes exactly.
+GALLERY = [
+    dict(bg="CoreCredit_AppStore_03_Refined_Background.png",
+         ov="CoreCredit_AppStore_03_Refined_Device_Overlay.png",
+         shot="Cores_Marketing.png",
+         out="CoreCredit_AppStore_03_Track_Every_Core.png"),
+    dict(bg="CoreCredit_AppStore_04_Refined_Background.png",
+         ov="CoreCredit_AppStore_04_Refined_Device_Overlay.png",
+         shot="Returns_Marketing.png",
+         out="CoreCredit_AppStore_04_Track_Every_Step.png",
+         # the second row under Open returns: Fleet line Diesel, $180.00
+         callout=dict(source=(41, 975, 905, 1103), width=1090, right=1190)),
+]
 EXPECTED_CANVAS = (1290, 2796)
 
 
@@ -63,10 +78,22 @@ def main():
             if tmp != src:
                 os.remove(tmp)
 
-    report[OUTPUT] = compose.compose(TEMPLATE_BG, TEMPLATE_OV,
-                                     "Cores_Marketing.png", OUTPUT)
-    if tuple(report[OUTPUT]["canvas"]) != EXPECTED_CANVAS:
-        raise SystemExit(f"canvas is {report[OUTPUT]['canvas']}, expected {EXPECTED_CANVAS}")
+    for image in GALLERY:
+        out = image["out"]
+        callout = image.get("callout")
+        target = out + ".compose.tmp.png" if callout else out
+        entry = report[out] = {"composite": compose.compose(
+            image["bg"], image["ov"], image["shot"], target)}
+        if callout:
+            entry["callout"] = spotlight.place(
+                target, image["shot"], out,
+                aperture_top=entry["composite"]["aperture"]["top"],
+                scale=entry["composite"]["scale"], **callout)
+            os.remove(target)
+        if tuple(entry["composite"]["canvas"]) != EXPECTED_CANVAS:
+            raise SystemExit(
+                f"{out} canvas is {entry['composite']['canvas']}, "
+                f"expected {EXPECTED_CANVAS}")
 
     print(json.dumps(report, indent=2, default=str))
 

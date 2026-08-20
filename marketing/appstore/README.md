@@ -9,11 +9,12 @@ template layer is ever modified.
 | File | Role |
 | --- | --- |
 | `Dashboard.png`, `Cores.png`, `image4.PNG` | raw device captures, 946 × 2048 (**sources — do not edit**) |
-| `CoreCredit_AppStore_03_Refined_Background.png` | Image 3 gradient, copy, device body, shadow (**template**) |
-| `CoreCredit_AppStore_03_Refined_Device_Overlay.png` | Image 3 frame, highlights, buttons; transparent over the screen (**template**) |
-| `CoreCredit_AppStore_03_Refined_Template.png` | Image 3 template preview with the placeholder screen (**template**) |
+| `CoreCredit_AppStore_0N_Refined_Background.png` | image N's gradient, copy, device body, shadow (**template**) |
+| `CoreCredit_AppStore_0N_Refined_Device_Overlay.png` | image N's frame, highlights, buttons; transparent over the screen (**template**) |
+| `CoreCredit_AppStore_0N_Refined_Template.png` | image N's template preview with the placeholder screen (**template**) |
 | `Dashboard_Marketing.png`, `Cores_Marketing.png`, `Returns_Marketing.png` | the captures with the marketing status bar and the edge cleanups (**generated**) |
 | `CoreCredit_AppStore_03_Track_Every_Core.png` | finished Image 3, 1290 × 2796 (**generated**) |
+| `CoreCredit_AppStore_04_Track_Every_Step.png` | finished Image 4, 1290 × 2796 (**generated**) |
 
 ## Build
 
@@ -61,13 +62,30 @@ back identical.
 
 4. **`compose.py` — the template.**
    The screen aperture is flood-filled out of the overlay's alpha channel, so no
-   geometry is eyeballed. The screenshot is scaled uniformly by the aperture's
-   height and anchored at its top-left; the phone's intended right-hand crop is
-   whatever the canvas edge takes.
+   geometry is eyeballed. The screenshot is scaled by one factor on both axes,
+   the larger of the two the aperture asks for, and anchored at the aperture's
+   top-left. That fills the aperture whole and leaves the crop where the template
+   put it: Image 3 stands its phone at the right and takes the far side off the
+   canvas edge, Image 4 stands it centred and takes the bottom.
 
-## Image 3 numbers
+5. **`spotlight.py` — the zoom callout.**
+   One row is lifted straight out of the marketing capture, enlarged and set back
+   down on the composite as a blue-bordered card centred on the row it came from.
+   Nothing is redrawn, so the vendor, amount, handoff, date and reference read
+   exactly as the app rendered them.
 
-Aperture 692, 312, 2167 px tall; 598 px of it on canvas. Screenshot 946 × 2048
-scaled ×1.058105 to 1001 × 2167 — the same factor on both axes, so nothing is
-stretched. Nothing is cropped vertically; 403 px (40.3 %) of the width falls off
-the right edge, which is the template's intended device crop.
+## Numbers
+
+**Image 3.** Aperture 692, 312, 2167 px tall; 598 px of it on canvas. Screenshot
+946 × 2048 scaled ×1.058105 to 1001 × 2167 — the same factor on both axes, so
+nothing is stretched. Nothing is cropped vertically; 403 px (40.3 %) of the width
+falls off the right edge, which is the template's intended device crop.
+
+**Image 4.** Aperture 145, 670, 1000 px wide and 2126 px tall, the phone standing
+centred with the canvas taking its bottom. Screenshot 946 × 2048 scaled
+×1.057082 to 1000 × 2165 — again one factor on both axes. Nothing is cropped
+horizontally; 39 px (1.8 %) falls off the bottom, all of it below the tab bar.
+The callout takes the second row under *Open returns* — Fleet line Diesel,
+$180.00 — from 41, 975 to 905, 1103 in the capture, enlarges it ×1.2477 (×1.18
+against the screen behind it) and sets it across the device's own width, 100 to
+1190, centred on the row at 1682–1854. It clears the ink of the rows either side.
