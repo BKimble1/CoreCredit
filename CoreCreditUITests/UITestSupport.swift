@@ -632,6 +632,39 @@ extension XCTestCase {
         return element.exists && element.isHittable
     }
 
+    /// Waits until an element's frame stops changing.
+    ///
+    /// A tap is aimed at the frame the query resolved, and anything animating moves the target
+    /// between the aim and the landing: a section expanding, keyboard avoidance scrolling the
+    /// form, a sheet settling. The tap then lands on whatever has moved into that spot.
+    ///
+    /// That is not a theory. The invoice field was tapped while the References section it lives in
+    /// was still opening; the tap landed on the section header instead, which closed the section
+    /// again. The field raised no keyboard because it was never focused, and by the time the
+    /// helper re-tapped it, it no longer existed — reported as "No matches found" three seconds
+    /// and twenty lines away from what actually happened.
+    ///
+    /// Nothing sleeps. Each `frame` is an IPC round trip, so two identical consecutive readings
+    /// mean the layout has held still across two of them, and the loop paces itself.
+    func waitForFrameToSettle(_ element: XCUIElement, timeout: TimeInterval = UITestTimeout.short) {
+        let deadline = Date().addingTimeInterval(timeout)
+        var previous: CGRect?
+        var stableReadings = 0
+
+        repeat {
+            guard element.exists else { return }
+            let current = element.frame
+
+            if previous == current {
+                stableReadings += 1
+                if stableReadings >= 2 { return }
+            } else {
+                stableReadings = 0
+            }
+            previous = current
+        } while Date() < deadline
+    }
+
     /// The vertical span of the screen a control has to sit in before it can be tapped.
     ///
     /// Not the whole window. A navigation bar sits over the top of every screen in this app, and
@@ -752,6 +785,11 @@ extension XCTestCase {
         // A no-op when there is no keyboard up: `dismissKeyboard(in:)` returns immediately.
         dismissKeyboard(in: app)
 
+        // Then let it stop moving. `requireExists` is satisfied the instant an element enters the
+        // tree, which for anything inside a section that is still opening is several hundred
+        // milliseconds before it arrives where it is going.
+        waitForFrameToSettle(element)
+
         if element.isHittable == false {
             scrollUntilHittable(element, in: app)
         }
@@ -849,6 +887,26 @@ extension XCTestCase {
         // bounded re-tap rather than a sleep: by now the form has finished settling, so the
         // second tap lands on a stationary field.
         if app.keyboards.firstMatch.waitForExistence(timeout: UITestTimeout.short) == false {
+            // A field that has gone missing since it was tapped is a different problem from a
+            // field that will not take focus, and re-tapping it reports the first as the second:
+            // XCTest raises "No matches found" from inside `tap()`, naming the query rather than
+            // the cause.
+            guard element.exists else {
+                let onScreen = app.buttons.allElementsBoundByAccessibilityElement
+                    .prefix(15)
+                    .map { $0.label }
+                    .filter { $0.isEmpty == false }
+                let labels = onScreen.joined(separator: " | ")
+
+                XCTFail("\(description) disappeared between being tapped and being typed into. "
+                        + "The tap raised no keyboard, so it never landed on the field — and "
+                        + "whatever it did land on took the field away. Buttons on screen: "
+                        + labels,
+                        file: file,
+                        line: line)
+                return
+            }
+
             element.tap()
             guard app.keyboards.firstMatch.waitForExistence(timeout: UITestTimeout.standard) else {
                 XCTFail("The keyboard never appeared after tapping \(description), so there was "
