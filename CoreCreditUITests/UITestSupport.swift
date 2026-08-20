@@ -641,7 +641,18 @@ extension XCTestCase {
     func reachableBand(of app: XCUIApplication) -> ClosedRange<CGFloat> {
         let frame = app.frame
         let top = frame.minY + 96
-        let bottom = frame.maxY - 140
+
+        // 120 covers the tallest thing this app pins to the bottom of a screen: the core editor's
+        // Save bar, which is a 44pt button, its padding, and the home indicator underneath it.
+        // The previous 140 was a guess with no measurement behind it, and it cost a run — the
+        // References header steered to a centre of 715.33 against a floor of 704 and was called
+        // out of reach eleven points short.
+        var bottom = frame.maxY - 120
+
+        // A keyboard is not scrollable out of the way, so while one is up it *is* the floor.
+        if app.keyboards.count > 0 {
+            bottom = min(bottom, app.keyboards.firstMatch.frame.minY - 8)
+        }
 
         // A window too short to have a band at all would make the range itself invalid.
         guard bottom > top else { return frame.midY...frame.midY }
@@ -867,7 +878,11 @@ extension XCTestCase {
         let keyboardDone = app.toolbars.buttons["Done"].firstMatch
         if keyboardDone.exists && keyboardDone.isHittable {
             keyboardDone.tap()
-            return
+            // Checked, not assumed. This used to return here, and for one field it was wrong: the
+            // expected-credit keyboard had a Done above it that did not dismiss it, so everything
+            // afterwards ran against a screen with three hundred points of keyboard across the
+            // bottom of it while believing it had none.
+            if keyboardIsGone(in: app) { return }
         }
 
         // A sheet leaves the presenting screen's navigation bar in the tree behind it, so the
@@ -875,8 +890,20 @@ extension XCTestCase {
         for navigationBar in app.navigationBars.allElementsBoundByIndex
         where navigationBar.exists && navigationBar.isHittable {
             navigationBar.tap()
-            return
+            if keyboardIsGone(in: app) { return }
         }
+    }
+
+    /// Whether the keyboard has finished going away.
+    ///
+    /// Polled rather than slept on, and bounded: a keyboard that is still up after this really is
+    /// still up, and the caller is better off finding that out than waiting on it.
+    private func keyboardIsGone(in app: XCUIApplication) -> Bool {
+        let deadline = Date().addingTimeInterval(UITestTimeout.short)
+        repeat {
+            if app.keyboards.count == 0 { return true }
+        } while Date() < deadline
+        return false
     }
 }
 
