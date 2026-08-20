@@ -101,7 +101,16 @@ final class NotificationSettingsUITests: XCTestCase {
             // value the title and body a real reminder would carry. With details off it must not
             // name the part, the vendor, or the amount — this seed's walkthrough ledger holds an
             // alternator from NAPA at 86.50, so any of those appearing here would be the leak.
+            //
+            // Scrolled to, for the same reason `requireDeepControl` scrolls to the switch above
+            // it: this form is lazy, and the preview sits *below* the switch — so a scroll that
+            // stopped the moment the switch materialised need not have brought the preview with
+            // it. The assertions below are unchanged; this only gets the element on screen.
             let preview = element(app, labelled: "Example alert")
+            XCTAssertTrue(
+                scrollUntilExists(preview, in: app),
+                "The example alert preview never appeared, even after scrolling the reminder form."
+            )
             requireExists(preview, "the example alert preview")
 
             let spoken = accessibilityText(of: preview)

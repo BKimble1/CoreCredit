@@ -106,11 +106,14 @@ workflows:
           echo "--- Recorded test issues ---"
           grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
 
+          echo "--- Failing test cases, for any XCTest case in this bundle ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 40 || echo "(none)"
+
           echo "--- Build errors ---"
           grep -aE '\.swift:[0-9]+(:[0-9]+)?: error:' "$LOG" | head -n 40 || echo "(none)"
 
           echo "--- Run summary ---"
-          grep -a "Test run with" "$LOG" | tail -n 5 || echo "(none)"
+          grep -aE "Executed [0-9]+ test|Test run with" "$LOG" | tail -n 5 || echo "(none)"
           echo "==============================================="
           echo "xcodebuild exit status: $STATUS"
           exit $STATUS
@@ -158,14 +161,27 @@ workflows:
 
           echo ""
           echo "=============== UI TEST FAILURE SUMMARY ==============="
+
+          # The definitive list, and the first thing to read.
+          #
+          # Every class here sets `continueAfterFailure = false`, so one failing test records
+          # exactly one failure — which means this list and the "with N failures" total below must
+          # agree. When they did not, the difference was tests that *threw* rather than asserted:
+          # `try requireDeepControl(...)` and `try XCTUnwrap(...)` report `threw error`, which the
+          # old "error: ... failed" pattern could not match. Two failures went unnamed for two
+          # whole cycles because of it.
+          echo "--- Failing test cases (one line per failing test) ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 60 || echo "(none)"
+
+          echo "--- Failure detail (asserted and thrown alike) ---"
+          grep -aE "error: -\[" "$LOG" | head -n 60 || echo "(none)"
+
           echo "--- Recorded test issues ---"
           grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
-          echo "--- XCTest failures ---"
-          grep -aE "^.*: error: .*failed" "$LOG" | head -n 40 || echo "(none)"
           echo "--- Timed-out waits (the usual shape of a UI failure here) ---"
           grep -a "Timed out after" "$LOG" | head -n 30 || echo "(none)"
           echo "--- Run summary ---"
-          grep -a "Test run with" "$LOG" | tail -n 5 || echo "(none)"
+          grep -aE "Executed [0-9]+ test" "$LOG" | tail -n 5 || echo "(none)"
           echo "======================================================"
           echo "xcodebuild exit status: $STATUS"
 
