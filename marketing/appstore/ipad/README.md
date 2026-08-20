@@ -62,8 +62,13 @@ exist in the captures themselves — no app UI is redrawn and no data is invente
    background, so it keeps its antialiasing and shows no patch.
 
 3. **Alternator — the `Delete core` ghost.** A blurred red menu item was
-   bleeding through the nav bar above the title. That band is flat per row, so
-   it is refilled from its own background.
+   bleeding through the nav bar above the title, across rows 24-77. Only rows up
+   to about 52 are perfectly flat; below that the bar carries a fine dither, so
+   the band is rebuilt by copying clean pixels from the *same rows* further
+   along the bar. A per-row median would have been perfectly smooth and read as
+   a hole punched in that texture with visible ends, which is what an earlier
+   revision did; copying real pixels keeps both the row background and the
+   grain, and a discontinuity in noise is invisible.
 
    The back button is left exactly where the app puts it. Giving it more
    breathing room means moving it, and it cannot be moved without leaving a

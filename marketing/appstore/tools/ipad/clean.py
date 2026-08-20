@@ -81,6 +81,20 @@ def fill_vgrad(a, y0, y1, x0, x1, keep=()):
         a[by0:by1, bx0:bx1, :] = np.clip(bg[:, None, :] + delta, 0, 255)
 
 
+def fill_copy(a, y0, y1, x0, x1, src_x0):
+    """
+    Replace a rectangle with a clean stretch of the *same rows*, taken from
+    elsewhere on the row.
+
+    Preferred over fill_flat wherever the background carries fine dither: a
+    per-row median is perfectly smooth, so it reads as a hole punched in the
+    texture with visible ends. Copying real pixels from the same rows keeps both
+    the exact row background and the grain, and a discontinuity in noise is
+    invisible.
+    """
+    a[y0:y1, x0:x1, :] = a[y0:y1, src_x0:src_x0 + (x1 - x0), :]
+
+
 def paste_delta(dst, src, sy0, sy1, sx0, sx1, tx0, src_xs, dst_xs):
     """
     Copy a glyph as a *difference from its own background*, then re-apply that
@@ -153,6 +167,10 @@ NAV_XS = list(range(950, 1330))        # flat stretch of the Alternator nav bar
 def clean_alternator(a):
     """Drop the blurred 'Delete core' ghost bleeding through the nav bar.
 
+    The ghost spans rows 24-77. Only rows up to ~52 are perfectly flat; below
+    that the bar carries a fine dither, so the band is rebuilt by copying clean
+    pixels from the same rows rather than by flat fill.
+
     The back button is deliberately left where the app puts it. Giving it more
     breathing room means moving it, and it cannot be moved without leaving a
     seam: only ~40px separate the sidebar card's edge from the button, and that
@@ -162,7 +180,7 @@ def clean_alternator(a):
     cover the old circle drags the card's bright edge into the dark gully. So
     the button stays put rather than carrying a rectangle of erased shadow.
     """
-    fill_flat(a, 20, 88, 1360, 1665, xs=NAV_XS)
+    fill_copy(a, 20, 80, 1360, 1665, src_x0=1000)
 
 
 def clean_returns(a):
