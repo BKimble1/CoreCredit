@@ -632,6 +632,43 @@ extension XCTestCase {
         return element.exists && element.isHittable
     }
 
+    /// Scrolls a field out from under anything pinned over the bottom of the screen.
+    ///
+    /// `isHittable` is not a strong enough test for a text field. The core editor pins its Save bar
+    /// to the bottom through `safeAreaInset`, and a field revealed by the References section
+    /// opening lands underneath it. XCUITest reports that field as hittable, aims at the centre of
+    /// its frame, and the **Save button** takes the tap.
+    ///
+    /// That is what happened to the invoice field, and the give-up message named it exactly: the
+    /// buttons on screen were `Dashboard | Cores | Returns | Settings | Add core | Scan core |
+    /// Alternator, NAPA • 03-1887 | See all 1 core still open`. Not the editor — the Dashboard,
+    /// with the core saved and in the ledger. The field had not moved or collapsed; the screen it
+    /// lived on had been dismissed out from under it by the test's own tap.
+    ///
+    /// This is deliberately not folded into `tapWhenHittable`. Plenty of controls legitimately sit
+    /// outside the band and can never be scrolled into it — every tab bar item, every navigation
+    /// bar button — and steering towards those would scroll whatever is behind them for no reason.
+    /// Text fields in this app are always inside the scrolling form, so `clearAndType` is the right
+    /// place for the stricter rule.
+    ///
+    /// Stops the moment the content stops moving, so a field that genuinely cannot be scrolled
+    /// clear costs one step rather than six.
+    func scrollClearOfPinnedBars(_ element: XCUIElement,
+                                 in app: XCUIApplication,
+                                 maxSteps: Int = 6) {
+        for _ in 0..<maxSteps {
+            guard element.exists else { return }
+
+            let band = reachableBand(of: app)
+            let midY = element.frame.midY
+            if band.contains(midY) { return }
+
+            dragContent(in: app, revealing: midY > band.upperBound ? .below : .above)
+
+            guard element.exists, element.frame.midY != midY else { return }
+        }
+    }
+
     /// Waits until an element's frame stops changing.
     ///
     /// A tap is aimed at the frame the query resolved, and anything animating moves the target
@@ -878,6 +915,9 @@ extension XCTestCase {
         // With no keyboard up the form is stationary, and the tap lands where the query said it
         // would.
         dismissKeyboard(in: app)
+
+        // And put it somewhere a tap will reach *it* rather than the Save bar sitting over it.
+        scrollClearOfPinnedBars(element, in: app)
 
         tapWhenHittable(element, description, in: app, file: file, line: line)
         guard element.exists else { return }
