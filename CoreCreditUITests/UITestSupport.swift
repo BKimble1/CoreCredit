@@ -679,16 +679,28 @@ extension XCTestCase {
             return
         }
 
-        if element.isHittable == false {
-            // A keyboard left up by the previous field covers the bottom of the screen, and no
-            // amount of scrolling moves it: `scrollUntilHittable` below would drag the content
-            // back and forth and the control would still be behind it, which is exactly how both
-            // core-editor walkthroughs failed on the References section header — typed into Part
-            // number, then reached for a header the keyboard was sitting on. Put the keyboard away
-            // first, the way a person would. A no-op when there is no keyboard up, and only ever
-            // reached on a path that was otherwise going to time out.
-            dismissKeyboard(in: app)
-        }
+        // Always, not only when the target is covered.
+        //
+        // A keyboard left up by the previous field does two things, and hittability only catches
+        // one of them. It covers the bottom of the screen — and no amount of scrolling moves it,
+        // so `scrollUntilHittable` below would drag the content back and forth with the control
+        // still behind it. That is how both core-editor walkthroughs failed on the References
+        // section header.
+        //
+        // The other thing it does is move the target. SwiftUI's keyboard avoidance is scrolling
+        // the form while the keyboard comes and goes, and XCTest aims its synthesized tap at the
+        // frame the element had when the query resolved. The tap lands somewhere else. A control
+        // that is perfectly hittable can still be missed, so a hittability check cannot be the
+        // thing that decides whether to do this.
+        //
+        // The core editor's vendor `Menu` is where that showed: tapped straight after typing Part
+        // number, with the keyboard still up, and the menu never opened —
+        // `CaptureAndLayoutUITests` taps the same picker successfully and calls `dismissKeyboard`
+        // by hand first. Doing it here means the next screen that needs it does not have to
+        // remember.
+        //
+        // A no-op when there is no keyboard up: `dismissKeyboard(in:)` returns immediately.
+        dismissKeyboard(in: app)
 
         if element.isHittable == false {
             scrollUntilHittable(element, in: app)
@@ -895,7 +907,22 @@ extension XCTestCase {
             return
         }
 
-        XCTFail("The menu item \"\(title)\" never appeared.", file: file, line: line)
+        // "Never appeared" is true whether the menu never opened, opened without this item in it,
+        // or opened with its items published as something neither query looks for. Those are three
+        // different bugs. Listing what is actually on screen says which: an open vendor menu always
+        // carries "Add new vendor…" alongside the vendor names.
+        let onScreen = app.buttons.allElementsBoundByAccessibilityElement
+            .prefix(15)
+            .map { $0.label }
+            .filter { $0.isEmpty == false }
+
+        let labels = onScreen.joined(separator: " | ")
+
+        XCTFail("The menu item \"\(title)\" never appeared. "
+                + "Menu containers on screen: \(app.menus.count). "
+                + "Buttons on screen: \(labels)",
+                file: file,
+                line: line)
     }
 
     /// Opens the detail screen for a core, tolerating a `NavigationStack` that is already there.
