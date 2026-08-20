@@ -4,18 +4,22 @@
     "height": 2064
   },
   "screenAperture": {
-    "x": 1106,
-    "y": 461,
-    "width": 1496,
-    "height": 1122,
-    "cornerRadius": 38,
-    "aspect": "1496:1122 (exactly 4:3)"
+    "x": 1116,
+    "y": 509,
+    "width": 1475,
+    "height": 1025,
+    "cornerRadius": 35,
+    "aspect": "1475:1025 — exactly 2360:1640, the capture aspect"
   },
   "deviceBody": {
-    "x": 1076,
-    "y": 431,
-    "width": 1556,
-    "height": 1182
+    "x": 1086,
+    "y": 479,
+    "width": 1535,
+    "height": 1085
   },
-  "scaleFromFullCapture": 0.543605
+  "captureSize": {
+    "width": 2360,
+    "height": 1640
+  },
+  "scaleFromCapture": 0.625
 }

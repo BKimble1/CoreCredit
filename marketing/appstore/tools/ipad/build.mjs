@@ -10,7 +10,7 @@
  */
 
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,17 +24,21 @@ const CANVAS_W = 2752;
 const CANVAS_H = 2064;
 
 /* ---------------------------------------------------------------- device -- */
-/* Screen is 1496 x 1122 — exactly 4:3, the 13" iPad Pro aspect, so a real
-   2752 x 2064 capture scales into it uniformly. */
+/* The screen is 1475 x 1025 — exactly 59:41, the aspect of the 2360 x 1640
+   captures this app produces. A capture therefore scales in at exactly 0.625
+   with no crop and no stretch. A 4:3 aperture would have forced a centre crop
+   that ate 67 columns of the sidebar and up to 87 of the right-hand chevrons. */
 
-const SCREEN_W = 1496;
-const SCREEN_H = 1122;
+const SHOT_W = 2360;
+const SHOT_H = 1640;
+const SCREEN_W = 1475;                       // SHOT_W * 0.625
+const SCREEN_H = 1025;                       // SHOT_H * 0.625
 const BEZEL = 30;
-const BODY_W = SCREEN_W + BEZEL * 2; // 1556
-const BODY_H = SCREEN_H + BEZEL * 2; // 1182
-const BODY_X = 1076; // right of centre; the copy column lives to the left
-const BODY_Y = Math.round((CANVAS_H - BODY_H) / 2) - 10; // optically centred
-const SCREEN_RADIUS = 38;
+const BODY_W = SCREEN_W + BEZEL * 2;         // 1535
+const BODY_H = SCREEN_H + BEZEL * 2;         // 1085
+const BODY_X = 1086;                         // right of centre; copy sits left
+const BODY_Y = 479;                          // same optical centre as before
+const SCREEN_RADIUS = 35;
 const BODY_RADIUS = SCREEN_RADIUS + BEZEL;
 
 /* ------------------------------------------------------------------ type -- */
@@ -81,6 +85,36 @@ const IMAGES = [
   },
 ];
 
+/* The four screens that get a real capture. Three carry copy of their own
+   rather than reusing a blank template's supporting line. */
+
+const FINALS = [
+  {
+    slug: 'dashboard',
+    shot: 'dashboard',
+    headline: ['See your full', 'core-credit', 'picture.'],
+    sub: 'Track money at risk, overdue returns, and priorities in one place.',
+  },
+  {
+    slug: 'cores',
+    shot: 'cores',
+    headline: ['Every core.', 'One reconciled', 'workspace.'],
+    sub: 'Search, sort, and review every core in one organized view.',
+  },
+  {
+    slug: 'returns',
+    shot: 'returns',
+    headline: ['Keep returns', 'moving.'],
+    sub: 'See open returns, returned cores, and credits still pending.',
+  },
+  {
+    slug: 'timeline',
+    shot: 'alternator',
+    headline: ['Follow every', 'step to credit.'],
+    sub: 'See the full timeline from logged core to recorded vendor credit.',
+  },
+];
+
 /* ----------------------------------------------------------------- fonts -- */
 
 const weights = [500, 600, 800]; // subtitle + placeholder label, label caps, headline
@@ -97,7 +131,7 @@ const faces = weights
 const esc = (s) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-function page({ headline, sub }) {
+function page({ headline, sub }, placeholder = true) {
   const lines = headline.map((l) => `<span class="ln">${esc(l)}</span>`).join('');
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -260,9 +294,9 @@ p{
       <div class="device-body">
         <div class="device-gloss"></div>
         <div class="screen-well"></div>
-        <div class="screen">
+        <div class="screen">${placeholder ? `
           <div class="ph-1">REPLACE WITH REAL IPAD SCREENSHOT</div>
-          <div class="ph-2">2752 &times; 2064</div>
+          <div class="ph-2">${SHOT_W} &times; ${SHOT_H}</div>` : ''}
         </div>
         <div class="camera"></div>
       </div>
@@ -280,28 +314,24 @@ const ctx = await browser.newContext({
 });
 const p = await ctx.newPage();
 
-let n = 1;
 let worstHead = 0;
 let overflow = false;
 
-for (const img of IMAGES) {
+/** Render one page and report how the authored copy fits its column. */
+async function render(img, file, placeholder) {
   const tmp = join(OUT, `.${img.slug}.html`);
-  writeFileSync(tmp, page(img));
+  writeFileSync(tmp, page(img, placeholder));
   await p.goto('file://' + tmp);
   await p.evaluate(() => document.fonts.ready);
 
-  /* Measure: authored breaks must never overrun the column, and the copy
-     block must never reach the device. */
   const m = await p.evaluate((SUB_SIZE) => {
-    const w = (el) => el.getBoundingClientRect().width;
-    const lines = [...document.querySelectorAll('h1 .ln')].map((el) => Math.round(w(el)));
+    const lines = [...document.querySelectorAll('h1 .ln')]
+      .map((el) => Math.round(el.getBoundingClientRect().width));
     const sub = document.querySelector('p').getBoundingClientRect();
     const copy = document.querySelector('.copy').getBoundingClientRect();
     return {
       lines,
       subLines: Math.round(sub.height / (SUB_SIZE * 1.38)),
-      copyTop: Math.round(copy.top),
-      copyBottom: Math.round(copy.bottom),
       copyRight: Math.round(copy.left + Math.max(...lines, sub.width)),
     };
   }, SUB_SIZE);
@@ -311,20 +341,24 @@ for (const img of IMAGES) {
   const fits = longest <= TEXT_W && m.copyRight < BODY_X - 40;
   if (!fits) overflow = true;
 
-  const file = join(
-    OUT,
-    `CoreCredit_iPad_${String(n).padStart(2, '0')}_${img.slug}.png`,
-  );
   await p.screenshot({ path: file, type: 'png' });
+  rmSync(tmp);                       // the page is a build artefact, not output
+  console.log(`  ${img.slug.padEnd(15)} head[${m.lines.join(',')}] ` +
+    `max=${longest}/${TEXT_W} sub=${m.subLines}ln ${fits ? 'ok' : 'OVERFLOW'}`);
+}
 
-  console.log(
-    `${String(n).padStart(2, '0')} ${img.slug.padEnd(15)} ` +
-      `head[${m.lines.join(',')}] max=${longest}/${TEXT_W} ` +
-      `sub=${m.subLines}ln  y=${m.copyTop}..${m.copyBottom} ` +
-      `right=${m.copyRight} ${fits ? 'ok' : 'OVERFLOW'}`,
-  );
+console.log('blank templates:');
+let n = 1;
+for (const img of IMAGES) {
+  await render(img, join(OUT, `CoreCredit_iPad_${String(n).padStart(2, '0')}_${img.slug}.png`), true);
   n++;
 }
+
+/* Plates carry no placeholder label: a capture covers the aperture entirely. */
+const PLATES = join(OUT, '_plates');
+mkdirSync(PLATES, { recursive: true });
+console.log('\nplates for the finished images:');
+for (const img of FINALS) await render(img, join(PLATES, `${img.slug}.png`), false);
 
 const spec = {
   canvas: { width: CANVAS_W, height: CANVAS_H },
@@ -334,10 +368,11 @@ const spec = {
     width: SCREEN_W,
     height: SCREEN_H,
     cornerRadius: SCREEN_RADIUS,
-    aspect: `${SCREEN_W}:${SCREEN_H} (exactly 4:3)`,
+    aspect: `${SCREEN_W}:${SCREEN_H} — exactly ${SHOT_W}:${SHOT_H}, the capture aspect`,
   },
   deviceBody: { x: BODY_X, y: BODY_Y, width: BODY_W, height: BODY_H },
-  scaleFromFullCapture: +(SCREEN_W / CANVAS_W).toFixed(6),
+  captureSize: { width: SHOT_W, height: SHOT_H },
+  scaleFromCapture: +(SCREEN_W / SHOT_W).toFixed(6),
 };
 writeFileSync(join(OUT, 'template-spec.json'), JSON.stringify(spec, null, 2) + '\n');
 console.log('\naperture', JSON.stringify(spec.screenAperture));
