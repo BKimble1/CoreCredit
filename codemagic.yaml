@@ -17,30 +17,6 @@ workflows:
         - pattern: '*'
           include: true
           source: true
-
-        # ---------------------------------------------------------------------------------------
-        # TEMPORARY EXCLUSION - REMOVE BEFORE MERGING TO main.
-        #
-        # The repair branch below is excluded from this workflow while two UI tests are being
-        # fixed. The full suite drives a simulator session per test and takes about forty minutes;
-        # running it on every attempt at a two-test problem is the wrong instrument, and the cost
-        # of it is what stopped the fix being iterated on at all.
-        #
-        # While this exclusion stands, `corecredit-targeted-ui` is the only workflow that runs on
-        # that branch, and it runs exactly the two failing tests.
-        #
-        # This is a hole in the release gate for one branch, and it is only safe because of what
-        # closes it: removing these three lines is the last commit made on the branch, and that
-        # push runs the full gate once against the exact tree that gets merged. Nothing is merged
-        # to main that this workflow has not passed.
-        #
-        # `source: true` means the pattern is matched against a pull request's *source* branch as
-        # well as a pushed branch, so opening a pull request from this branch will not run the
-        # gate either until the exclusion is gone.
-        # ---------------------------------------------------------------------------------------
-        - pattern: 'claude/corecredit-app-store-gate-3cqgnq'
-          include: false
-          source: true
       cancel_previous_builds: true
 
     environment:
@@ -542,17 +518,13 @@ workflows:
   # section, so triggering automatically costs nothing but simulator minutes.
   # ---------------------------------------------------------------------------------------------
   corecredit-targeted-ui:
-    name: CoreCredit Targeted UI Tests
+    name: CoreCredit Targeted UI Tests (manual)
     max_build_duration: 45
 
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'claude/corecredit-app-store-gate-3cqgnq'
-          include: true
-          source: true
-      cancel_previous_builds: true
+    # Deliberately no `triggering:` block any more. This workflow existed to iterate on two
+    # failing tests without paying for the full suite each time; both are green, so the full gate
+    # is back in charge of this branch and there is no reason for a second run to fire beside it.
+    # Started by hand if it is ever wanted again; removed altogether after submission.
 
     environment:
       xcode: 26.4
