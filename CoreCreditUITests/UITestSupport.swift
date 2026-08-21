@@ -605,13 +605,22 @@ extension XCTestCase {
     func scrollUntilHittable(_ element: XCUIElement,
                              in app: XCUIApplication,
                              maxSteps: Int = 12) -> Bool {
-        guard element.exists else { return false }
-
         var previousMidY: CGFloat?
         var stalledSteps = 0
 
         for _ in 0..<maxSteps {
-            guard element.exists else { return false }
+            // Not in the tree at all. `Form` and `List` build their rows lazily, so a row far
+            // enough down is not merely off screen — it does not exist yet, and it has no frame to
+            // steer by. Reveal content below and look again.
+            //
+            // The version of this function that bailed out here broke two tests that had been
+            // passing for exactly this reason: Settings' last row and Data & export's Restore both
+            // live in a `Form`, and neither is in the accessibility tree until it is scrolled to.
+            // The original swiped whether or not the element existed, which is what made it work.
+            guard element.exists else {
+                dragContent(in: app, revealing: .below)
+                continue
+            }
 
             // Hittability is the question this function was asked, so it is answered first and at
             // every step. The band below only decides which way to drag.
@@ -1041,10 +1050,22 @@ extension XCTestCase {
         // field keeps focus, no query fails, and the wrong value sits there until something far
         // away refuses to accept it. Every field either reports what it holds or a decorated form
         // of it, so containment is the honest test.
+        if (element.value as? String ?? "").contains(text) { return }
+
+        // One repair, then the assertion stands.
+        //
+        // By now the field is focused, the form has stopped moving, and the keyboard is up — none
+        // of which was guaranteed on the first attempt. Doing it again from the end of the text is
+        // the same thing a person does when a field takes their typing badly, and it masks
+        // nothing: the check below still decides, and still fails if this did not work.
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 64) + text)
+
         let afterTyping = (element.value as? String) ?? ""
         if afterTyping.contains(text) == false {
-            XCTFail("\(description) reads \"\(afterTyping)\" after typing \"\(text)\" into it. "
-                    + "The field was not cleared before the new value went in.",
+            let keyboard = app.keyboards.count > 0 ? "A keyboard was up." : "No keyboard was up."
+            XCTFail("\(description) reads \"\(afterTyping)\" after typing \"\(text)\" into it "
+                    + "twice. The field was not cleared before the new value went in. " + keyboard,
                     file: file,
                     line: line)
         }
