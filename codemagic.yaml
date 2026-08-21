@@ -283,8 +283,16 @@ workflows:
       - name: Apply App Store signing
         script: |
           set -e
-          xcode-project use-profiles \
-            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+          # No `--custom-export-options` here, deliberately.
+          #
+          # This used to pass `{"testFlightInternalTestingOnly": true}`, which stamps the export as
+          # internal-testing-only. Such a build uploads and reaches internal testers exactly as
+          # normal, and then cannot be picked in App Store Connect when the version is submitted:
+          # the build simply is not in the list. Nothing about it looks wrong until that moment.
+          #
+          # The signing is unchanged — same managed profiles, same `distribution_type: app_store`,
+          # same identifiers and entitlements. Only the export's audience is no longer narrowed.
+          xcode-project use-profiles
 
           # Report what was actually installed.
           #
