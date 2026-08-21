@@ -606,7 +606,6 @@ extension XCTestCase {
                              in app: XCUIApplication,
                              maxSteps: Int = 12) -> Bool {
         guard element.exists else { return false }
-        if element.isHittable { return true }
 
         var previousMidY: CGFloat?
         var stalledSteps = 0
@@ -614,17 +613,30 @@ extension XCTestCase {
         for _ in 0..<maxSteps {
             guard element.exists else { return false }
 
+            // Hittability is the question this function was asked, so it is answered first and at
+            // every step. The band below only decides which way to drag.
+            //
+            // Getting that order wrong broke two tests that had been passing. The band's floor is
+            // sized for the core editor's pinned Save bar, which is taller than the tab bar every
+            // root screen carries — so the last row of Settings, sitting happily above the tab bar
+            // and perfectly tappable, fell outside the band and was reported unreachable. Those
+            // two tests exist precisely to prove that row clears the tab bar; the helper was
+            // failing them for clearing it by less than the editor needs.
+            if element.isHittable { return true }
+
             let midY = element.frame.midY
             let band = reachableBand(of: app)
 
-            if band.contains(midY) { return element.isHittable }
+            // Inside the band and still not hittable: no amount of scrolling changes that. Stop,
+            // and let the caller's wait — and its much better message — take it from here.
+            if band.contains(midY) { return false }
 
             if previousMidY == midY {
                 // Two steps with the content in exactly the same place is not a scroll view that
                 // needs more steps. It is one that is not moving, and the remaining steps would
                 // add half a minute to a failure that is already decided.
                 stalledSteps += 1
-                if stalledSteps >= 2 { return false }
+                if stalledSteps >= 2 { return element.isHittable }
             } else {
                 stalledSteps = 0
             }
