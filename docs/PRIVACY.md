@@ -1,6 +1,6 @@
 # Privacy — CoreCredit
 
-CoreCredit is published by **Idlery Services LLC**. Support: **idlery.apps@gmail.com**. Version 1
+CoreCredit is published by **Idlery Services LLC**. Support: **support@idlery.com**. Version 1
 is distributed in the **United States** App Store storefront only. The published policy lives at
 <https://corecredit.idlery.com/privacy> and is generated from the same JSON the app
 reads on device, so the two cannot drift.

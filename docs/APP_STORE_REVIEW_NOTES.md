@@ -26,7 +26,7 @@ Everything above it is context for the owner and should not be submitted.
       which was verified over HTTPS anonymously on 2026-08-17; those pages still exist, and the
       generated HTML is host-independent, so either origin can serve it.
 - [x] Set the publisher, support address, and territory: **Idlery Services LLC**,
-      **idlery.apps@gmail.com**, **United States only** for Version 1. No individual's name and no
+      **support@idlery.com**, **United States only** for Version 1. No individual's name and no
       postal address appears in the app, the bundled documents, or the published pages.
 - [x] Add the 1024×1024 app icon (`AppIcon.appiconset/AppIcon.png` is real artwork).
 - [ ] Confirm the privacy answers in `docs/PRIVACY.md` still match the shipped build.
@@ -49,7 +49,7 @@ Everything above it is context for the owner and should not be submitted.
 
 **Publisher and availability**
 
-CoreCredit is published by **Idlery Services LLC**. Support is **idlery.apps@gmail.com**. Version 1
+CoreCredit is published by **Idlery Services LLC**. Support is **support@idlery.com**. Version 1
 is offered in the **United States** storefront only.
 
 - Support: <https://corecredit.idlery.com/support>

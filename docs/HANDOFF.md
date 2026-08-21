@@ -130,7 +130,7 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
 5. **App icon — supplied.** `AppIcon.appiconset/AppIcon.png` is real 1024×1024 artwork
    (opaque, no alpha channel, metadata stripped) and `Contents.json` references it. Nothing is
    required here before submission; replace the PNG in place if the branding changes.
-6. **Support email — SET.** `AppConfiguration.supportEmail` is `idlery.apps@gmail.com`, matching
+6. **Support email — SET.** `AppConfiguration.supportEmail` is `support@idlery.com`, matching
    the address printed on the published support page. The publisher is
    `AppConfiguration.companyName` — **Idlery Services LLC** — which is the name in the legal
    documents, on the public pages, and expected as the App Store seller.

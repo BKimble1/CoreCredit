@@ -89,7 +89,7 @@ enum AppConfiguration {
     static let supportURLString = "https://corecredit.idlery.com/support"
     static let privacyURLString = "https://corecredit.idlery.com/privacy"
     static let termsURLString   = "https://corecredit.idlery.com/terms"
-    static let supportEmail     = "idlery.apps@gmail.com"
+    static let supportEmail     = "support@idlery.com"
 
     /// Version 1 ships to the United States App Store storefront only. Stated here because the
     /// legal documents say so and a claim in a legal document should have exactly one source.

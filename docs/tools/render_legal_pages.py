@@ -28,7 +28,7 @@ import os
 # ----------------------------------------------------------------- owner-supplied constants
 
 COMPANY = "Idlery Services LLC"
-EMAIL = "idlery.apps@gmail.com"
+EMAIL = "support@idlery.com"
 COPYRIGHT = "Copyright 2026 Idlery Services LLC"
 APP_NAME = "CoreCredit"
 

@@ -68,7 +68,7 @@ enum AppConfiguration {
     static let supportURLString = "https://corecredit.idlery.com/support"
     static let privacyURLString = "https://corecredit.idlery.com/privacy"
     static let termsURLString   = "https://corecredit.idlery.com/terms"
-    static let supportEmail     = "idlery.apps@gmail.com"
+    static let supportEmail     = "support@idlery.com"
 
     static let fallbackURL = URL(fileURLWithPath: "/")
     static var supportURL: URL { URL(string: supportURLString) ?? fallbackURL }

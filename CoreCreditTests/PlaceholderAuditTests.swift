@@ -109,7 +109,7 @@ struct PlaceholderAuditTests {
             #expect((url.host ?? "").isEmpty == false)
         }
 
-        #expect(email == "idlery.apps@gmail.com")
+        #expect(email == "support@idlery.com")
         #expect(email.contains("@"))
         #expect(AppConfiguration.isSupportContactConfigured)
 
