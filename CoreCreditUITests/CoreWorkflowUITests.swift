@@ -76,13 +76,18 @@ final class CoreWorkflowUITests: XCTestCase {
                             "the Record vendor credit button",
                             in: app)
 
-            clearAndType("86.50",
-                         into: textField(app, A11yID.Credit.amount),
-                         "the credited amount field",
-                         in: app)
+            // Memo number before amount: that is the order the credit form puts them in — credit
+            // date, credit memo number, amount credited. Filling the amount first and reaching
+            // back up for the memo is the same backwards reach that broke the core editor.
+            // `scrollUntilHittable` can now walk back to a control it has scrolled past, but a
+            // test that needs it to is describing a screen nobody uses that way.
             clearAndType("CM-8841",
                          into: textField(app, A11yID.Credit.reference),
                          "the credit memo field",
+                         in: app)
+            clearAndType("86.50",
+                         into: textField(app, A11yID.Credit.amount),
+                         "the credited amount field",
                          in: app)
             dismissKeyboard(in: app)
 
@@ -139,13 +144,15 @@ final class CoreWorkflowUITests: XCTestCase {
                             "the Record vendor credit button",
                             in: app)
 
-            clearAndType("75.00",
-                         into: textField(app, A11yID.Credit.amount),
-                         "the credited amount field",
-                         in: app)
+            // Memo number before amount, matching the form's own order — see the note in
+            // `testCoreTravelsFromVendorCreationToZeroMoneyAtRisk`.
             clearAndType("CM-8841",
                          into: textField(app, A11yID.Credit.reference),
                          "the credit memo field",
+                         in: app)
+            clearAndType("75.00",
+                         into: textField(app, A11yID.Credit.amount),
+                         "the credited amount field",
                          in: app)
             dismissKeyboard(in: app)
 
@@ -278,6 +285,32 @@ final class CoreWorkflowUITests: XCTestCase {
                          in: app,
                          file: file,
                          line: line)
+            // Everything below runs in the order the form lays out — part name, part number,
+            // vendor, expected credit, then the optional References section underneath.
+            //
+            // This used to jump around: References first, back up for the expected credit, and
+            // the vendor picker last of all, a hundred lines of form above where it had just been
+            // typing. That is what a person never does, and it fails as "exists but never became
+            // hittable" on a control that was on screen moments earlier. `scrollUntilHittable`
+            // will now walk backwards to find such a control, but only after exhausting every
+            // forward step first — a slow, indirect way to reach something the screen would have
+            // handed over in order.
+            //
+            // The vendor is a `Menu`, not a text field: tap the row, then the vendor.
+            tapWhenHittable(control(app, A11yID.Editor.vendor),
+                            "the vendor picker",
+                            in: app,
+                            file: file,
+                            line: line)
+            tapMenuItem("NAPA", in: app, file: file, line: line)
+
+            clearAndType("86.50",
+                         into: textField(app, A11yID.Editor.amount),
+                         "the expected credit field",
+                         in: app,
+                         file: file,
+                         line: line)
+
             // References is optional and folds away while it is empty, so it is opened before the
             // two fields inside it are typed into. Guarded rather than tapped blind: a section
             // holding a value is forced open and has no toggle at all, and tapping the header then
@@ -297,22 +330,6 @@ final class CoreWorkflowUITests: XCTestCase {
                          file: file,
                          line: line)
             dismissKeyboard(in: app)
-
-            clearAndType("86.50",
-                         into: textField(app, A11yID.Editor.amount),
-                         "the expected credit field",
-                         in: app,
-                         file: file,
-                         line: line)
-            dismissKeyboard(in: app)
-
-            // The vendor is a `Menu`, not a text field: tap the row, then the vendor.
-            tapWhenHittable(control(app, A11yID.Editor.vendor),
-                            "the vendor picker",
-                            in: app,
-                            file: file,
-                            line: line)
-            tapMenuItem("NAPA", in: app, file: file, line: line)
 
             tapWhenHittable(control(app, A11yID.Editor.save),
                             "the editor's Save button",

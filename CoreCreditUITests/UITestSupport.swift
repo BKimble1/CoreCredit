@@ -14,6 +14,7 @@
 //  the test fails on its wait with the message naming the identifier.
 //
 
+import CoreGraphics
 import XCTest
 
 // MARK: - Identifier mirror
@@ -165,6 +166,7 @@ enum A11yID {
         static let vendorName = "settings.vendorName"
         static let vendorWindow = "settings.vendorWindow"
         static let vendorSave = "settings.vendorSave"
+        static let dataExport = "settings.dataExport"
         static let diagnostics = "settings.diagnostics"
         static let notifications = "settings.notifications"
         static let appearance = "settings.appearance"
@@ -475,7 +477,11 @@ extension XCTestCase {
                        file: StaticString = #filePath,
                        line: UInt = #line) -> Bool {
         if element.waitForExistence(timeout: timeout) { return true }
-        XCTFail("Timed out after \(timeout)s waiting for \(description) to appear.",
+        // `XCUIApplication()` rather than a passed-in reference: this helper is called from
+        // dozens of places that have no app in hand, and a fresh proxy addresses the same running
+        // target, which is all a query needs.
+        XCTFail("Timed out after \(timeout)s waiting for \(description) to appear. "
+                + onScreenSummary(in: XCUIApplication()),
                 file: file,
                 line: line)
         return false
@@ -549,19 +555,271 @@ extension XCTestCase {
     /// Several primary actions in this app sit at the bottom of a `ScrollView` — the credit sheet's
     /// Save, the batch sheet's Confirm, the detail screen's status moves. They exist in the
     /// hierarchy immediately (plain `VStack`s, not lazy), so `exists` is true while `isHittable`
-    /// is false. Swiping on the application taps the frontmost scroller, which is what a presented
-    /// sheet needs.
+    /// is false. Dragging on the application drives the frontmost scroller, which is what a
+    /// presented sheet needs.
+    ///
+    /// # Why this does not use `swipeUp()`
+    ///
+    /// A swipe is a fling. Its distance is decided by the momentum the system gives it, not by the
+    /// caller, and neither `swipeUp()` nor `swipeUp(velocity: .slow)` can say *how far*. That is
+    /// fine when the target is a long way down and wrong when it is just past the fold: the
+    /// gesture carries the content straight over the top of the viewport, `isHittable` still
+    /// answers false, and every remaining swipe lands in a scroll view already at its end.
+    ///
+    /// The core editor's References header failed exactly that way, twice, and the log is
+    /// unambiguous about it: nine swipes, the element reported as existing after every one, and
+    /// hittable after none. An element that exists throughout and is never reachable has been
+    /// scrolled *past*, not scrolled *towards*.
+    ///
+    /// So each step here is a press-drag-**hold**-release over a fixed fraction of the screen.
+    /// Holding at the end of the drag before lifting is what removes the momentum: the content
+    /// travels the length of the drag and stops there. One step is one known distance, which makes
+    /// overshoot bounded instead of unbounded.
+    ///
+    /// # Steering, not stepping
+    ///
+    /// Both earlier versions of this function stepped blind: swipe, ask "hittable yet?", swipe
+    /// again. "No" is the same answer whether the control is a little below the fold or a long way
+    /// above it, so the loop could not tell which way to go, and every step in the wrong direction
+    /// made things worse.
+    ///
+    /// `element.frame` is reported whether or not the element is on screen — the References header
+    /// came back as `y = 1023` in a window `844` tall — so the *sign* of the error is available and
+    /// this steers on it. A control below the band is reached by revealing content below; one above
+    /// it, by revealing content above. Overshoot corrects itself on the next step instead of
+    /// running the loop out.
+    ///
+    /// That is also what makes the reverse direction safe. A downward drag on a sheet whose scroll
+    /// view sits at its top dismisses the sheet — losing whatever the test had typed, and failing
+    /// far from the cause. It is only ever taken here to chase a control that is *above* the
+    /// viewport, which means the scroll view is not at its top.
+    ///
+    /// A run of steps that does not move the content at all stops early. Twelve steps against a
+    /// scroll view that is not scrolling is half a minute spent confirming the first two.
+    ///
+    /// Driving a screen in the order it is laid out is still the right way to write a test — see
+    /// `check_ui_tests_run_top_to_bottom` in `scripts/verify_repository.py`, which enforces it.
+    /// This is what happens when the layout order is right and the control is simply a little
+    /// further down than one step.
     @discardableResult
     func scrollUntilHittable(_ element: XCUIElement,
                              in app: XCUIApplication,
-                             maxSwipes: Int = 8) -> Bool {
-        var remaining = maxSwipes
-        while remaining > 0 {
-            if element.exists && element.isHittable { return true }
-            app.swipeUp()
-            remaining -= 1
+                             maxSteps: Int = 12) -> Bool {
+        var previousMidY: CGFloat?
+        var stalledSteps = 0
+
+        for _ in 0..<maxSteps {
+            // Not in the tree at all. `Form` and `List` build their rows lazily, so a row far
+            // enough down is not merely off screen — it does not exist yet, and it has no frame to
+            // steer by. Reveal content below and look again.
+            //
+            // The version of this function that bailed out here broke two tests that had been
+            // passing for exactly this reason: Settings' last row and Data & export's Restore both
+            // live in a `Form`, and neither is in the accessibility tree until it is scrolled to.
+            // The original swiped whether or not the element existed, which is what made it work.
+            guard element.exists else {
+                dragContent(in: app, revealing: .below)
+                continue
+            }
+
+            // Hittability is the question this function was asked, so it is answered first and at
+            // every step. The band below only decides which way to drag.
+            //
+            // Getting that order wrong broke two tests that had been passing. The band's floor is
+            // sized for the core editor's pinned Save bar, which is taller than the tab bar every
+            // root screen carries — so the last row of Settings, sitting happily above the tab bar
+            // and perfectly tappable, fell outside the band and was reported unreachable. Those
+            // two tests exist precisely to prove that row clears the tab bar; the helper was
+            // failing them for clearing it by less than the editor needs.
+            if element.isHittable { return true }
+
+            let midY = element.frame.midY
+            let band = reachableBand(of: app)
+
+            // Inside the band and still not hittable: no amount of scrolling changes that. Stop,
+            // and let the caller's wait — and its much better message — take it from here.
+            if band.contains(midY) { return false }
+
+            if previousMidY == midY {
+                // Two steps with the content in exactly the same place is not a scroll view that
+                // needs more steps. It is one that is not moving, and the remaining steps would
+                // add half a minute to a failure that is already decided.
+                stalledSteps += 1
+                if stalledSteps >= 2 { return element.isHittable }
+            } else {
+                stalledSteps = 0
+            }
+            previousMidY = midY
+
+            dragContent(in: app, revealing: midY > band.upperBound ? .below : .above)
         }
+
         return element.exists && element.isHittable
+    }
+
+    /// What is on screen right now, for a failure message.
+    ///
+    /// Buttons first, because they name the screen: the Dashboard's tab bar and "Add core", a
+    /// credit sheet's "Save credit", a result card's "Done". Then any sentence-length text, which
+    /// is where an error banner lives — a save that was refused says so on the screen, and a test
+    /// that only reports "the button never appeared" throws that sentence away.
+    ///
+    /// Only ever called on a path that is already failing, so its cost does not matter.
+    func onScreenSummary(in app: XCUIApplication) -> String {
+        let buttons = app.buttons.allElementsBoundByAccessibilityElement
+            .prefix(15)
+            .map { $0.label }
+            .filter { $0.isEmpty == false }
+
+        // Sentences, not labels. A banner's message is long; a row title is not.
+        let sentences = app.staticTexts.allElementsBoundByAccessibilityElement
+            .prefix(40)
+            .map { $0.label }
+            .filter { $0.count > 40 }
+            .prefix(3)
+
+        var summary = "Buttons on screen: " + buttons.joined(separator: " | ")
+        if sentences.isEmpty == false {
+            summary += ". Messages on screen: " + sentences.joined(separator: " // ")
+        }
+        return summary
+    }
+
+    /// Scrolls a field out from under anything pinned over the bottom of the screen.
+    ///
+    /// `isHittable` is not a strong enough test for a text field. The core editor pins its Save bar
+    /// to the bottom through `safeAreaInset`, and a field revealed by the References section
+    /// opening lands underneath it. XCUITest reports that field as hittable, aims at the centre of
+    /// its frame, and the **Save button** takes the tap.
+    ///
+    /// That is what happened to the invoice field, and the give-up message named it exactly: the
+    /// buttons on screen were `Dashboard | Cores | Returns | Settings | Add core | Scan core |
+    /// Alternator, NAPA • 03-1887 | See all 1 core still open`. Not the editor — the Dashboard,
+    /// with the core saved and in the ledger. The field had not moved or collapsed; the screen it
+    /// lived on had been dismissed out from under it by the test's own tap.
+    ///
+    /// This is deliberately not folded into `tapWhenHittable`. Plenty of controls legitimately sit
+    /// outside the band and can never be scrolled into it — every tab bar item, every navigation
+    /// bar button — and steering towards those would scroll whatever is behind them for no reason.
+    /// Text fields in this app are always inside the scrolling form, so `clearAndType` is the right
+    /// place for the stricter rule.
+    ///
+    /// Stops the moment the content stops moving, so a field that genuinely cannot be scrolled
+    /// clear costs one step rather than six.
+    func scrollClearOfPinnedBars(_ element: XCUIElement,
+                                 in app: XCUIApplication,
+                                 maxSteps: Int = 6) {
+        for _ in 0..<maxSteps {
+            guard element.exists else { return }
+
+            let band = reachableBand(of: app)
+            let midY = element.frame.midY
+            if band.contains(midY) { return }
+
+            dragContent(in: app, revealing: midY > band.upperBound ? .below : .above)
+
+            guard element.exists, element.frame.midY != midY else { return }
+        }
+    }
+
+    /// Waits until an element's frame stops changing.
+    ///
+    /// A tap is aimed at the frame the query resolved, and anything animating moves the target
+    /// between the aim and the landing: a section expanding, keyboard avoidance scrolling the
+    /// form, a sheet settling. The tap then lands on whatever has moved into that spot.
+    ///
+    /// That is not a theory. The invoice field was tapped while the References section it lives in
+    /// was still opening; the tap landed on the section header instead, which closed the section
+    /// again. The field raised no keyboard because it was never focused, and by the time the
+    /// helper re-tapped it, it no longer existed — reported as "No matches found" three seconds
+    /// and twenty lines away from what actually happened.
+    ///
+    /// Nothing sleeps. Each `frame` is an IPC round trip, so two identical consecutive readings
+    /// mean the layout has held still across two of them, and the loop paces itself.
+    func waitForFrameToSettle(_ element: XCUIElement, timeout: TimeInterval = UITestTimeout.short) {
+        let deadline = Date().addingTimeInterval(timeout)
+        var previous: CGRect?
+        var stableReadings = 0
+
+        repeat {
+            guard element.exists else { return }
+            let current = element.frame
+
+            if previous == current {
+                stableReadings += 1
+                if stableReadings >= 2 { return }
+            } else {
+                stableReadings = 0
+            }
+            previous = current
+        } while Date() < deadline
+    }
+
+    /// The vertical span of the screen a control has to sit in before it can be tapped.
+    ///
+    /// Not the whole window. A navigation bar sits over the top of every screen in this app, and
+    /// the core editor pins its Save bar to the bottom through `safeAreaInset`. A control whose
+    /// centre is underneath either one is on screen and still not tappable, so "on screen" is the
+    /// wrong target to steer towards.
+    func reachableBand(of app: XCUIApplication) -> ClosedRange<CGFloat> {
+        let frame = app.frame
+        let top = frame.minY + 96
+
+        // 120 covers the tallest thing this app pins to the bottom of a screen: the core editor's
+        // Save bar, which is a 44pt button, its padding, and the home indicator underneath it.
+        // The previous 140 was a guess with no measurement behind it, and it cost a run — the
+        // References header steered to a centre of 715.33 against a floor of 704 and was called
+        // out of reach eleven points short.
+        var bottom = frame.maxY - 120
+
+        // A keyboard is not scrollable out of the way, so while one is up it *is* the floor.
+        if app.keyboards.count > 0 {
+            bottom = min(bottom, app.keyboards.firstMatch.frame.minY - 8)
+        }
+
+        // A window too short to have a band at all would make the range itself invalid.
+        guard bottom > top else { return frame.midY...frame.midY }
+        return top...bottom
+    }
+
+    /// Which way `dragContent(in:revealing:)` moves the content.
+    enum ScrollReveal {
+
+        /// Finger moves up the screen: content below the viewport comes into it.
+        case below
+
+        /// Finger moves down the screen: content above the viewport comes back into it.
+        case above
+    }
+
+    /// One momentum-free scroll step, a third of the screen at a time.
+    ///
+    /// `thenHoldForDuration` is the important argument and the reason this is not a swipe: the
+    /// touch is stationary for a moment before it lifts, so the gesture recogniser sees a release
+    /// velocity of zero and adds no inertia. The content moves the length of the drag and stops.
+    ///
+    /// The drag runs between 0.68 and 0.35 of the app's height — inside the scrolling content on
+    /// every screen in this app, clear of the navigation bar at the top and of the home indicator
+    /// and any keyboard toolbar at the bottom.
+    func dragContent(in app: XCUIApplication, revealing direction: ScrollReveal) {
+        let lower = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.68))
+        let upper = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+
+        let start: XCUICoordinate
+        let end: XCUICoordinate
+        switch direction {
+        case .below:
+            start = lower
+            end = upper
+        case .above:
+            start = upper
+            end = lower
+        }
+
+        start.press(forDuration: 0.05,
+                    thenDragTo: end,
+                    withVelocity: .slow,
+                    thenHoldForDuration: 0.1)
     }
 
     /// Scrolls the frontmost scrolling content until `element` **exists**.
@@ -594,8 +852,52 @@ extension XCTestCase {
             return
         }
 
+        // Always, not only when the target is covered.
+        //
+        // A keyboard left up by the previous field does two things, and hittability only catches
+        // one of them. It covers the bottom of the screen — and no amount of scrolling moves it,
+        // so `scrollUntilHittable` below would drag the content back and forth with the control
+        // still behind it. That is how both core-editor walkthroughs failed on the References
+        // section header.
+        //
+        // The other thing it does is move the target. SwiftUI's keyboard avoidance is scrolling
+        // the form while the keyboard comes and goes, and XCTest aims its synthesized tap at the
+        // frame the element had when the query resolved. The tap lands somewhere else. A control
+        // that is perfectly hittable can still be missed, so a hittability check cannot be the
+        // thing that decides whether to do this.
+        //
+        // The core editor's vendor `Menu` is where that showed: tapped straight after typing Part
+        // number, with the keyboard still up, and the menu never opened —
+        // `CaptureAndLayoutUITests` taps the same picker successfully and calls `dismissKeyboard`
+        // by hand first. Doing it here means the next screen that needs it does not have to
+        // remember.
+        //
+        // A no-op when there is no keyboard up: `dismissKeyboard(in:)` returns immediately.
+        dismissKeyboard(in: app)
+
+        // Then let it stop moving. `requireExists` is satisfied the instant an element enters the
+        // tree, which for anything inside a section that is still opening is several hundred
+        // milliseconds before it arrives where it is going.
+        waitForFrameToSettle(element)
+
         if element.isHittable == false {
             scrollUntilHittable(element, in: app)
+        }
+
+        // A disabled control is the suite's blind spot. XCTest taps one without complaint and
+        // reports success, so the screen simply does nothing and the test carries on into a state
+        // that makes no sense — twenty lines later something unrelated times out. Four buttons in
+        // this app are conditionally disabled, and "Save credit" and "Create return" are both on
+        // the path these two tests walk.
+        //
+        // This is not a weakened assertion. It is a failure that was already happening, said out
+        // loud at the point it happens.
+        if element.exists && element.isEnabled == false {
+            XCTFail("\(description) is on screen but disabled, so tapping it does nothing. "
+                    + onScreenSummary(in: app),
+                    file: file,
+                    line: line)
+            return
         }
 
         if element.isHittable == false {
@@ -605,9 +907,41 @@ extension XCTestCase {
             )
             let result = XCTWaiter().wait(for: [expectation], timeout: timeout)
             guard result == .completed else {
-                XCTFail("\(description) exists but never became hittable within \(timeout)s.",
-                        file: file,
-                        line: line)
+                let band = reachableBand(of: app)
+                let frame = element.frame
+
+                // The frames are here because their absence cost three CI runs. "Exists but never
+                // became hittable" is true of a control below the fold, above it, behind a
+                // keyboard, and underneath another view, and those want different fixes. Where the
+                // thing actually is says which.
+                guard band.contains(frame.midY) else {
+                    let keyboard = app.keyboards.count > 0
+                        ? "A keyboard was up."
+                        : "No keyboard was up."
+                    XCTFail("\(description) was never scrolled into reach within \(timeout)s. "
+                            + "Its frame was \(frame), the app's was \(app.frame), and the "
+                            + "reachable band was \(band.lowerBound) to \(band.upperBound). "
+                            + keyboard,
+                            file: file,
+                            line: line)
+                    return
+                }
+
+                // On screen, clear of the navigation bar and the pinned save bar, and still not
+                // hittable. Position is not the problem here; hit-testing is. Tap the centre of
+                // the frame directly — the point a person's finger would land on.
+                //
+                // Nothing is weakened by this. It is not an assertion, it is a way of pressing a
+                // control, and it is the *following* assertion that decides whether the press
+                // worked: if something really is covering this control, the tap lands on that
+                // instead, the section does not open, and the next `clearAndType` fails on the
+                // real symptom rather than on a timeout twenty lines earlier.
+                XCTContext.runActivity(
+                    named: "Tapping \(description) by coordinate: it is on screen but reports "
+                        + "itself as not hittable"
+                ) { _ in
+                    element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                }
                 return
             }
         }
@@ -633,15 +967,108 @@ extension XCTestCase {
                       in app: XCUIApplication,
                       file: StaticString = #filePath,
                       line: UInt = #line) {
+        // Put the keyboard away before reaching for the next field.
+        //
+        // Tapping a second field while the first still holds the keyboard is tapping a moving
+        // target: SwiftUI's keyboard avoidance is scrolling the form, and XCTest aims its
+        // synthesized tap at the frame the element had when the query resolved. The tap lands
+        // somewhere else, the field never takes focus, and `typeText` fails with "Neither element
+        // nor any descendant has keyboard focus".
+        //
+        // That is exactly how both core-editor walkthroughs failed, on the hop from Part name to
+        // Part number — the worst case in this app, because those two fields ask for different
+        // keyboard types, so iOS is tearing down and rebuilding the keyboard at the same moment
+        // the form is scrolling. The accessibility snapshot showed the field present, labelled,
+        // and on screen the whole time; nothing was wrong with it or with the app.
+        //
+        // With no keyboard up the form is stationary, and the tap lands where the query said it
+        // would.
+        dismissKeyboard(in: app)
+
+        // And put it somewhere a tap will reach *it* rather than the Save bar sitting over it.
+        scrollClearOfPinnedBars(element, in: app)
+
         tapWhenHittable(element, description, in: app, file: file, line: line)
         guard element.exists else { return }
 
-        let reported = (element.value as? String) ?? ""
-        let deletions = min(reported.count + 2, 64)
-        if deletions > 0 {
-            element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: deletions))
+        // The keyboard is the proof that the tap took focus — no field on any of these screens
+        // raises one without being focused. Checked rather than assumed, and answered with one
+        // bounded re-tap rather than a sleep: by now the form has finished settling, so the
+        // second tap lands on a stationary field.
+        if app.keyboards.firstMatch.waitForExistence(timeout: UITestTimeout.short) == false {
+            // A field that has gone missing since it was tapped is a different problem from a
+            // field that will not take focus, and re-tapping it reports the first as the second:
+            // XCTest raises "No matches found" from inside `tap()`, naming the query rather than
+            // the cause.
+            guard element.exists else {
+                XCTFail("\(description) disappeared between being tapped and being typed into. "
+                        + "The tap raised no keyboard, so it never landed on the field — and "
+                        + "whatever it did land on took the field away. "
+                        + onScreenSummary(in: app),
+                        file: file,
+                        line: line)
+                return
+            }
+
+            element.tap()
+            guard app.keyboards.firstMatch.waitForExistence(timeout: UITestTimeout.standard) else {
+                XCTFail("The keyboard never appeared after tapping \(description), so there was "
+                        + "nothing focused to type into.",
+                        file: file,
+                        line: line)
+                return
+            }
         }
-        element.typeText(text)
+
+        // Put the caret at the end before deleting anything.
+        //
+        // iOS drops the caret where the finger lands. `tapWhenHittable` taps the centre of a
+        // field, which for an *empty* one is the same as the end — and every field in this suite
+        // was empty until the credit sheet, whose amount arrives pre-filled with the expected
+        // credit. Tapping the middle of "86.50" left the caret after "86", the deletes ate
+        // backwards from there, and the typed text landed in front of what was left: "86.50.50",
+        // which is not a number. The app said so plainly and disabled Save; the suite could not
+        // see either, and spent a run finding out.
+        //
+        // The right-hand edge is past the last character whichever way a field is aligned — the
+        // money fields are trailing-aligned so the text ends there, and the leading-aligned ones
+        // have empty space there. Either way the caret lands at the end.
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+
+        // One `typeText`, not two. Every extra call is another opportunity for focus to move
+        // between clearing the field and refilling it.
+        //
+        // The count is an upper bound, not a length: several fields override their accessibility
+        // value — `CurrencyTextField` reports "$86.50", the vendor window its clamped integer, an
+        // empty field its placeholder — and a delete against an empty field does nothing. The
+        // floor is there because a short reported value is not proof of a short field.
+        let reported = (element.value as? String) ?? ""
+        let deletions = min(max(reported.count + 4, 16), 64)
+        element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: deletions) + text)
+
+        // And check it went in. Typing is the one step in this file that can half-succeed: the
+        // field keeps focus, no query fails, and the wrong value sits there until something far
+        // away refuses to accept it. Every field either reports what it holds or a decorated form
+        // of it, so containment is the honest test.
+        if (element.value as? String ?? "").contains(text) { return }
+
+        // One repair, then the assertion stands.
+        //
+        // By now the field is focused, the form has stopped moving, and the keyboard is up — none
+        // of which was guaranteed on the first attempt. Doing it again from the end of the text is
+        // the same thing a person does when a field takes their typing badly, and it masks
+        // nothing: the check below still decides, and still fails if this did not work.
+        element.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        element.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 64) + text)
+
+        let afterTyping = (element.value as? String) ?? ""
+        if afterTyping.contains(text) == false {
+            let keyboard = app.keyboards.count > 0 ? "A keyboard was up." : "No keyboard was up."
+            XCTFail("\(description) reads \"\(afterTyping)\" after typing \"\(text)\" into it "
+                    + "twice. The field was not cleared before the new value went in. " + keyboard,
+                    file: file,
+                    line: line)
+        }
     }
 
     /// Resigns the keyboard without dismissing the screen behind it.
@@ -653,19 +1080,56 @@ extension XCTestCase {
     func dismissKeyboard(in app: XCUIApplication) {
         guard app.keyboards.count > 0 else { return }
 
+        // 1. The keyboard toolbar's Done, where the screen supplies one.
         let keyboardDone = app.toolbars.buttons["Done"].firstMatch
         if keyboardDone.exists && keyboardDone.isHittable {
             keyboardDone.tap()
-            return
+            // Checked, not assumed. This used to return here, and for one field it was wrong: the
+            // expected-credit keyboard had a Done above it that did not dismiss it, so everything
+            // afterwards ran against a screen with three hundred points of keyboard across the
+            // bottom of it while believing it had none.
+            if keyboardIsGone(in: app) { return }
         }
 
-        // A sheet leaves the presenting screen's navigation bar in the tree behind it, so the
-        // first *hittable* bar is the one in front rather than simply the first one found.
+        // 2. The keyboard's own return key. A default keyboard has one; a decimal pad does not,
+        //    which is exactly why the rungs below this exist.
+        for title in ["Return", "return"] {
+            let returnKey = app.keyboards.buttons[title].firstMatch
+            if returnKey.exists && returnKey.isHittable {
+                returnKey.tap()
+                if keyboardIsGone(in: app) { return }
+                break
+            }
+        }
+
+        // 3. Drag the keyboard away, the way a person does on a screen with no Done — every
+        //    text-entry screen in this app carries `.scrollDismissesKeyboard(.interactively)`.
+        //
+        //    The old fear of a downward drag was that it dismisses a sheet sitting at the top of
+        //    its scroll view. It cannot here: this rung is only reached with a keyboard up, and
+        //    the interactive dismissal takes the gesture before the sheet does.
+        dragContent(in: app, revealing: .above)
+        if keyboardIsGone(in: app) { return }
+
+        // 4. A sheet leaves the presenting screen's navigation bar in the tree behind it, so the
+        //    first *hittable* bar is the one in front rather than simply the first one found.
         for navigationBar in app.navigationBars.allElementsBoundByIndex
         where navigationBar.exists && navigationBar.isHittable {
             navigationBar.tap()
-            return
+            if keyboardIsGone(in: app) { return }
         }
+    }
+
+    /// Whether the keyboard has finished going away.
+    ///
+    /// Polled rather than slept on, and bounded: a keyboard that is still up after this really is
+    /// still up, and the caller is better off finding that out than waiting on it.
+    private func keyboardIsGone(in app: XCUIApplication) -> Bool {
+        let deadline = Date().addingTimeInterval(UITestTimeout.short)
+        repeat {
+            if app.keyboards.count == 0 { return true }
+        } while Date() < deadline
+        return false
     }
 }
 
@@ -758,7 +1222,15 @@ extension XCTestCase {
             return
         }
 
-        XCTFail("The menu item \"\(title)\" never appeared.", file: file, line: line)
+        // "Never appeared" is true whether the menu never opened, opened without this item in it,
+        // or opened with its items published as something neither query looks for. Those are three
+        // different bugs. Listing what is actually on screen says which: an open vendor menu always
+        // carries "Add new vendor…" alongside the vendor names.
+        XCTFail("The menu item \"\(title)\" never appeared. "
+                + "Menu containers on screen: \(app.menus.count). "
+                + onScreenSummary(in: app),
+                file: file,
+                line: line)
     }
 
     /// Opens the detail screen for a core, tolerating a `NavigationStack` that is already there.

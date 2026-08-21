@@ -106,11 +106,14 @@ workflows:
           echo "--- Recorded test issues ---"
           grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
 
+          echo "--- Failing test cases, for any XCTest case in this bundle ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 40 || echo "(none)"
+
           echo "--- Build errors ---"
           grep -aE '\.swift:[0-9]+(:[0-9]+)?: error:' "$LOG" | head -n 40 || echo "(none)"
 
           echo "--- Run summary ---"
-          grep -a "Test run with" "$LOG" | tail -n 5 || echo "(none)"
+          grep -aE "Executed [0-9]+ test|Test run with" "$LOG" | tail -n 5 || echo "(none)"
           echo "==============================================="
           echo "xcodebuild exit status: $STATUS"
           exit $STATUS
@@ -158,14 +161,27 @@ workflows:
 
           echo ""
           echo "=============== UI TEST FAILURE SUMMARY ==============="
+
+          # The definitive list, and the first thing to read.
+          #
+          # Every class here sets `continueAfterFailure = false`, so one failing test records
+          # exactly one failure — which means this list and the "with N failures" total below must
+          # agree. When they did not, the difference was tests that *threw* rather than asserted:
+          # `try requireDeepControl(...)` and `try XCTUnwrap(...)` report `threw error`, which the
+          # old "error: ... failed" pattern could not match. Two failures went unnamed for two
+          # whole cycles because of it.
+          echo "--- Failing test cases (one line per failing test) ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 60 || echo "(none)"
+
+          echo "--- Failure detail (asserted and thrown alike) ---"
+          grep -aE "error: -\[" "$LOG" | head -n 60 || echo "(none)"
+
           echo "--- Recorded test issues ---"
           grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
-          echo "--- XCTest failures ---"
-          grep -aE "^.*: error: .*failed" "$LOG" | head -n 40 || echo "(none)"
           echo "--- Timed-out waits (the usual shape of a UI failure here) ---"
           grep -a "Timed out after" "$LOG" | head -n 30 || echo "(none)"
           echo "--- Run summary ---"
-          grep -a "Test run with" "$LOG" | tail -n 5 || echo "(none)"
+          grep -aE "Executed [0-9]+ test" "$LOG" | tail -n 5 || echo "(none)"
           echo "======================================================"
           echo "xcodebuild exit status: $STATUS"
 
@@ -485,3 +501,87 @@ workflows:
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
 
     # NO `publishing:` SECTION. That absence is the entire point of this workflow.
+
+  # ---------------------------------------------------------------------------------------------
+  # TEMPORARY — DELETE BEFORE MERGING TO main.
+  #
+  # A fast signal on exactly the tests under repair, so a two-minute question is not answered by a
+  # sixteen-minute run. It builds and signs nothing and publishes nothing.
+  #
+  # It carries a `triggering:` block scoped to the single repair branch, which is deliberate on two
+  # counts. Codemagic lists a branch's workflows by trigger applicability, so a workflow with no
+  # trigger at all cannot be picked from the UI for that branch — which is exactly what happened
+  # with the two manual workflows above. And because the pattern names one branch that will be
+  # deleted after the merge, this can never fire on main, on a release branch, or on anything else.
+  #
+  # The invariant in scripts/verify_repository.py still holds: this workflow has no `publishing:`
+  # section, so triggering automatically costs nothing but simulator minutes.
+  # ---------------------------------------------------------------------------------------------
+  corecredit-targeted-ui:
+    name: CoreCredit Targeted UI Tests (manual)
+    max_build_duration: 45
+
+    # Deliberately no `triggering:` block any more. This workflow existed to iterate on two
+    # failing tests without paying for the full suite each time; both are green, so the full gate
+    # is back in charge of this branch and there is no reason for a second run to fire beside it.
+    # Started by hand if it is ever wanted again; removed altogether after submission.
+
+    environment:
+      xcode: 26.4
+
+    scripts:
+      - name: Verify repository invariants
+        script: |
+          set -e
+          python3 scripts/verify_repository.py
+
+      # The same simulator discovery the full workflow uses: the runner's device set changes with
+      # every Xcode image, so the newest installed iPhone is found rather than named.
+      - name: Run only the two tests under repair
+        script: |
+          set -o pipefail
+
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -E "^ +iPhone" \
+            | tail -n 1 \
+            | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")
+
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No available iPhone simulator was found on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Running the targeted UI tests on simulator $DEVICE_ID"
+
+          LOG="$CM_BUILD_DIR/xcodebuild-targeted.log"
+          STATUS=0
+
+          xcodebuild test \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=$DEVICE_ID" \
+            -resultBundlePath "$CM_BUILD_DIR/CoreCreditTargetedUITests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            -only-testing:CoreCreditUITests/CoreWorkflowUITests/testCoreTravelsFromVendorCreationToZeroMoneyAtRisk \
+            -only-testing:CoreCreditUITests/CoreWorkflowUITests/testShortCreditOpensADisputeForTheShortfall \
+            | tee "$LOG" || STATUS=$?
+
+          echo ""
+          echo "============ TARGETED UI TEST SUMMARY ============"
+          echo "--- Failing test cases (one line per failing test) ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 20 || echo "(none)"
+          echo "--- Failure detail (asserted and thrown alike) ---"
+          grep -aE "error: -\[" "$LOG" | head -n 40 || echo "(none)"
+          echo "--- Timed-out waits ---"
+          grep -a "Timed out after" "$LOG" | head -n 20 || echo "(none)"
+          echo "--- Run summary (expect: Executed 2 tests, with 0 failures) ---"
+          grep -aE "Executed [0-9]+ test" "$LOG" | tail -n 3 || echo "(none)"
+          echo "================================================="
+          echo "xcodebuild exit status: $STATUS"
+          exit $STATUS
+
+    artifacts:
+      - $CM_BUILD_DIR/xcodebuild-targeted.log
+      - $CM_BUILD_DIR/CoreCreditTargetedUITests.xcresult

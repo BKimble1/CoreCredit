@@ -55,6 +55,13 @@ struct OnboardingView: View {
                 footer
             }
         }
+        // Same reason as `CoreListView`: this root is a `ZStack`, which is not an accessibility
+        // element, so `onboarding.root` propagated down and overwrote the footer button's
+        // `onboarding.next`. The progress header was still found by its label — labels are not
+        // affected — which is why the suite could assert "Step 1 of 5" and then time out looking
+        // for the button directly beneath it. `.contain` gives the identifier somewhere to bind
+        // and keeps the header, the step content, and both footer buttons individually exposed.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(A11y.Onboarding.root)
     }
 

@@ -178,6 +178,7 @@ struct SettingsView: View {
                         + "device."
                 )
             }
+            .accessibilityIdentifier(A11y.Settings.dataExport)
 
             NavigationLink {
                 ScannerDiagnosticsView()

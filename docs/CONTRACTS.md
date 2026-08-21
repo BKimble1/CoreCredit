@@ -65,10 +65,10 @@ enum AppConfiguration {
 
     // MARK: Publisher and public addresses — configured, served as static HTML over HTTPS
     static let companyName = "Idlery Services LLC"
-    static let supportURLString = "https://bkimble1.github.io/CoreCredit-Legal/support"
-    static let privacyURLString = "https://bkimble1.github.io/CoreCredit-Legal/privacy"
-    static let termsURLString   = "https://bkimble1.github.io/CoreCredit-Legal/terms"
-    static let supportEmail     = "idlery.apps@gmail.com"
+    static let supportURLString = "https://corecredit.idlery.com/support"
+    static let privacyURLString = "https://corecredit.idlery.com/privacy"
+    static let termsURLString   = "https://corecredit.idlery.com/terms"
+    static let supportEmail     = "support@idlery.com"
 
     static let fallbackURL = URL(fileURLWithPath: "/")
     static var supportURL: URL { URL(string: supportURLString) ?? fallbackURL }

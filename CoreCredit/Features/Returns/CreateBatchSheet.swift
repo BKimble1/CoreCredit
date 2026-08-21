@@ -5,6 +5,7 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// Sends a vendor's staged cores back in one hand-off.
 ///
@@ -71,6 +72,7 @@ struct CreateBatchSheet: View {
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .center)
             }
+            .scrollDismissesKeyboard(.interactively)
             // Confirm is the last thing on this sheet. A `ZStack` around a safe-area-ignoring
             // background grew past the home indicator and took that inset off the scroll view;
             // painting the background behind it instead leaves the inset where SwiftUI put it.
@@ -86,6 +88,22 @@ struct CreateBatchSheet: View {
                         dismiss()
                     }
                     .accessibilityHint(Text("Closes without creating a return."))
+                }
+                // The only two text-entry sheets in this app that had no way out of the
+                // keyboard. Every other one either carries this button or dismisses the keyboard
+                // on a drag, and this sheet has a money field: a decimal pad has no return key, so
+                // without this there is nothing to press and nothing to swipe.
+                //
+                // Resigning the first responder rather than clearing a `@FocusState`, because the
+                // fields here keep their own — the same reason the core editor's Done needed it.
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                                        to: nil,
+                                                        from: nil,
+                                                        for: nil)
+                    }
                 }
             }
             .onAppear {

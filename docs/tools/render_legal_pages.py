@@ -28,11 +28,11 @@ import os
 # ----------------------------------------------------------------- owner-supplied constants
 
 COMPANY = "Idlery Services LLC"
-EMAIL = "idlery.apps@gmail.com"
+EMAIL = "support@idlery.com"
 COPYRIGHT = "Copyright 2026 Idlery Services LLC"
 APP_NAME = "CoreCredit"
 
-SITE_ROOT = "https://bkimble1.github.io/CoreCredit-Legal"
+SITE_ROOT = "https://corecredit.idlery.com"
 SUPPORT_URL = SITE_ROOT + "/support"
 PRIVACY_URL = SITE_ROOT + "/privacy"
 TERMS_URL = SITE_ROOT + "/terms"
@@ -112,12 +112,16 @@ STYLE = """
 
 def page(title, eyebrow, heading, meta, summary, body_html, description):
     """One complete, self-contained HTML document."""
+    # Relative, not root-absolute. These four files are a flat directory, so `support` resolves
+    # correctly whether the site is served from the root of a domain or from a subdirectory. A
+    # root-absolute path bakes one host's layout into the page and breaks the moment the pages are
+    # copied somewhere else, which is exactly what happened when they moved off GitHub Pages.
     nav = (
         '<nav class="pages" aria-label="Legal documents">'
-        '<a href="/CoreCredit-Legal/">Home</a>'
-        '<a href="/CoreCredit-Legal/support">Support</a>'
-        '<a href="/CoreCredit-Legal/privacy">Privacy</a>'
-        '<a href="/CoreCredit-Legal/terms">Terms</a>'
+        '<a href="./">Home</a>'
+        '<a href="support">Support</a>'
+        '<a href="privacy">Privacy</a>'
+        '<a href="terms">Terms</a>'
         "</nav>"
     )
     summary_html = (

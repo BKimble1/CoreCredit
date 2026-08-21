@@ -33,7 +33,22 @@ final class RestoreAndBarcodeUITests: XCTestCase {
 
         XCTContext.runActivity(named: "Data & export offers a restore") { _ in
             tapTab(A11yID.Tab.settings, in: app)
-            tapWhenHittable(button(app, labelContaining: "Data & export"),
+
+            // Scrolled to first, then tapped by identifier.
+            //
+            // "Data & export" is the seventh row on Settings, across four sections, and a SwiftUI
+            // `List` is lazy: a row below the fold is not merely off screen, it is absent from the
+            // accessibility tree, so `waitForExistence` times out on a control that is perfectly
+            // present. `LegalUITests` already reaches its own Settings row this way.
+            //
+            // The identifier matters too. This row publishes as a cell rather than a button, so
+            // the label fragment matched against `buttons` that used to be here could never have
+            // resolved even with the row on screen.
+            XCTAssertTrue(
+                scrollUntilExists(element(app, A11yID.Settings.dataExport), in: app),
+                "The Data & export row never appeared, even after scrolling the Settings list."
+            )
+            tapWhenHittable(control(app, A11yID.Settings.dataExport),
                             "the Data & export row",
                             in: app)
 

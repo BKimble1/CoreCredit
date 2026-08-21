@@ -187,6 +187,23 @@ final class NotificationResponder: NSObject, UNUserNotificationCenterDelegate {
     }
 
     // MARK: - UNUserNotificationCenterDelegate
+    //
+    // Both callbacks are written in their **completion-handler** form, not the `async` form Swift
+    // also offers for them. The two are not equivalent, and the difference is a crash.
+    //
+    // An `async` delegate method is compiled into an `@objc` entry point that starts a task, runs
+    // the body, and then calls UserNotifications' completion handler from wherever that task
+    // happened to finish — the cooperative pool, not the main thread. UIKit does real work inside
+    // that handler on the way in from a tap: it updates the window scene's snapshot and its
+    // state-restoration archive, and that work asserts it is on the main thread. Build 38 died
+    // there, 391ms into a launch from a tapped notification, in
+    // `-[UIApplication _updateSnapshotAndStateRestorationWithAction:windowScene:]` on
+    // `com.apple.root.user-initiated-qos.cooperative`.
+    //
+    // Owning the completion handler puts that back under this file's control: the work below and
+    // the handler call that ends it both run on the main actor, whichever thread the notification
+    // centre calls the delegate on. `verify_repository.py` fails the build if either method goes
+    // back to the `async` spelling.
 
     /// Shows the banner and plays the sound even while CoreCredit is in the foreground.
     ///
@@ -194,35 +211,41 @@ final class NotificationResponder: NSObject, UNUserNotificationCenterDelegate {
     /// reminder that fires at 8am is never seen. Nothing else in the app shows a toast for the same
     /// notification, so there is exactly one announcement per alert.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler:
+                                    @escaping (UNNotificationPresentationOptions) -> Void) {
+        Task { @MainActor in
+            completionHandler([.banner, .sound])
+        }
     }
 
     /// Handles a tap or an action.
     ///
     /// Every branch either opens a screen or moves a local alert. None of them writes to the store.
+    ///
+    /// The route is read here, before the hop, so only a `String?` has to cross onto the main
+    /// actor for the two branches that open a screen.
     func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                didReceive response: UNNotificationResponse) async {
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
         let request = response.notification.request
         let action = response.actionIdentifier
+        let itemRoute = route(in: request)
 
-        if action == ReminderNotificationAction.snoozeOneDay {
-            await snooze(request)
-            return
+        Task { @MainActor in
+            if action == ReminderNotificationAction.snoozeOneDay {
+                await self.snooze(request)
+            } else if action == ReminderNotificationAction.scanCore {
+                self.deliver(ReminderRoute.scan)
+            } else if action == ReminderNotificationAction.viewItem
+                || action == UNNotificationDefaultActionIdentifier {
+                self.deliver(itemRoute)
+            }
+
+            // `UNNotificationDismissActionIdentifier` and anything a future iOS adds fall straight
+            // through to the completion handler: a dismissal is not a request to open anything.
+            completionHandler()
         }
-
-        if action == ReminderNotificationAction.scanCore {
-            await deliver(ReminderRoute.scan)
-            return
-        }
-
-        if action == ReminderNotificationAction.viewItem || action == UNNotificationDefaultActionIdentifier {
-            await deliver(route(in: request))
-            return
-        }
-
-        // `UNNotificationDismissActionIdentifier` and anything a future iOS adds: a dismissal is
-        // not a request to open anything.
     }
 
     // MARK: - Private
@@ -235,8 +258,8 @@ final class NotificationResponder: NSObject, UNUserNotificationCenterDelegate {
     /// Hands the URL to the app shell, or buffers it until a handler exists.
     ///
     /// Main-actor isolated so the handler — which ends up touching the router and, through it, the
-    /// view tree — is only ever run there. The delegate callback awaits the hop; only a `String?`
-    /// crosses the boundary.
+    /// view tree — is only ever run there. The delegate callback hops onto the main actor before
+    /// calling this, and only a `String?` crosses the boundary.
     @MainActor
     private func deliver(_ urlString: String?) {
         guard let urlString = urlString else { return }

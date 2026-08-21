@@ -74,6 +74,21 @@ struct CoreListView: View {
             Palette.background.ignoresSafeArea()
         }
         .navigationTitle(title)
+        // `.contain` before the identifier, and it is load-bearing.
+        //
+        // `.accessibilityIdentifier` on a view that is not itself an accessibility element does not
+        // bind to that view — it propagates down and overwrites the identifiers of the elements
+        // inside it. A `ScrollView` or a `List` is its own element (it has scroll actions), so the
+        // identifier binds there and stops; this screen's root is a plain `VStack`, which is not,
+        // so `cores.root` was landing on everything underneath and taking `cores.list` with it.
+        // That is why the first execution of the UI suite could find `cores.root` but never
+        // `cores.list`, while `cores.row.<uuid>` survived — list cells are hosted separately and
+        // sit outside this propagation.
+        //
+        // `.contain` makes this view an accessibility element in its own right, so the identifier
+        // has somewhere to land, while explicitly keeping every child individually exposed. The
+        // rows, the filter bar, and the empty state all stay queryable exactly as before.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(A11y.Cores.root)
         .searchable(
             text: searchBinding,

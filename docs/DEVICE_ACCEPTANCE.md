@@ -18,6 +18,18 @@ Tester / date:        ______________________________________
 
 ---
 
+## 0. Launch
+
+| # | Check | Pass |
+|---|---|---|
+| 0.1 | The app opens straight onto brand blue with the mark — no white flash | ☐ |
+| 0.2 | **Powered by idlery** reads clearly under the mark, low on the screen, both in white | ☐ |
+| 0.3 | The same on a small iPhone and on an iPad, where the image is centred in a taller window | ☐ |
+
+> The launch screen is a static `UILaunchScreen`: one colour, one centred image, no text. The
+> credit is therefore part of the image (`scripts/render_launch_mark.py` builds it), and "low on
+> the screen" is achieved by padding the image rather than by pinning anything to the bottom.
+
 ## 1. Live scanning — the camera path
 
 | # | Check | Pass |
@@ -83,6 +95,14 @@ Tester / date:        ______________________________________
 | 6.4 | Tapping a reminder opens **that core** | ☐ |
 | 6.5 | Settling a core cancels its pending reminders | ☐ |
 | 6.6 | With *Show detail* off, no money appears on the lock screen | ☐ |
+| 6.7 | Tapping a notification while the app is **closed** launches it without crashing | ☐ |
+| 6.8 | Tapping the test reminder — which carries no route — opens the app and does nothing else | ☐ |
+| 6.9 | *View Item*, *Scan Core*, and *Snooze 1 Day* each act once, from the lock screen | ☐ |
+
+> 6.7 and 6.8 are the crash that killed build 38. The notification delegate was written in its
+> `async` form, which let UserNotifications call UIKit back on a background thread during the
+> launch a tap causes. It reproduces on a device and not in the simulator, so it has to be walked
+> here. See `NotificationResponder` and the `notification delegate` repository invariant.
 
 ## 7. Widget, Shortcut, Siri, Action Button
 

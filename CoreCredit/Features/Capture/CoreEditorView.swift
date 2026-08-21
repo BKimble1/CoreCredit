@@ -148,7 +148,25 @@ struct CoreEditorView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { focusedField = nil }
+                    // Two dismissals, because this form has two kinds of field.
+                    //
+                    // `focusedField` covers the ones built on `EditorField`, which take the
+                    // editor's `@FocusState` as a binding. `CurrencyTextField` does not: it owns a
+                    // private `@FocusState` so the component stays self-contained, which is why
+                    // `.expectedCredit` is absent from `focusableFields`. The consequence was that
+                    // this button appeared above the expected-credit decimal pad — a keyboard with
+                    // no return key — and did nothing when it was pressed.
+                    //
+                    // Resigning the first responder covers whatever is focused inside this form,
+                    // including a field that keeps its own focus to itself, without making every
+                    // component surrender its encapsulation to the screen holding it.
+                    Button("Done") {
+                        focusedField = nil
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                                        to: nil,
+                                                        from: nil,
+                                                        for: nil)
+                    }
                 }
             }
             // Attached here rather than beside the paywall sheet below: two `.sheet` modifiers

@@ -5,6 +5,7 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// The reconciliation moment: the vendor's credit memo, compared against what was expected.
 ///
@@ -61,6 +62,7 @@ struct RecordCreditSheet: View {
                 .frame(maxWidth: 720, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .center)
             }
+            .scrollDismissesKeyboard(.interactively)
             // Save is the last thing on this sheet, so the same fix the root screens got: the
             // background is painted behind the scroll view rather than stacked beside one that
             // ignores the safe area and drags the whole stack past it.
@@ -74,6 +76,22 @@ struct RecordCreditSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(savedOutcome == nil ? "Cancel" : "Done") {
                         dismiss()
+                    }
+                }
+                // The only two text-entry sheets in this app that had no way out of the
+                // keyboard. Every other one either carries this button or dismisses the keyboard
+                // on a drag, and this sheet has a money field: a decimal pad has no return key, so
+                // without this there is nothing to press and nothing to swipe.
+                //
+                // Resigning the first responder rather than clearing a `@FocusState`, because the
+                // fields here keep their own — the same reason the core editor's Done needed it.
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                                        to: nil,
+                                                        from: nil,
+                                                        for: nil)
                     }
                 }
             }
