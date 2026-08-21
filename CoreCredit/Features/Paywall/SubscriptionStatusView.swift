@@ -139,7 +139,7 @@ private struct SubscriptionStatusContent: View {
     private var planCard: some View {
         SectionCard(title: "Plan", systemImage: "person.crop.circle") {
             VStack(alignment: .leading, spacing: Spacing.s) {
-                LabeledValueRow("Current plan", value: controller.entitlement.tier.displayName)
+                LabeledValueRow("Current plan", value: planDescription)
 
                 // Wording and tense live in `SubscriptionPeriodPresentation`, so the one sentence
                 // this app says about a paid period is a thing the test suite can pin. The date is
@@ -259,6 +259,27 @@ private struct SubscriptionStatusContent: View {
         .disabled(controller.isBusy)
         .accessibilityLabel(Text("Restore purchases"))
         .accessibilityHint(Text("Checks this Apple Account for a subscription you already bought."))
+    }
+
+    /// "Pro", and which of the two subscriptions is behind it when the store has said.
+    ///
+    /// The tier on its own answers whether anything is gated, which is what the rest of the app
+    /// cares about. It does not answer "am I on monthly or annual", and until now nothing in
+    /// CoreCredit did — the only place that showed a billing period was Apple's own subscription
+    /// sheet, which in the sandbox is frequently out of date and is the wrong place to have to look.
+    ///
+    /// `activeProductID` is whatever `Transaction.currentEntitlements` reported, so an identifier
+    /// this build does not recognise falls back to the tier rather than guessing.
+    private var planDescription: String {
+        let tier = controller.entitlement.tier.displayName
+        switch controller.entitlement.activeProductID {
+        case AppConfiguration.monthlyProductID:
+            return tier + " — monthly"
+        case AppConfiguration.annualProductID:
+            return tier + " — annual"
+        default:
+            return tier
+        }
     }
 
     /// Prefers the in-app management sheet and falls back to Apple's web page.

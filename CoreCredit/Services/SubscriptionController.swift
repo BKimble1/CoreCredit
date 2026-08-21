@@ -205,8 +205,20 @@ final class SubscriptionController {
                 purchasePhase = .failed(SubscriptionController.nothingToRestoreMessage)
             }
         } catch {
+            // `AppStore.sync()` throwing does not mean there is nothing to restore. It is a request
+            // that the App Store refresh its record, and it fails for reasons that have nothing to
+            // do with this Apple Account's subscriptions — most reliably in the sandbox, where it
+            // asks for a password and gives up. `Transaction.currentEntitlements` is the source of
+            // truth and reads fine without it.
+            //
+            // So the entitlement decides, not the error: refresh, and if this account turns out to
+            // be Pro, the restore did what the person asked for and saying otherwise in red is a
+            // lie. Only an account that really has nothing gets the failure.
+            await refreshEntitlement()
             isRestoring = false
-            purchasePhase = .failed(SubscriptionController.restoreFailureMessage)
+            purchasePhase = entitlement.isPro
+                ? .succeeded
+                : .failed(SubscriptionController.restoreFailureMessage)
         }
     }
 
