@@ -18,6 +18,18 @@ Tester / date:        ______________________________________
 
 ---
 
+## 0. Launch
+
+| # | Check | Pass |
+|---|---|---|
+| 0.1 | The app opens straight onto brand blue with the mark — no white flash | ☐ |
+| 0.2 | **Powered by idlery** reads clearly under the mark, low on the screen, both in white | ☐ |
+| 0.3 | The same on a small iPhone and on an iPad, where the image is centred in a taller window | ☐ |
+
+> The launch screen is a static `UILaunchScreen`: one colour, one centred image, no text. The
+> credit is therefore part of the image (`scripts/render_launch_mark.py` builds it), and "low on
+> the screen" is achieved by padding the image rather than by pinning anything to the bottom.
+
 ## 1. Live scanning — the camera path
 
 | # | Check | Pass |
