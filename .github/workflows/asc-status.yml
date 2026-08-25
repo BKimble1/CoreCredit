@@ -36,9 +36,17 @@ jobs:
           APP_APPLE_ID: '6802336957'
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check pyjwt cryptography
 
-          python3 <<'PY'
+          # A virtualenv, not `pip install` into the system Python. The runner's python3 is
+          # Homebrew's and is marked externally-managed (PEP 668), so a plain install fails with
+          # "error: externally-managed-environment". `--break-system-packages` would also work and
+          # is exactly what its name says; a throwaway venv on an ephemeral runner costs a few
+          # seconds and breaks nothing.
+          VENV="$RUNNER_TEMP/ascvenv"
+          python3 -m venv "$VENV"
+          "$VENV/bin/pip" install --quiet --disable-pip-version-check pyjwt cryptography
+
+          "$VENV/bin/python" <<'PY'
           import json, os, sys, time, urllib.request, urllib.error
           import jwt
 
