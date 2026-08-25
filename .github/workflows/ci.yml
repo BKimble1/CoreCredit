@@ -36,17 +36,12 @@ permissions:
 jobs:
   gate:
     name: Invariants, build, unit tests, UI tests
-    # `macos-latest` rather than a pinned image, because no pinned image has been *proven* here.
-    # A `macos-26` label was tried first; both it and this one died in four seconds with no log,
-    # and the annotation on each was the same billing message — GitHub never allocated a runner, so
-    # neither label was actually tested. `macos-latest` is the choice that resolves whatever image
-    # the account is entitled to, and the toolchain step below prints exactly which Xcode it got,
-    # so a build that behaves oddly can still be traced to its compiler. Pin the image once a run
-    # has genuinely started.
-    #
-    # NOTE: this repository is private, so macOS runner minutes are billed. Until Billing & plans
-    # has a working payment method and a non-zero spending limit, every job here fails instantly
-    # and no step in this file ever executes.
+    # `macos-latest` rather than a pinned image. A `macos-26` label was tried first, but while the
+    # repository was private every job died in four seconds on an Actions billing annotation and no
+    # runner was ever allocated, so that label was never actually tested. The repository is public
+    # now — standard runners are free — and `macos-latest` resolved to Xcode 26.6 on macOS. Left
+    # unpinned deliberately: the toolchain step below prints the version it got, so a build that
+    # behaves oddly can still be traced to its compiler.
     runs-on: macos-latest
     timeout-minutes: 120
 

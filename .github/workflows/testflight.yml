@@ -61,9 +61,7 @@ env:
 jobs:
   publish:
     name: Archive, sign, and upload to App Store Connect
-    # See the note in ci.yml. This repository is private, so macOS runner minutes are billed and
-    # no job here starts at all until Billing & plans has a working payment method and a non-zero
-    # spending limit.
+    # See the note in ci.yml. Resolved to Xcode 26.6 on the first run that actually started.
     runs-on: macos-latest
     timeout-minutes: 90
 
@@ -207,6 +205,25 @@ jobs:
           set -o pipefail
           set -e
 
+          # `CODE_SIGN_IDENTITY="Apple Distribution"` is load-bearing, and its absence is what
+          # failed build 65's first attempt.
+          #
+          # The project sets `CODE_SIGN_STYLE = Automatic` and a team, but never a signing
+          # identity, so it falls back to Xcode's default of "Apple Development". Automatic
+          # provisioning derives the *profile type* from that identity, so `xcodebuild archive`
+          # went looking for an **iOS App Development** profile rather than an App Store one — and
+          # a development profile has to enumerate registered devices, which is why Apple answered
+          # "Your team has no devices from which to generate a provisioning profile". That error
+          # names devices and says nothing about distribution, which sends you hunting in exactly
+          # the wrong place.
+          #
+          # Naming the distribution identity here makes `-allowProvisioningUpdates` request an App
+          # Store profile for both `com.blakekimble.corecredit` and `…​.widget`. Signing stays
+          # fully automatic and no provisioning profile is stored as a secret.
+          #
+          # This is set on the command line rather than in the project so that opening CoreCredit
+          # in Xcode still signs for development, which is what a person debugging on a device
+          # wants.
           xcodebuild archive \
             -project CoreCredit.xcodeproj \
             -scheme CoreCredit \
@@ -218,7 +235,20 @@ jobs:
             -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
             -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             | tee "$RUNNER_TEMP/xcodebuild-archive.log"
+
+          echo ""
+          echo "--- Profiles automatic signing actually resolved ---"
+          # Printed whether or not the next step succeeds: when signing goes wrong again, the
+          # question is always "which profile did it pick?", and the archive log does not say.
+          find "$RUNNER_TEMP/CoreCredit.xcarchive" -name embedded.mobileprovision | while read -r p; do
+            NAME=$(security cms -D -i "$p" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "?")
+            APPID=$(security cms -D -i "$p" 2>/dev/null \
+              | plutil -extract Entitlements.application-identifier raw - 2>/dev/null || echo "?")
+            echo "  $APPID  ($NAME)"
+          done
 
       - name: Export the signed IPA
         run: |

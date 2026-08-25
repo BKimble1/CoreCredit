@@ -40,24 +40,20 @@ looks wrong until that moment.
 
 ## 2. Before the first signed archive ever succeeds
 
-### 2a. Billing — one time, and nothing runs until it is done
+### 2a. Actions minutes — settled
 
-This repository is **private**, so GitHub-hosted **macOS** runner minutes are billed. Until
-**Settings → Billing and plans** has a working payment method and a non-zero spending limit for
-Actions, every job on both workflows fails in about four seconds with no log at all and this single
-annotation:
+The repository is **public**, so standard GitHub-hosted runners, macOS included, are free. Runs
+resolve to `macos-latest` (Xcode 26.6 at the time of writing).
+
+If it is ever made private again, macOS minutes become billable, and until **Settings → Billing and
+plans** has a working payment method and a non-zero spending limit every job fails in about four
+seconds with no log at all and this single annotation:
 
 > The job was not started because recent account payments have failed or your spending limit needs
 > to be increased.
 
-It looks exactly like a broken workflow. It is not. Two alternatives, if paying for macOS minutes
-is not wanted:
-
-- **Make the repository public.** Standard GitHub-hosted runners, macOS included, are free for
-  public repositories. Consider what else is in the history first.
-- **Register a self-hosted runner** on a Mac that already has Xcode, and change `runs-on:` in both
-  workflows to that runner's label. Minutes are then free and the toolchain is whatever that Mac
-  has.
+It looks exactly like a broken workflow. It is not. The alternative is a **self-hosted runner** on
+a Mac that already has Xcode, with `runs-on:` in both workflows changed to that runner's label.
 
 ### 2b. Repository secrets — one time
 
