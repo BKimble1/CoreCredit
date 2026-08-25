@@ -200,55 +200,51 @@ jobs:
           agvtool what-marketing-version -terse1 || true
           agvtool what-version -terse || true
 
+      # Archived WITHOUT code signing, deliberately. Signing happens once, at export.
+      #
+      # Two failed attempts got us here, and the reasoning is worth keeping because the error
+      # messages point away from the cause:
+      #
+      #   1. Plain `xcodebuild archive` with automatic signing asked Apple for an **iOS App
+      #      Development** profile and was refused: "Your team has no devices from which to
+      #      generate a provisioning profile." A development profile has to enumerate registered
+      #      devices, and this team has none — it has never needed any, because nothing is
+      #      debugged from CI. The message talks about devices and never mentions distribution.
+      #   2. Adding `CODE_SIGN_IDENTITY="Apple Distribution"` was refused too: "CoreCredit is
+      #      automatically signed for development, but a conflicting code signing identity Apple
+      #      Distribution has been manually specified." Automatic signing will not let the
+      #      identity be overridden.
+      #
+      # So automatic signing insists on a development profile at archive time, and a development
+      # profile cannot exist for this team. The way through is that the archive does not need to
+      # be signed at all: `-exportArchive` re-signs the app and the embedded extension from
+      # scratch using the export method. `ExportOptions.plist` below says `app-store-connect` with
+      # `signingStyle: automatic`, and the export runs with `-allowProvisioningUpdates` and the App
+      # Store Connect key — so Xcode creates and downloads the **App Store** profiles for both
+      # bundle identifiers there, where a device list is not required.
+      #
+      # Provisioning stays automatic and no profile is stored as a secret.
       - name: Archive
         run: |
           set -o pipefail
           set -e
 
-          # `CODE_SIGN_IDENTITY="Apple Distribution"` is load-bearing, and its absence is what
-          # failed build 65's first attempt.
-          #
-          # The project sets `CODE_SIGN_STYLE = Automatic` and a team, but never a signing
-          # identity, so it falls back to Xcode's default of "Apple Development". Automatic
-          # provisioning derives the *profile type* from that identity, so `xcodebuild archive`
-          # went looking for an **iOS App Development** profile rather than an App Store one — and
-          # a development profile has to enumerate registered devices, which is why Apple answered
-          # "Your team has no devices from which to generate a provisioning profile". That error
-          # names devices and says nothing about distribution, which sends you hunting in exactly
-          # the wrong place.
-          #
-          # Naming the distribution identity here makes `-allowProvisioningUpdates` request an App
-          # Store profile for both `com.blakekimble.corecredit` and `…​.widget`. Signing stays
-          # fully automatic and no provisioning profile is stored as a secret.
-          #
-          # This is set on the command line rather than in the project so that opening CoreCredit
-          # in Xcode still signs for development, which is what a person debugging on a device
-          # wants.
           xcodebuild archive \
             -project CoreCredit.xcodeproj \
             -scheme CoreCredit \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$RUNNER_TEMP/CoreCredit.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$ASC_KEY_PATH" \
-            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             | tee "$RUNNER_TEMP/xcodebuild-archive.log"
 
           echo ""
-          echo "--- Profiles automatic signing actually resolved ---"
-          # Printed whether or not the next step succeeds: when signing goes wrong again, the
-          # question is always "which profile did it pick?", and the archive log does not say.
-          find "$RUNNER_TEMP/CoreCredit.xcarchive" -name embedded.mobileprovision | while read -r p; do
-            NAME=$(security cms -D -i "$p" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "?")
-            APPID=$(security cms -D -i "$p" 2>/dev/null \
-              | plutil -extract Entitlements.application-identifier raw - 2>/dev/null || echo "?")
-            echo "  $APPID  ($NAME)"
-          done
+          echo "--- What the archive contains (unsigned at this point) ---"
+          ls -1 "$RUNNER_TEMP/CoreCredit.xcarchive/Products/Applications/" || true
+          ls -1 "$RUNNER_TEMP/CoreCredit.xcarchive/Products/Applications/CoreCredit.app/PlugIns/" 2>/dev/null \
+            || echo "  (no PlugIns directory — the widget did not embed)"
 
       - name: Export the signed IPA
         run: |
@@ -371,6 +367,19 @@ jobs:
             exit 1
           fi
           echo "  none — correct"
+
+          echo ""
+          echo "--- Provisioning profiles the export actually resolved ---"
+          # Printed here rather than after the archive, because the archive is unsigned by design:
+          # these profiles are created by `-exportArchive -allowProvisioningUpdates`. When signing
+          # goes wrong the first question is always which profile it picked, and no other line in
+          # this job answers it.
+          find "$APP" -name embedded.mobileprovision | while read -r prof; do
+            NAME=$(security cms -D -i "$prof" 2>/dev/null | plutil -extract Name raw - 2>/dev/null || echo "?")
+            APPID=$(security cms -D -i "$prof" 2>/dev/null \
+              | plutil -extract Entitlements.application-identifier raw - 2>/dev/null || echo "?")
+            echo "  $APPID  ($NAME)"
+          done
 
           echo ""
           echo "--- Code signature and entitlements ---"
