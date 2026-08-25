@@ -1,0 +1,295 @@
+# The quality gate. Runs on every push and every pull request, signs nothing, publishes nothing.
+#
+# This is the GitHub Actions replacement for `corecredit-simulator-build` in codemagic.yaml, and
+# it deliberately keeps that workflow's two hard-won habits:
+#
+#   1. The repository invariants run FIRST, because they cost two seconds and catch the class of
+#      mistake that a simulator otherwise finds twenty minutes later — a drifted accessibility
+#      identifier, a non-additive SwiftData change, a placeholder support URL, a permission primer
+#      that went back to the wording App Review rejected.
+#   2. Every failure is reprinted at the very end of the step. An xcodebuild log runs to tens of
+#      thousands of lines and the CI view shows only its tail, which is whichever test happened to
+#      finish last — usually a pass. Without the summaries below, a red build says "3 issues" and
+#      hides all three.
+#
+# Unit tests and UI tests are separate steps rather than one `xcodebuild test` so that a UI failure
+# is distinguishable from a unit failure at a glance, and so the unit result bundle survives even
+# when the UI run dies.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+# One run per ref. A newer push supersedes an older one rather than queueing behind it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    name: Invariants, build, unit tests, UI tests
+    # `macos-latest` rather than a pinned image, because no pinned image has been *proven* here.
+    # A `macos-26` label was tried first; both it and this one died in four seconds with no log,
+    # and the annotation on each was the same billing message — GitHub never allocated a runner, so
+    # neither label was actually tested. `macos-latest` is the choice that resolves whatever image
+    # the account is entitled to, and the toolchain step below prints exactly which Xcode it got,
+    # so a build that behaves oddly can still be traced to its compiler. Pin the image once a run
+    # has genuinely started.
+    #
+    # NOTE: this repository is private, so macOS runner minutes are billed. Until Billing & plans
+    # has a working payment method and a non-zero spending limit, every job here fails instantly
+    # and no step in this file ever executes.
+    runs-on: macos-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@v4
+
+      # Two seconds, and it is the only thing in this file that can see a drifted identifier or a
+      # permission primer that regressed. Kept first for that reason.
+      - name: Verify repository invariants
+        run: python3 scripts/verify_repository.py
+
+      - name: Select the toolchain
+        run: |
+          set -euo pipefail
+
+          echo "Runner: $(sw_vers -productName) $(sw_vers -productVersion)"
+          echo "Installed Xcodes:"
+          ls -d /Applications/Xcode*.app 2>/dev/null || echo "  (none found by that glob)"
+
+          # Prefer Xcode 26.x — the toolchain this project was written and validated against — but
+          # do not hard-code a point release. A runner image that has moved on to 26.5 should not
+          # fail the gate, and neither should one that only offers a newer major. The chosen
+          # version is printed either way, so a build that behaves oddly can be traced to it.
+          CHOSEN=""
+          for candidate in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r); do
+            VERSION=$(/usr/bin/defaults read "$candidate/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "")
+            case "$VERSION" in
+              26.*) CHOSEN="$candidate"; break ;;
+            esac
+          done
+          if [ -z "$CHOSEN" ]; then
+            CHOSEN=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r | head -n 1 || echo "")
+            echo "::warning::No Xcode 26.x on this runner; falling back to ${CHOSEN:-the default}."
+          fi
+          if [ -n "$CHOSEN" ]; then
+            sudo xcode-select -s "$CHOSEN/Contents/Developer"
+          fi
+
+          echo ""
+          xcodebuild -version
+          swift --version || true
+
+      - name: Verify the Xcode project
+        run: |
+          set -euo pipefail
+          xcodebuild -list -project CoreCredit.xcodeproj
+
+      # Building the CoreCredit scheme also builds CoreCreditQuickScanWidget: the app target
+      # depends on the widget and embeds the .appex, so a widget compile error fails this step.
+      - name: Build CoreCredit and the widget extension for iOS Simulator
+        run: |
+          set -o pipefail
+          set -e
+
+          xcodebuild clean build \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      # A concrete simulator is required to run a test bundle: `generic/platform=iOS Simulator` is
+      # a build-only destination. The device is *discovered* rather than named, because the
+      # runner's simulator set changes with every image — hard-coding a model fails the day that
+      # model is dropped.
+      - name: Choose a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+
+          echo "Available iPhone simulators:"
+          xcrun simctl list devices available | grep -E "^ +iPhone" || true
+
+          DEVICE_ID=$(xcrun simctl list devices available \
+            | grep -E "^ +iPhone" \
+            | tail -n 1 \
+            | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" || echo "")
+
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No available iPhone simulator was found on this runner."
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          echo "Using simulator $DEVICE_ID"
+          echo "device_id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+
+          # The iPad the App Review rejection was filed against. Optional: the gate does not fail
+          # for its absence, but when it is present the smoke job below runs on it.
+          IPAD_ID=$(xcrun simctl list devices available \
+            | grep -E "^ +iPad Air 11-inch" \
+            | tail -n 1 \
+            | grep -oE "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" || echo "")
+          echo "ipad_id=$IPAD_ID" >> "$GITHUB_OUTPUT"
+          if [ -n "$IPAD_ID" ]; then
+            echo "iPad Air 11-inch available for the smoke check: $IPAD_ID"
+          else
+            echo "::notice::No iPad Air 11-inch simulator on this runner; the iPad smoke check will be skipped."
+          fi
+
+      - name: Run the unit test suite
+        run: |
+          set -o pipefail
+
+          LOG="$RUNNER_TEMP/xcodebuild-tests.log"
+          STATUS=0
+
+          xcodebuild test \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.sim.outputs.device_id }}" \
+            -only-testing:CoreCreditTests \
+            -resultBundlePath "$RUNNER_TEMP/CoreCreditTests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$LOG" || STATUS=$?
+
+          # Reprint every failure at the very end — see the note at the head of this file.
+          #
+          # Match on ASCII markers, not on Swift Testing's U+2718 glyph: macOS ships bash 3.2,
+          # which does not understand $'\uXXXX' escapes. Swift Testing always writes "recorded an
+          # issue" alongside the glyph, so that string is both portable and precise.
+          #
+          # A bare "error:" is NOT usable here. CoreData logs hundreds of "CoreData: error:"
+          # filesystem diagnostics on a perfectly healthy run and would crowd out the results.
+          echo ""
+          echo "================= TEST FAILURE SUMMARY ================="
+          echo "--- Recorded test issues ---"
+          grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
+          echo "--- Failing test cases ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 40 || echo "(none)"
+          echo "--- Build errors ---"
+          grep -aE '\.swift:[0-9]+(:[0-9]+)?: error:' "$LOG" | head -n 40 || echo "(none)"
+          echo "--- Run summary ---"
+          grep -aE "Executed [0-9]+ test|Test run with" "$LOG" | tail -n 5 || echo "(none)"
+          echo "======================================================="
+          echo "xcodebuild exit status: $STATUS"
+          exit $STATUS
+
+      # Every UI test launches with `-uiTesting`, so the store is in memory, the subscription
+      # engine is a stub, the notification scheduler is a recorder, and animations are off. No test
+      # touches the camera, live StoreKit, or a real notification.
+      - name: Run the UI test suite
+        run: |
+          set -o pipefail
+
+          LOG="$RUNNER_TEMP/xcodebuild-uitests.log"
+          STATUS=0
+
+          xcodebuild test \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.sim.outputs.device_id }}" \
+            -only-testing:CoreCreditUITests \
+            -resultBundlePath "$RUNNER_TEMP/CoreCreditUITests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee "$LOG" || STATUS=$?
+
+          echo ""
+          echo "=============== UI TEST FAILURE SUMMARY ==============="
+          # The definitive list, and the first thing to read. Every class here sets
+          # `continueAfterFailure = false`, so one failing test records exactly one failure — which
+          # means this list and the "with N failures" total below must agree. When they did not,
+          # the difference was tests that *threw* rather than asserted: `try requireDeepControl(…)`
+          # and `try XCTUnwrap(…)` report `threw error`, which an "error: … failed" pattern cannot
+          # match.
+          echo "--- Failing test cases (one line per failing test) ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 60 || echo "(none)"
+          echo "--- Failure detail (asserted and thrown alike) ---"
+          grep -aE "error: -\[" "$LOG" | head -n 60 || echo "(none)"
+          echo "--- Recorded test issues ---"
+          grep -a "recorded an issue" "$LOG" | head -n 60 || echo "(none)"
+          echo "--- Timed-out waits (the usual shape of a UI failure here) ---"
+          grep -a "Timed out after" "$LOG" | head -n 30 || echo "(none)"
+          echo "--- Run summary ---"
+          grep -aE "Executed [0-9]+ test" "$LOG" | tail -n 5 || echo "(none)"
+          echo "======================================================"
+          echo "xcodebuild exit status: $STATUS"
+
+          # Not tolerated. A failing UI test is a broken product or a broken test, and the brief
+          # for this app forbids weakening, skipping, or quarantining one to get a green build.
+          exit $STATUS
+
+      # The device App Review filed the 5.1.1(iv) rejection against. Narrow on purpose: it drives
+      # the two permission-primer screens and the scan surface, not the whole suite again.
+      #
+      # Note what this can and cannot establish. `BarcodeScannerAvailabilityChecker.current()`
+      # answers `.simulator` before it ever reads an authorization status, so the *camera* primer's
+      # "Continue" button cannot render on any simulator — it is only observable on real hardware.
+      # The notification primer's `.notDetermined` state IS drivable here, and that is the test
+      # that pins the neutral wording.
+      - name: iPad Air 11-inch smoke check
+        if: steps.sim.outputs.ipad_id != ''
+        run: |
+          set -o pipefail
+
+          LOG="$RUNNER_TEMP/xcodebuild-ipad.log"
+          STATUS=0
+
+          xcodebuild test \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.sim.outputs.ipad_id }}" \
+            -resultBundlePath "$RUNNER_TEMP/CoreCreditIPadSmoke.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            -only-testing:CoreCreditUITests/NotificationSettingsUITests \
+            -only-testing:CoreCreditUITests/CaptureAndLayoutUITests \
+            | tee "$LOG" || STATUS=$?
+
+          echo ""
+          echo "============== iPAD SMOKE CHECK SUMMARY =============="
+          echo "--- Failing test cases ---"
+          grep -aE "^Test Case .* failed" "$LOG" | head -n 40 || echo "(none)"
+          echo "--- Failure detail ---"
+          grep -aE "error: -\[" "$LOG" | head -n 40 || echo "(none)"
+          echo "--- Timed-out waits ---"
+          grep -a "Timed out after" "$LOG" | head -n 20 || echo "(none)"
+          echo "--- Run summary ---"
+          grep -aE "Executed [0-9]+ test" "$LOG" | tail -n 3 || echo "(none)"
+          echo "====================================================="
+          echo "xcodebuild exit status: $STATUS"
+          exit $STATUS
+
+      - name: Collect logs and result bundles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-and-results
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/xcodebuild.log
+            ${{ runner.temp }}/xcodebuild-tests.log
+            ${{ runner.temp }}/xcodebuild-uitests.log
+            ${{ runner.temp }}/xcodebuild-ipad.log
+            ${{ runner.temp }}/CoreCreditTests.xcresult
+            ${{ runner.temp }}/CoreCreditUITests.xcresult
+            ${{ runner.temp }}/CoreCreditIPadSmoke.xcresult

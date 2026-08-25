@@ -695,6 +695,97 @@ def codemagic_workflow_keys():
     return workflows
 
 
+GITHUB_WORKFLOW_DIR = os.path.join(".github", "workflows")
+
+# Events that start a workflow without anybody deciding to. Everything GitHub offers except these
+# two fires on its own, so the set is written as "what is manual" rather than as a list of the
+# dozens that are not — a new GitHub event type then defaults to "automatic", which is the safe
+# direction for this check to be wrong in.
+MANUAL_GITHUB_EVENTS = {"workflow_dispatch", "workflow_call"}
+
+# Commands that hand a build to App Store Connect. A workflow containing one of these publishes,
+# whatever it calls itself.
+PUBLISH_MARKERS = (
+    "altool --upload-app",
+    "--upload-app",
+    "upload-testflight",
+    "app-store-connect publish",
+    "fastlane pilot",
+    "fastlane deliver",
+    "iTMSTransporter",
+    "upload_to_testflight",
+)
+
+# The export flag that produces a build TestFlight accepts and App Store Connect will not offer
+# when the version is submitted. It cost this project a release cycle; it is banned everywhere.
+INTERNAL_ONLY_EXPORT_FLAG = "testFlightInternalTestingOnly"
+
+
+def github_workflow_files():
+    directory = os.path.join(ROOT, GITHUB_WORKFLOW_DIR)
+    if not os.path.isdir(directory):
+        return []
+    return [os.path.join(GITHUB_WORKFLOW_DIR, name)
+            for name in sorted(os.listdir(directory))
+            if name.endswith((".yml", ".yaml"))]
+
+
+def github_workflow_events(text):
+    """The event names in a workflow's top-level `on:` block.
+
+    Another deliberately tiny reader rather than PyYAML — this script's contract is "Python 3 and
+    no other dependency". It handles the three spellings that occur in practice: `on: push`,
+    `on: [push, pull_request]`, and a nested block. YAML 1.1 reads a bare `on` as the boolean true,
+    so `"on":` is also legal and is accepted here.
+
+    The event level is taken from the indentation of the *first* nested key rather than assumed to
+    be two spaces, so a workflow indented four spaces is read correctly instead of silently
+    reporting no triggers at all — which would make this check pass by accident.
+    """
+    events = set()
+    inside = False
+    event_indent = None
+
+    for line in text.replace(CRLF, LF).split(LF):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        header = re.match(r'^(?:"on"|\'on\'|on)\s*:\s*(.*)$', line)
+        if header:
+            rest = header.group(1).split("#")[0].strip()
+            if rest:
+                # `on: push` or `on: [push, pull_request]`
+                events.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", rest))
+            else:
+                inside = True
+                event_indent = None
+            continue
+
+        if not inside:
+            continue
+
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            # Back at column 0 — the `on:` block has ended.
+            inside = False
+            continue
+
+        item = re.match(r"^\s+-\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", line)
+        nested = re.match(r"^\s+([A-Za-z_][A-Za-z0-9_]*)\s*:", line)
+
+        if event_indent is None and (item or nested):
+            event_indent = indent
+
+        if indent == event_indent:
+            if item:
+                events.add(item.group(1))
+            elif nested:
+                events.add(nested.group(1))
+
+    return events
+
+
 def check_release_is_never_a_side_effect():
     """No workflow may both start by itself and publish to App Store Connect.
 
@@ -703,33 +794,84 @@ def check_release_is_never_a_side_effect():
     new build to TestFlight, advancing the build number for a release nobody decided to cut.
 
     Publishing has to be a decision somebody makes. Gating — building, testing — should be
-    automatic. This check keeps the two apart, because the failure is entirely silent: re-adding a
-    `triggering:` block breaks nothing, produces no warning, and is only noticed by testers
-    receiving a build.
+    automatic. This check keeps the two apart, because the failure is entirely silent: adding a
+    `push:` trigger to the publishing workflow breaks nothing, produces no warning, and is only
+    noticed by testers receiving a build.
+
+    Both CI hosts are read. The repository has moved from Codemagic to GitHub Actions, and a
+    safety property that only understood the host being left behind would have lapsed at exactly
+    the moment it mattered. `codemagic.yaml` is optional so it can be deleted whenever the owner
+    wants; every `.github/workflows/*.yml` is read whether or not it exists today.
     """
-    workflows = codemagic_workflow_keys()
-    if not workflows:
-        fail("release triggers",
-             "no workflows parsed from codemagic.yaml — either the file or this reader changed "
-             "shape, and the check is no longer guarding anything")
-        return
+    publishing = []
+    total = 0
 
-    for name in sorted(workflows):
-        keys = workflows[name]
-        if "publishing" in keys and "triggering" in keys:
+    # --- Codemagic, while it is still here -------------------------------------------------
+    if os.path.exists(os.path.join(ROOT, "codemagic.yaml")):
+        codemagic = codemagic_workflow_keys()
+        if not codemagic:
             fail("release triggers",
-                 "workflow '%s' both triggers automatically and publishes. Merging would ship a "
-                 "build as a side effect. Drop its `triggering:` block and start it by hand — see "
-                 "docs/RELEASE.md." % name)
+                 "codemagic.yaml is present but no workflows parsed out of it — either the file "
+                 "or this reader changed shape, and the check is no longer guarding anything")
+        total += len(codemagic)
+        for name in sorted(codemagic):
+            keys = codemagic[name]
+            if "publishing" in keys:
+                publishing.append("codemagic:" + name)
+                if "triggering" in keys:
+                    fail("release triggers",
+                         "codemagic workflow '%s' both triggers automatically and publishes. "
+                         "Merging would ship a build as a side effect. Drop its `triggering:` "
+                         "block and start it by hand — see docs/RELEASE.md." % name)
 
-    publishing = sorted(name for name in workflows if "publishing" in workflows[name])
+    # --- GitHub Actions ---------------------------------------------------------------------
+    for relative in github_workflow_files():
+        total += 1
+        text = read(relative).replace(CRLF, LF)
+        body = LF.join(line.split("#")[0] for line in text.split(LF))
+
+        publishes = any(marker in body for marker in PUBLISH_MARKERS)
+        events = github_workflow_events(text)
+
+        if not events:
+            fail("release triggers",
+                 "%s declares no triggers this reader can see. A workflow whose `on:` block cannot "
+                 "be read is a workflow this check cannot vouch for." % relative)
+            continue
+
+        if publishes:
+            publishing.append(relative)
+            automatic = sorted(events - MANUAL_GITHUB_EVENTS)
+            if automatic:
+                fail("release triggers",
+                     "%s uploads to App Store Connect and also triggers on %s. Publishing must be "
+                     "started by hand: leave only workflow_dispatch. See docs/RELEASE.md."
+                     % (relative, ", ".join(automatic)))
+
+    # --- The export flag that hides a build from the submission picker ----------------------
+    for relative in ["codemagic.yaml"] + github_workflow_files():
+        path = os.path.join(ROOT, relative)
+        if not os.path.exists(path):
+            continue
+        text = read(relative).replace(CRLF, LF)
+        for number, line in enumerate(text.split(LF), 1):
+            code = line.split("#")[0]
+            if INTERNAL_ONLY_EXPORT_FLAG in code:
+                fail("release triggers",
+                     "%s:%d sets %s. Such a build uploads and reaches internal testers normally, "
+                     "and then cannot be picked when the version is submitted — the build is "
+                     "simply not in the list. Nothing looks wrong until that moment."
+                     % (relative, number, INTERNAL_ONLY_EXPORT_FLAG))
+
     if not publishing:
         fail("release triggers",
              "no workflow publishes at all — the release path is gone, not merely gated")
         return
 
-    note("release triggers: %d workflows, %d publishing (%s), none self-triggering"
-         % (len(workflows), len(publishing), ", ".join(publishing)))
+    if not any(f.startswith("release triggers") for f in FAILURES):
+        note("release triggers: %d workflows across both CI hosts, %d publishing (%s), none "
+             "self-triggering, and no internal-testing-only export"
+             % (total, len(publishing), ", ".join(publishing)))
 
 
 # ------------------------------------ 18. UI tests drive a screen the way the screen is laid out
