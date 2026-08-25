@@ -65,13 +65,21 @@ enum ScannerAvailability: Equatable, Sendable {
         case .cameraRestricted:
             return "Camera access is restricted on this device, so scanning is off. Type the number in instead."
         case .cameraNotDetermined:
-            return "CoreCredit needs camera access to scan barcodes. You can allow it, or type the number in."
+            return "CoreCredit uses the camera to scan barcodes. Continue to the iOS permission request, or type the number below."
         }
     }
 
     /// Title for the single recovery action the UI should offer, or `nil` when there is nothing
-    /// useful to tap. `.cameraNotDetermined` is deliberately "Allow Camera" (an in-app prompt),
-    /// while `.cameraDenied` can only be fixed in Settings.
+    /// useful to tap.
+    ///
+    /// `.cameraNotDetermined` is the one state whose action sits on a custom screen shown *before*
+    /// an Apple permission alert, so its title is deliberately the neutral "Continue". App Review
+    /// guideline 5.1.1(iv) forbids such a screen from imitating the affirmative choice inside the
+    /// system alert, and build 64 was rejected for the wording this used to carry. Nothing here may
+    /// go back to Allow, Enable, Grant, or Yes.
+    ///
+    /// `.cameraDenied` is past the point of asking — iOS shows its alert once per install — so it
+    /// can only be fixed in Settings, and "Open Settings" is the honest action there.
     var actionTitle: String? {
         switch self {
         case .available:
@@ -81,7 +89,7 @@ enum ScannerAvailability: Equatable, Sendable {
         case .cameraDenied:
             return "Open Settings"
         case .cameraNotDetermined:
-            return "Allow Camera"
+            return "Continue"
         }
     }
 }

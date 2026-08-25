@@ -896,6 +896,100 @@ def check_notification_delegate_is_completion_handler_based():
         note("notification delegate keeps its completion-handler signatures")
 
 
+# ------------------------------------------- 20. permission primers keep their neutral wording
+
+# The exact labels App Review rejected, and the exact spellings that must never come back.
+#
+# Deliberately three literal strings rather than a pattern over the word "allow". This repository
+# is full of legitimate prose about allowing things: `.cameraDenied.explanation` tells a user to
+# turn camera access back on, `NotificationAuthorizationStatus.provisional.explanation` describes
+# iOS's own Allow affordance on a delivered notification, and several comments quote the system
+# alert's "Don't Allow". A broad ban would fail on all of those, and a check that cries wolf is a
+# check the next person deletes.
+REJECTED_PRIMER_LABELS = ("Allow camera access", "Allow Camera", "Allow reminders")
+
+# Every custom screen this app shows *before* an Apple permission alert, and the neutral action it
+# must present. Both are `PrimaryButtonLabel`, which is the shipping button's visible text.
+PERMISSION_PRIMERS = (
+    (os.path.join("CoreCredit", "Features", "Capture", "ScanSheet.swift"),
+     "the camera primer, shown for .cameraNotDetermined"),
+    (os.path.join("CoreCredit", "Features", "Settings", "NotificationSettingsView.swift"),
+     "the notification primer, shown for .notDetermined"),
+)
+
+NEUTRAL_PRIMER_ACTION = 'PrimaryButtonLabel("Continue"'
+
+
+def check_permission_primer_labels():
+    """A pre-permission screen may not imitate the system alert's affirmative choice.
+
+    App Review rejected build 64 (version 1.0, iPad Air 11-inch (M3), 25 August 2026, submission
+    c53826ac-ebd3-4cc4-9ef5-df185143a175) under guideline 5.1.1(iv): the camera primer's button
+    said "Allow camera access". Apple asked for neutral wording such as Continue or Next.
+
+    Nothing a compiler or a test bundle checks can see this. The label is a string, the app builds
+    and runs perfectly with the rejected wording, and the cost of finding out is another review
+    cycle. So it is pinned in three directions here: the rejected spellings cannot reappear in
+    shipping code, each primer must still carry a neutral action, and the availability model's own
+    `.cameraNotDetermined` copy must stay neutral too.
+    """
+    for path in swift_sources("CoreCredit", "CoreCreditQuickScanWidget"):
+        relative = os.path.relpath(path, ROOT)
+        text = io.open(path, encoding="utf-8", newline="").read().replace(CRLF, LF)
+        for number, line in enumerate(text.split(LF), 1):
+            # Comments are stripped, so the prose above each primer may name the rejected wording
+            # in order to explain why it is banned.
+            code = line.split("//")[0]
+            for label in REJECTED_PRIMER_LABELS:
+                if label in code:
+                    fail("permission-primers",
+                         "%s:%d ships the label %r. App Review rejected build 64 under guideline "
+                         "5.1.1(iv) for exactly this: a custom screen shown before an Apple "
+                         "permission alert may not imitate the affirmative choice inside it. Use "
+                         "a neutral action such as Continue."
+                         % (relative, number, label))
+
+    for relative, description in PERMISSION_PRIMERS:
+        try:
+            text = read(relative).replace(CRLF, LF)
+        except IOError:
+            fail("permission-primers", "%s is missing — %s no longer has a home, and this check "
+                                       "is no longer guarding anything" % (relative, description))
+            continue
+        if NEUTRAL_PRIMER_ACTION not in text:
+            fail("permission-primers",
+                 "%s no longer offers %s. A pre-permission screen still needs a neutral action, "
+                 "and guideline 5.1.1(iv) is why it has to be that one."
+                 % (relative, NEUTRAL_PRIMER_ACTION))
+
+    # `ScannerAvailability` carries the same copy as a value, so a UI that renders `actionTitle`
+    # instead of its own literal cannot reintroduce the rejected wording by the back door.
+    availability = read("CoreCredit", "Services", "ScannerAvailability.swift").replace(CRLF, LF)
+    arms = re.findall(r"case \.cameraNotDetermined:\s*\n\s*return " + chr(34) + r"([^" + chr(34)
+                      + r"]*)" + chr(34), availability)
+    if not arms:
+        fail("permission-primers",
+             "no `case .cameraNotDetermined:` returning a string literal was found in "
+             "ScannerAvailability.swift — this check no longer knows what it is guarding")
+    else:
+        if "Continue" not in arms:
+            fail("permission-primers",
+                 "ScannerAvailability has no `.cameraNotDetermined` string equal to 'Continue'. "
+                 "Its `actionTitle` is the neutral action a permission primer renders; found %r."
+                 % (arms,))
+        for value in arms:
+            for label in REJECTED_PRIMER_LABELS:
+                if label in value:
+                    fail("permission-primers",
+                         "ScannerAvailability's `.cameraNotDetermined` copy %r contains the "
+                         "rejected label %r." % (value, label))
+
+    if not any(f.startswith("permission-primers") for f in FAILURES):
+        note("permission primers: %d pre-permission screens offer a neutral action, and none of "
+             "%s appears in shipping code"
+             % (len(PERMISSION_PRIMERS), " / ".join(repr(l) for l in REJECTED_PRIMER_LABELS)))
+
+
 def main():
     check_identifier_mirror()
     check_identifier_references_resolve()
@@ -916,6 +1010,7 @@ def main():
     check_release_is_never_a_side_effect()
     check_ui_tests_run_top_to_bottom()
     check_notification_delegate_is_completion_handler_based()
+    check_permission_primer_labels()
 
     print("CoreCredit repository invariants")
     print("=" * 72)

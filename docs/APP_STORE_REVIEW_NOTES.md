@@ -154,13 +154,48 @@ The subscription gates only the creation of a *sixth simultaneously unresolved* 
 
 **Permissions**
 
-- **Camera** — requested only when the user taps a scan or photo control, with the purpose
-  string shown in the Info tab. Declining leaves manual entry fully available.
-- **Notifications** — requested only from **Settings → Notifications**, when the user turns on
-  deadline reminders. Never requested at launch or during onboarding.
+CoreCredit asks for exactly two things. Each is requested only after a deliberate action, each has
+a working alternative, and neither blocks any other part of the app.
+
+- **Camera — where the prompt is reached.** **Dashboard → Scan core** (the Home Screen widget, the
+  "Scan core" Shortcut / Action Button, and the intake form's own scan button all open the same
+  screen). On a device that has never been asked, that screen shows a short explanation —
+  *"CoreCredit uses the camera to scan barcodes. Continue to the iOS permission request, or type
+  the number below."* — above a single button labelled **Continue**. Pressing Continue is what
+  presents the iOS camera alert. Nothing before that point touches the camera: there is no prompt
+  at launch and none during onboarding.
+- **The custom action says Continue.** Its visible label and its accessibility label are both
+  "Continue"; the accessibility hint states that it opens the iOS camera permission alert. The same
+  is true of the notification screen described below. Neither pre-permission screen uses Allow,
+  Enable, Grant, or Yes, and neither imitates or pressures the affirmative choice in Apple's dialog.
+- **Manual entry remains available.** The "Type it in" field and its **Use this number** button are
+  on that same screen in *every* state, including this one. A reviewer who declines camera access,
+  or who never presses Continue at all, can type a part number and carry on through the whole flow.
+  Scanning is a convenience, never a requirement.
+- **Recovering a declined permission.** iOS offers its alert once per install, so a user who has
+  already declined is never asked again. The screen says so plainly and offers **Open Settings**,
+  which deep-links to CoreCredit's own page in the Settings app, where camera access can be turned
+  back on. Where the camera is restricted by MDM or parental controls, no request action is offered
+  at all, because none could succeed — only the explanation and manual entry.
+- **Notifications follow the same neutral pattern.** Requested only from **Settings →
+  Notifications**, and only by an intentional action: turning on "Remind me about core deadlines",
+  or pressing the **Continue** button in that screen's Permission section. Opening Settings, or the
+  Notifications screen itself, only *reads* the current status and never prompts. A device that has
+  already denied notifications is offered **Open the Settings app** instead of a second request.
+  Notifications are not required to use any other part of CoreCredit.
 - The app does **not** request Photo Library access (it uses `PhotosPicker`, which does not
   require it), and does not use location, contacts, calendar, microphone, Bluetooth, tracking,
   or background modes.
+
+**What changed in this build** (in response to submission `c53826ac-ebd3-4cc4-9ef5-df185143a175`)
+
+The previous build's camera pre-permission button was labelled "Allow camera access" and was
+rejected under guideline 5.1.1(iv). It now reads **Continue**, as recommended. The notification
+screen's equivalent button carried the same shape of wording and was changed to **Continue** in the
+same pass. Nothing else changed: camera access is still requested only after the user opens Scan
+core and presses Continue, manual barcode entry still works without it, and a user who previously
+declined is still offered a link to Settings rather than another prompt. No data is transmitted by
+the scanning feature — barcode and document recognition run entirely on device.
 
 **Privacy**
 

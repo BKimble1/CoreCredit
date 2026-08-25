@@ -15,9 +15,22 @@ import UIKit
 /// Nothing in CoreCredit asks for notification permission at launch. iOS shows that prompt exactly
 /// once, and spending it before the owner knows what the reminders are for permanently costs the
 /// feature. So the prompt appears when this screen's master switch is turned on (or when the
-/// explicit "Allow reminders" button is tapped), by way of
+/// explicit **Continue** button in the Permission section is tapped), by way of
 /// `ReminderCoordinator.requestAuthorizationIfNeeded()`. Opening the screen only *reads* the
 /// current status, which never prompts.
+///
+/// # The primer's action is neutral, by requirement
+///
+/// That Continue button is a custom action shown *before* the system alert, which is precisely
+/// what App Review guideline 5.1.1(iv) governs: such a screen may explain why access is useful,
+/// but it may not imitate the affirmative choice inside Apple's own dialog. Build 64 was rejected
+/// for the camera equivalent of this button, and this one carried the same shape of wording, so it
+/// was changed in the same pass. Nothing here may go back to Allow, Enable, Grant, or Yes —
+/// `scripts/verify_repository.py` fails the build if it does.
+///
+/// The master switch above it still reads "Remind me about core deadlines", and that is correct:
+/// it names the feature the owner is choosing to have, not the answer Apple wants them to give in
+/// the system alert.
 ///
 /// # A refusal is stated, not papered over
 ///
@@ -163,7 +176,8 @@ struct NotificationSettingsView: View {
                 Button {
                     requestPermission()
                 } label: {
-                    PrimaryButtonLabel("Allow reminders", systemImage: "bell.badge")
+                    // Neutral by requirement — see "The primer's action is neutral" above.
+                    PrimaryButtonLabel("Continue", systemImage: "bell.badge")
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(Color.clear)
@@ -175,7 +189,8 @@ struct NotificationSettingsView: View {
                         trailing: Spacing.l
                     )
                 )
-                .accessibilityHint(Text("Shows this device's permission prompt for notifications."))
+                .accessibilityLabel(Text("Continue"))
+                .accessibilityHint(Text("Opens the iOS notification permission alert."))
             }
 
             if status == .denied, let settingsURL = NotificationSettingsView.appSettingsURL {

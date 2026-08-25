@@ -17,8 +17,18 @@
 //  stubbed state: `LaunchOptions` parses it and `AppEnvironment` passes it to
 //  `RecordingNotificationScheduler(status:)`. Real authorization cannot be revoked from inside the
 //  process, so this is the only way to reach the `denied` branch (`A11y.Notifications.openSettings`)
-//  and the `notDetermined` branch ("Allow reminders"). Omitting the flag keeps the recorder's
-//  `.authorized` default. Selecting a state never *requests* permission — nothing here can prompt.
+//  and the `notDetermined` branch, which is the one that builds the pre-permission primer.
+//  Omitting the flag keeps the recorder's `.authorized` default. Selecting a state never
+//  *requests* permission — nothing here can prompt.
+//
+//  ## Why the primer's wording is asserted at all
+//
+//  App Review rejected build 64 under guideline 5.1.1(iv) because the camera primer's action said
+//  "Allow camera access": a custom screen shown *before* an Apple permission alert may not imitate
+//  the affirmative choice inside it. The notification primer had the same shape of wording and was
+//  changed in the same pass, so its action now reads "Continue". The camera primer cannot be
+//  driven here — `BarcodeScannerAvailabilityChecker.current()` answers `.simulator` before it ever
+//  reaches an authorization status — but this one can, and that is what the test below is for.
 //
 
 import XCTest
@@ -154,8 +164,8 @@ final class NotificationSettingsUITests: XCTestCase {
         XCTContext.runActivity(named: "No recovery affordance is offered to an authorized device") { _ in
             requireAbsent(element(app, A11yID.Notifications.openSettings),
                           "the \"Open the Settings app\" link, which only a denied permission builds")
-            requireAbsent(button(app, labelContaining: "Allow reminders"),
-                          "the \"Allow reminders\" button, which only an undetermined permission "
+            requireAbsent(button(app, labelContaining: "Continue"),
+                          "the primer's \"Continue\" button, which only an undetermined permission "
                               + "builds")
         }
 
@@ -284,6 +294,58 @@ final class NotificationSettingsUITests: XCTestCase {
                 XCTAssertFalse(test.isEnabled,
                                "A test notification cannot fire while permission is denied.")
             }
+        }
+
+        XCTContext.runActivity(named: "And a denied device is never asked a second time") { _ in
+            // iOS shows its alert once per install, so a second request would do nothing at all.
+            // The primer's action belongs only to `.notDetermined`; here the route is Settings.
+            requireAbsent(button(app, labelContaining: "Continue"),
+                          "the primer's \"Continue\" action, which a denied permission must not "
+                              + "offer — the only thing that can help now is Settings")
+        }
+    }
+
+    // MARK: - Undetermined permission
+
+    /// The pre-permission primer, in the one state that builds it.
+    ///
+    /// This is the exact screen shape App Review rejected build 64 over — a custom action offered
+    /// *before* the system alert — so both halves are pinned: the action reads "Continue", and no
+    /// button on the screen imitates the affirmative choice inside Apple's own dialog.
+    ///
+    /// Reachable only because `-uiTestNotificationAuthorization notDetermined` forces the stub's
+    /// state. The button is asserted on and deliberately never tapped: the recorder would accept
+    /// the call, but the value here is the wording, not a logged request.
+    func testUndeterminedPermissionOffersTheNeutralContinueAction() throws {
+        let app = launchApp(seed: .empty,
+                            tier: .free,
+                            skipOnboarding: true,
+                            notificationAuthorization: .notDetermined)
+        openNotificationSettings(in: app)
+
+        try XCTContext.runActivity(named: "The primer offers the neutral Continue action") { _ in
+            let proceed = button(app, labelContaining: "Continue")
+            requireExists(proceed, "the primer's \"Continue\" action")
+            XCTAssertTrue(proceed.isHittable,
+                          "The primer's action must be reachable, not merely present.")
+            XCTAssertEqual(proceed.label,
+                           "Continue",
+                           "The primer's action read \"\(proceed.label)\". Guideline 5.1.1(iv) "
+                               + "requires neutral wording on a screen shown before the system "
+                               + "permission alert.")
+        }
+
+        XCTContext.runActivity(named: "And nothing imitates the system alert's own answer") { _ in
+            requireAbsent(button(app, labelContaining: "Allow reminders"),
+                          "an \"Allow reminders\" button — the wording App Review rejected")
+            requireAbsent(button(app, labelContaining: "Enable reminders"),
+                          "an \"Enable reminders\" button, which is the same mistake reworded")
+        }
+
+        XCTContext.runActivity(named: "And an unasked permission blocks none of the screen") { _ in
+            // Notifications are never a precondition for using CoreCredit: the ledger, the
+            // deadlines, and every other setting stay usable whether or not this is ever tapped.
+            requireExists(element(app, A11yID.Notifications.enable), "the master reminders switch")
         }
     }
 }
