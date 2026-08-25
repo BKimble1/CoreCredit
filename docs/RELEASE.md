@@ -40,7 +40,26 @@ looks wrong until that moment.
 
 ## 2. Before the first signed archive ever succeeds
 
-### 2a. Repository secrets — one time
+### 2a. Billing — one time, and nothing runs until it is done
+
+This repository is **private**, so GitHub-hosted **macOS** runner minutes are billed. Until
+**Settings → Billing and plans** has a working payment method and a non-zero spending limit for
+Actions, every job on both workflows fails in about four seconds with no log at all and this single
+annotation:
+
+> The job was not started because recent account payments have failed or your spending limit needs
+> to be increased.
+
+It looks exactly like a broken workflow. It is not. Two alternatives, if paying for macOS minutes
+is not wanted:
+
+- **Make the repository public.** Standard GitHub-hosted runners, macOS included, are free for
+  public repositories. Consider what else is in the history first.
+- **Register a self-hosted runner** on a Mac that already has Xcode, and change `runs-on:` in both
+  workflows to that runner's label. Minutes are then free and the toolchain is whatever that Mac
+  has.
+
+### 2b. Repository secrets — one time
 
 **Settings → Secrets and variables → Actions → New repository secret.** All five are required;
 `testflight.yml` refuses to run without them and names the ones that are missing.
@@ -59,7 +78,7 @@ for `com.blakekimble.corecredit` and `com.blakekimble.corecredit.widget` itself.
 project's `CODE_SIGN_STYLE = Automatic` already expects, and it means an expiring profile never
 becomes a stale secret nobody remembers to rotate.
 
-### 2b. The widget's App ID — one time, only if automatic signing cannot create it
+### 2c. The widget's App ID — one time, only if automatic signing cannot create it
 
 Automatic signing normally registers both identifiers on its own. If the archive fails with
 *"CoreCreditQuickScanWidget requires a provisioning profile"*, create the App ID by hand:

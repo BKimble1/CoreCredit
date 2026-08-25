@@ -61,8 +61,9 @@ env:
 jobs:
   publish:
     name: Archive, sign, and upload to App Store Connect
-    # See the note in ci.yml: a pinned `macos-26` label has no runner on this account and fails in
-    # four seconds with no log.
+    # See the note in ci.yml. This repository is private, so macOS runner minutes are billed and
+    # no job here starts at all until Billing & plans has a working payment method and a non-zero
+    # spending limit.
     runs-on: macos-latest
     timeout-minutes: 90
 

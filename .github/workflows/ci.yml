@@ -36,11 +36,17 @@ permissions:
 jobs:
   gate:
     name: Invariants, build, unit tests, UI tests
-    # `macos-latest` rather than a pinned image. A pinned `macos-26` was tried first and the job
-    # died in four seconds with no log at all — GitHub had no runner matching the label for this
-    # account, which is indistinguishable from a broken workflow until you notice the job never
-    # started. `macos-latest` always resolves, and the toolchain step below reports exactly which
-    # Xcode it got, so a build that behaves oddly can still be traced to its compiler.
+    # `macos-latest` rather than a pinned image, because no pinned image has been *proven* here.
+    # A `macos-26` label was tried first; both it and this one died in four seconds with no log,
+    # and the annotation on each was the same billing message — GitHub never allocated a runner, so
+    # neither label was actually tested. `macos-latest` is the choice that resolves whatever image
+    # the account is entitled to, and the toolchain step below prints exactly which Xcode it got,
+    # so a build that behaves oddly can still be traced to its compiler. Pin the image once a run
+    # has genuinely started.
+    #
+    # NOTE: this repository is private, so macOS runner minutes are billed. Until Billing & plans
+    # has a working payment method and a non-zero spending limit, every job here fails instantly
+    # and no step in this file ever executes.
     runs-on: macos-latest
     timeout-minutes: 120
 
