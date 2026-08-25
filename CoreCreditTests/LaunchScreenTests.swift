@@ -82,17 +82,36 @@ struct LaunchScreenTests {
                 """)
     }
 
-    @Test("The mark's canvas is square, so it is centred rather than stretched")
+    @Test("The mark sits in equal padding, so it is centred rather than stretched")
     @MainActor
-    func theMarkCanvasIsSquare() throws {
+    func theMarkIsVerticallyCentredInItsCanvas() throws {
         let mark = try #require(UIImage(named: Palette.launchMarkAssetName))
 
-        // The launch screen fits this canvas to the screen. A square canvas with the mark centred
-        // and the padding baked in is what keeps the mark centred and correctly sized; a tight
-        // crop would be stretched across the full width.
-        #expect(mark.size.width == mark.size.height,
-                "LaunchMark must be a square canvas, not a tight crop of the mark.")
+        // This test used to require a *square* canvas, and it was right when it was written: the
+        // mark shipped as 320x320. "Credit Idlery on the launch screen" then regenerated the asset
+        // through `scripts/render_launch_mark.py`, which builds the canvas as
+        // `below + mark_side + below` — equal padding above and below the mark, with the credit
+        // line drawn into the lower band. The asset became 320x526 and this test was not updated
+        // with it, so the suite has been failing on a deliberate design change ever since.
+        //
+        // What the old assertion was actually protecting is unchanged, so that is what is asserted
+        // now. `UILaunchScreen` centres the image at its natural size, which is the whole reason
+        // the generator can place the credit by growing the canvas rather than by moving the mark.
+        // Equal padding is what keeps the mark optically where it has always been; unequal padding
+        // would shift it off centre, and a tight crop would let it be stretched.
+
         #expect(mark.size.width > 0)
+
+        // Never wider than it is tall: the credit band only ever grows the canvas downward and
+        // upward in step, never sideways.
+        #expect(mark.size.height >= mark.size.width,
+                "LaunchMark must not be wider than it is tall.")
+
+        // The padding is split evenly, so the mark is vertically centred. An odd difference means
+        // one band is a pixel taller than the other and the mark is no longer centred.
+        let padding = mark.size.height - mark.size.width
+        #expect(padding.truncatingRemainder(dividingBy: 2) == 0,
+                "LaunchMark's padding must divide evenly above and below the mark.")
     }
 
     // MARK: - It is the app's own colour
