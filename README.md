@@ -134,7 +134,7 @@ only a real credit does. That is the entire point of the product.
 
 ```bash
 # from the repository root, on a Mac with Xcode 16+
-# (`CoreCredit.xcodeproj` sits at the repository root, which is also where Codemagic runs it from)
+# (`CoreCredit.xcodeproj` sits at the repository root, which is also where CI runs it from)
 xcodebuild -project CoreCredit.xcodeproj -scheme CoreCredit \
            -destination 'platform=iOS Simulator,name=iPhone 16' build
 
@@ -147,15 +147,20 @@ live StoreKit — they launch with `-uiTesting`, which forces an in-memory store
 deterministic stubs. See `docs/CONTRACTS.md` §7 for the full launch-argument table.
 
 > **Build status:** this repository is authored on machines with no Swift toolchain, so
-> **Codemagic performs every authoritative build**. `corecredit-simulator-build` runs on every
-> push and every pull request, on every branch: it checks the repository invariants, builds the
-> app *and* the embedded widget, then runs the **unit suite and the UI suite** as separate steps
-> and gates on both. Neither suite is excluded, quarantined, or allowed to fail.
+> **CI performs every authoritative build**. `.github/workflows/ci.yml` runs on every push and
+> every pull request, on every branch: it checks the repository invariants, builds the app *and*
+> the embedded widget, then runs the **unit suite and the UI suite** as separate steps and gates
+> on both, plus an iPad Air 11-inch smoke check when that simulator is on the runner. Neither
+> suite is excluded, quarantined, or allowed to fail.
 >
-> A result belongs to the commit that produced it. Read it in Codemagic for the commit you care
-> about rather than trusting a count written down here. `docs/HANDOFF.md` §1 separates what was
-> established without a toolchain, what Codemagic establishes, and what only a device or App Store
-> Connect can.
+> A result belongs to the commit that produced it. Read it under the repository's **Actions** tab
+> for the commit you care about rather than trusting a count written down here.
+> `docs/HANDOFF.md` §1 separates what was established without a toolchain, what CI establishes,
+> and what only a device or App Store Connect can.
+>
+> CI is GitHub Actions. `codemagic.yaml` is the previous host, kept for reference and running
+> nothing. **This repository is private, so macOS runner minutes are billed** — see
+> `docs/RELEASE.md` §2a, because until that is settled no job starts at all.
 
 ---
 

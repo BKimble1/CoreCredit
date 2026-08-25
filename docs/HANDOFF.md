@@ -4,7 +4,8 @@
 
 CoreCredit is authored on machines with **no Swift toolchain** — `swift`, `swiftc`, `xcodebuild`,
 `xcrun`, and every simulator are absent. This was confirmed again at the start of the final App
-Store release gate, on a Linux container. **Codemagic performs every authoritative build.**
+Store release gate, on a Linux container. **CI performs every authoritative build** — GitHub
+Actions, `.github/workflows/ci.yml`.
 
 Nothing in this repository is called verified unless something actually executed and produced the
 result. The four kinds of evidence below are kept apart on purpose, because they are not
@@ -27,19 +28,22 @@ interchangeable and collapsing them is how a release claims more than it has.
 | Published legal pages match the app's own copies | regenerated from `CoreCredit/Resources/Legal/` and compared | **pass** — all four files identical to their source, zero external resources |
 | GitHub Pages deployment for the legal site | GitHub Actions API | **success**, commit `4a5639e` |
 
-### 2. Executed by Codemagic (automatic, every push and pull request)
+### 2. Executed by CI (automatic, every push and pull request)
 
-`corecredit-simulator-build` builds the app and the embedded widget for the simulator and runs
-**both** test suites, gating on each. Its result for any given commit is in Codemagic, not here.
-Do not restate a number from a previous run as if it described the current tree.
+`.github/workflows/ci.yml` builds the app and the embedded widget for the simulator and runs
+**both** test suites, gating on each. Its result for any given commit is under the **Actions** tab,
+not here. Do not restate a number from a previous run as if it described the current tree.
+
+Note that this repository is private, so GitHub-hosted macOS minutes are billed; while Actions
+billing is unsettled every job fails in seconds with no log. `docs/RELEASE.md` §2a covers it.
 
 ### 3. Not executed anywhere from an authoring machine — by nature, not by omission
 
 | Thing | Where it can be established |
 |---|---|
-| Compiling anything | Codemagic — `corecredit-simulator-build` |
-| Release-configuration build, signing, archive | Codemagic — `corecredit-release-archive` (added by the release gate; publishes nothing) |
-| `CoreCreditTests` / `CoreCreditUITests` results | Codemagic — same simulator workflow |
+| Compiling anything | CI — `.github/workflows/ci.yml` |
+| Release-configuration build, signing, archive | CI — `.github/workflows/testflight.yml` (also uploads; started by hand only) |
+| `CoreCreditTests` / `CoreCreditUITests` results | CI — same `ci.yml` workflow |
 | Live camera, live text, document scan, OCR accuracy | a physical device — `docs/DEVICE_ACCEPTANCE.md` |
 | Delivered local notifications | a physical device |
 | Real StoreKit purchase, restore, expiry, grace period | sandbox or TestFlight on a device |
@@ -62,38 +66,31 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
 
 ### Required
 
-0. **Register the widget's App ID and provisioning profile — one time, in the Developer portal.**
-   This is the only step in this list that blocks the TestFlight archive outright. Without it the
-   build fails with *"CoreCreditQuickScanWidget requires a provisioning profile"*.
+0. **Actions billing, then the five repository secrets.** `docs/RELEASE.md` §2a and §2b. This
+   repository is private, so GitHub-hosted macOS minutes are billed and *no* CI job starts until
+   billing is settled — it fails in seconds with no log, which reads exactly like a broken
+   workflow. The publishing workflow then needs an App Store Connect API key and an Apple
+   Distribution `.p12`.
 
-   Codemagic's managed signing (`ios_signing` in `codemagic.yaml`) takes exactly one
-   `bundle_identifier` and creates the App ID and profile for that one only, so the embedded
-   extension is not covered. Fetching signing files per target from a script does not work either:
-   `app-store-connect fetch-signing-files` also wants to install a *certificate*, and fails with
-   *"Cannot save Signing Certificates without certificate private key"* because that key lives in
-   Codemagic rather than in this repository.
-
-   Do this once:
+0b. **Register the widget's App ID — only if automatic signing cannot.** `.github/workflows/testflight.yml`
+   archives with `-allowProvisioningUpdates` and the App Store Connect key, so Xcode normally
+   registers and fetches profiles for both `com.blakekimble.corecredit` and
+   `com.blakekimble.corecredit.widget` itself. If the archive still fails with
+   *"CoreCreditQuickScanWidget requires a provisioning profile"*, do this once:
 
    1. <https://developer.apple.com/account> → **Certificates, Identifiers & Profiles** →
       **Identifiers** → **+** → *App IDs* → *App*
       - Description: `CoreCredit Quick Scan Widget`
       - Bundle ID: **Explicit**, `com.blakekimble.corecredit.widget`
       - Enable no capabilities — the widget needs none.
-   2. **Profiles** → **+** → *App Store Connect* (distribution) → select that App ID → pick the
-      same distribution certificate the app uses → name it something like
-      `CoreCredit Quick Scan Widget App Store` → Generate.
-
-   Nothing needs to be downloaded. Codemagic matches profiles by bundle-identifier prefix, so once
-   this profile exists the existing `bundle_identifier: com.blakekimble.corecredit` picks up both
-   the app and the extension on the next build.
+   2. Re-run the workflow. Automatic signing picks the identifier up from there; no profile
+      needs downloading, and none is stored as a secret.
 
 
 1. **Apple Developer team — set.** `DEVELOPMENT_TEAM = 7GNFT94A9L` on all six build
    configurations, `CODE_SIGN_STYLE = Automatic`. Nothing to do.
 2. **Bundle identifier — set.** `com.blakekimble.corecredit` (plus `.tests` / `.uitests`),
-   matching `AppConfiguration.bundleIdentifier` and the Codemagic `ios_signing` block.
-   App Store Connect Apple ID `6802336957`.
+   matching `AppConfiguration.bundleIdentifier`. App Store Connect Apple ID `6802336957`.
 3. **Subscription product IDs — SET.** `com.blakekimble.corecredit.pro.monthly` and
    `com.blakekimble.corecredit.pro.annual`, matching in `AppConfiguration` and
    `StoreKit/CoreCredit.storekit`. The matching auto-renewable subscriptions must exist in App
@@ -155,8 +152,9 @@ Honest and specific. Nothing here is a P0 gap.
 
 ### Environment-constrained
 
-- **Authored without a Swift toolchain** — every build and test run happens on Codemagic. The unit
-  suite passes there; see §1 for exactly what that does and does not cover.
+- **Authored without a Swift toolchain** — every build and test run happens in CI (GitHub
+  Actions). See §1 for exactly what that does and does not cover, and note that CI has not yet
+  executed a step since the move: Actions billing is the blocker, not the workflows.
 
 ### Scanning (added after the initial build)
 
