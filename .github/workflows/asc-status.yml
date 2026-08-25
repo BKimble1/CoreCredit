@@ -1,0 +1,138 @@
+# Ask App Store Connect what it actually thinks of a build. Reads only; uploads nothing.
+#
+# This exists because "the upload command exited 0" and "the build is usable" are different
+# claims, and only the second one matters. altool reports a successful *delivery*; App Store
+# Connect then processes the binary, and a build can fail processing minutes later for reasons
+# altool never sees. Rather than telling somebody to go and look, this asks.
+#
+# It uses the same three App Store Connect API secrets the publishing workflow already needs, and
+# adds no new ones. It has no signing, no certificate, and no upload path.
+name: App Store Connect status
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Build number to wait for. Blank just lists the most recent builds.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    name: Read build processing state from App Store Connect
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Query App Store Connect
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          WANTED: ${{ inputs.build_number }}
+          APP_APPLE_ID: '6802336957'
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check pyjwt cryptography
+
+          python3 <<'PY'
+          import json, os, sys, time, urllib.request, urllib.error
+          import jwt
+
+          key_id    = os.environ["KEY_ID"]
+          issuer_id = os.environ["ISSUER_ID"]
+          private   = os.environ["PRIVATE_KEY"]
+          app_id    = os.environ["APP_APPLE_ID"]
+          wanted    = (os.environ.get("WANTED") or "").strip()
+
+          def token():
+              now = int(time.time())
+              return jwt.encode(
+                  {"iss": issuer_id, "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+                  private,
+                  algorithm="ES256",
+                  headers={"kid": key_id, "typ": "JWT"},
+              )
+
+          def get(path):
+              req = urllib.request.Request(
+                  "https://api.appstoreconnect.apple.com" + path,
+                  headers={"Authorization": "Bearer " + token()},
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode("utf-8", "replace")[:600]
+                  print("::error::App Store Connect returned HTTP %s: %s" % (e.code, body))
+                  raise
+
+          query = ("/v1/builds?filter[app]=" + app_id +
+                   "&limit=20&sort=-uploadedDate"
+                   "&include=preReleaseVersion"
+                   "&fields[builds]=version,processingState,uploadedDate,expired")
+
+          # Processing is not instant and the build can take a minute to even appear, so this
+          # polls rather than asking once and reporting "not there".
+          deadline = time.time() + 15 * 60
+          while True:
+              payload = get(query)
+              versions = {v["id"]: v["attributes"].get("version")
+                          for v in payload.get("included", [])
+                          if v["type"] == "preReleaseVersions"}
+
+              rows = []
+              for b in payload.get("data", []):
+                  a = b["attributes"]
+                  rel = b.get("relationships", {}).get("preReleaseVersion", {}).get("data") or {}
+                  rows.append({
+                      "build": a.get("version"),
+                      "version": versions.get(rel.get("id"), "?"),
+                      "state": a.get("processingState"),
+                      "uploaded": a.get("uploadedDate"),
+                      "expired": a.get("expired"),
+                  })
+
+              print("=" * 78)
+              print("%-8s %-9s %-12s %-9s %s" % ("VERSION", "BUILD", "STATE", "EXPIRED", "UPLOADED"))
+              for r in rows:
+                  print("%-8s %-9s %-12s %-9s %s"
+                        % (r["version"], r["build"], r["state"], r["expired"], r["uploaded"]))
+              print("=" * 78)
+
+              if not wanted:
+                  break
+
+              match = next((r for r in rows if str(r["build"]) == wanted), None)
+              if match is None:
+                  if time.time() > deadline:
+                      print("::error::Build %s never appeared in App Store Connect." % wanted)
+                      sys.exit(1)
+                  print("Build %s has not appeared yet; checking again in 30s." % wanted)
+                  time.sleep(30)
+                  continue
+
+              state = match["state"]
+              print("")
+              print("Build %s of version %s is %s." % (wanted, match["version"], state))
+
+              if state == "PROCESSING":
+                  print("It is registered in App Store Connect and processing. That is the state "
+                        "this workflow was asked to confirm.")
+                  break
+              if state == "VALID":
+                  print("Processing finished and the build is usable — it can be attached to an "
+                        "App Store version.")
+                  break
+              if state in ("FAILED", "INVALID"):
+                  print("::error::Build %s finished processing as %s. It cannot be submitted; "
+                        "check the email App Store Connect sent." % (wanted, state))
+                  sys.exit(1)
+              if time.time() > deadline:
+                  print("::warning::Build %s is still %s after 15 minutes." % (wanted, state))
+                  break
+              time.sleep(30)
+          PY
