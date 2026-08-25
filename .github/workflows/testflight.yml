@@ -61,7 +61,9 @@ env:
 jobs:
   publish:
     name: Archive, sign, and upload to App Store Connect
-    runs-on: macos-26
+    # See the note in ci.yml: a pinned `macos-26` label has no runner on this account and fails in
+    # four seconds with no log.
+    runs-on: macos-latest
     timeout-minutes: 90
 
     steps:

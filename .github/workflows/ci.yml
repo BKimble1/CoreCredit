@@ -36,7 +36,12 @@ permissions:
 jobs:
   gate:
     name: Invariants, build, unit tests, UI tests
-    runs-on: macos-26
+    # `macos-latest` rather than a pinned image. A pinned `macos-26` was tried first and the job
+    # died in four seconds with no log at all — GitHub had no runner matching the label for this
+    # account, which is indistinguishable from a broken workflow until you notice the job never
+    # started. `macos-latest` always resolves, and the toolchain step below reports exactly which
+    # Xcode it got, so a build that behaves oddly can still be traced to its compiler.
+    runs-on: macos-latest
     timeout-minutes: 120
 
     steps:
