@@ -1,0 +1,402 @@
+# Signed App Store build, uploaded to App Store Connect / TestFlight.
+#
+# ############################################################################################
+# # STARTED BY HAND. THERE IS NO `push:` OR `pull_request:` TRIGGER HERE, AND THERE MUST      #
+# # NEVER BE ONE. `scripts/verify_repository.py` FAILS THE BUILD IF ONE IS ADDED.             #
+# ############################################################################################
+#
+# Publishing has to be a decision somebody makes. When the old Codemagic equivalent triggered on
+# every push to `main`, *merging* became a release action: a documentation fix, an audit, a typo —
+# anything landing on the shipping branch sent testers a build nobody had decided to cut, and
+# advanced the build number for it. Gating stays automatic (see ci.yml); shipping does not.
+#
+# ## What the owner has to provide, once
+#
+# Settings -> Secrets and variables -> Actions -> New repository secret:
+#
+#   APP_STORE_CONNECT_ISSUER_ID          Users and Access -> Integrations -> App Store Connect API.
+#                                        A UUID, shown once at the top of the keys list.
+#   APP_STORE_CONNECT_KEY_ID             The Key ID column for the key you generate there.
+#                                        Give the key the App Manager role.
+#   APP_STORE_CONNECT_PRIVATE_KEY        The FULL contents of the AuthKey_<KEYID>.p8 file that
+#                                        downloads once, including the BEGIN/END lines.
+#   APPLE_DISTRIBUTION_CERT_P12_BASE64   An Apple Distribution certificate exported from Keychain
+#                                        Access as .p12 WITH its private key, then base64'd:
+#                                          base64 -i Distribution.p12 | pbcopy
+#   APPLE_DISTRIBUTION_CERT_PASSWORD     The password set when exporting that .p12.
+#
+# Provisioning profiles are deliberately NOT secrets. The archive runs with
+# `-allowProvisioningUpdates` and the App Store Connect key, so Xcode fetches or creates the
+# profiles for both `com.blakekimble.corecredit` and `…​.widget` itself. That is what the project's
+# `CODE_SIGN_STYLE = Automatic` already expects, and it means a profile expiring never becomes a
+# stale secret nobody remembers to rotate.
+
+name: TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Build number. Leave empty to compute one automatically (always above 64).'
+        required: false
+        type: string
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TEAM_ID: 7GNFT94A9L
+  APP_BUNDLE_ID: com.blakekimble.corecredit
+  WIDGET_BUNDLE_ID: com.blakekimble.corecredit.widget
+  # Build 64 was the last build uploaded from the old pipeline and was rejected under guideline
+  # 5.1.1(iv). `github.run_number` starts at 1 for this workflow, so the offset keeps every build
+  # this workflow produces unique, monotonic, and strictly above 64. Raise it if the workflow file
+  # is ever renamed or recreated, because that resets `run_number`.
+  BUILD_NUMBER_OFFSET: 64
+
+jobs:
+  publish:
+    name: Archive, sign, and upload to App Store Connect
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out the commit to ship
+        uses: actions/checkout@v4
+
+      - name: Refuse to publish without the credentials
+        env:
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          CERT_P12: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          MISSING=""
+          [ -n "$ISSUER_ID" ]     || MISSING="$MISSING APP_STORE_CONNECT_ISSUER_ID"
+          [ -n "$KEY_ID" ]        || MISSING="$MISSING APP_STORE_CONNECT_KEY_ID"
+          [ -n "$PRIVATE_KEY" ]   || MISSING="$MISSING APP_STORE_CONNECT_PRIVATE_KEY"
+          [ -n "$CERT_P12" ]      || MISSING="$MISSING APPLE_DISTRIBUTION_CERT_P12_BASE64"
+          [ -n "$CERT_PASSWORD" ] || MISSING="$MISSING APPLE_DISTRIBUTION_CERT_PASSWORD"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing repository secret(s):$MISSING"
+            echo "See the comment at the head of .github/workflows/testflight.yml for where each one comes from."
+            exit 1
+          fi
+          echo "All five secrets are present."
+
+      # The same gate the CI workflow opens with. A signed build that ships a placeholder support
+      # URL — or a permission primer that went back to the rejected wording — is an App Review
+      # rejection, and this is the cheapest possible place to catch one.
+      - name: Verify repository invariants
+        run: python3 scripts/verify_repository.py
+
+      - name: Select the toolchain
+        run: |
+          set -euo pipefail
+          CHOSEN=""
+          for candidate in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r); do
+            VERSION=$(/usr/bin/defaults read "$candidate/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "")
+            case "$VERSION" in
+              26.*) CHOSEN="$candidate"; break ;;
+            esac
+          done
+          if [ -z "$CHOSEN" ]; then
+            CHOSEN=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V -r | head -n 1 || echo "")
+            echo "::warning::No Xcode 26.x on this runner; falling back to ${CHOSEN:-the default}."
+          fi
+          [ -n "$CHOSEN" ] && sudo xcode-select -s "$CHOSEN/Contents/Developer"
+          xcodebuild -version
+
+      - name: Install the App Store Connect API key
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # `~/.appstoreconnect/private_keys` is one of the directories altool searches by name, so
+          # the upload step needs only the key id and issuer id. xcodebuild is given the path
+          # explicitly below.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8"
+          printf '%s\n' "$PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          echo "Installed AuthKey_${KEY_ID}.p8"
+
+      - name: Import the distribution certificate into a temporary keychain
+        env:
+          CERT_P12: ${{ secrets.APPLE_DISTRIBUTION_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          # A keychain created for this run only, on an ephemeral runner. The password is random
+          # and never leaves the job; the keychain is deleted in the cleanup step whatever happens.
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          echo "BUILD_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          CERT_PATH="$RUNNER_TEMP/distribution.p12"
+          printf '%s' "$CERT_P12" | base64 --decode > "$CERT_PATH"
+
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -f pkcs12
+
+          # Without this, codesign prompts for keychain access and hangs the job until it times out.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+
+          # Prepended to the search list, not substituted for it: the system roots have to stay
+          # reachable or the certificate cannot be chained back to Apple's CA.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -s "$KEYCHAIN"
+
+          rm -f "$CERT_PATH"
+
+          echo "Signing identities now visible:"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Choose the build number
+        id: build_number
+        run: |
+          set -euo pipefail
+          REQUESTED="${{ inputs.build_number }}"
+          if [ -n "$REQUESTED" ]; then
+            BUILD_NUMBER="$REQUESTED"
+            echo "Using the build number given on the run: $BUILD_NUMBER"
+          else
+            BUILD_NUMBER=$(( BUILD_NUMBER_OFFSET + GITHUB_RUN_NUMBER ))
+            echo "Computed build number: $BUILD_NUMBER_OFFSET + run $GITHUB_RUN_NUMBER = $BUILD_NUMBER"
+          fi
+
+          if [ "$BUILD_NUMBER" -le 64 ]; then
+            echo "::error::Build number $BUILD_NUMBER is not above 64. App Store Connect rejects a"
+            echo "duplicate or lower build for a version, and 64 is already uploaded."
+            exit 1
+          fi
+
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp the build number
+        run: |
+          set -euo pipefail
+          agvtool new-version -all "${{ steps.build_number.outputs.build_number }}"
+          echo ""
+          echo "Version now reads:"
+          agvtool what-marketing-version -terse1 || true
+          agvtool what-version -terse || true
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          set -e
+
+          xcodebuild archive \
+            -project CoreCredit.xcodeproj \
+            -scheme CoreCredit \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/CoreCredit.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            | tee "$RUNNER_TEMP/xcodebuild-archive.log"
+
+      - name: Export the signed IPA
+        run: |
+          set -o pipefail
+          set -e
+
+          # NO internal-testing-only key here, DELIBERATELY.
+          #
+          # That export flag stamps the build as internal-testing-only. Such a build uploads and
+          # reaches internal testers exactly as normal, and then cannot be picked in App Store
+          # Connect when the version is submitted: the build simply is not in the list. Nothing
+          # about it looks wrong until that moment.
+          #
+          # It is not re-checked here. `scripts/verify_repository.py` — step 2 of this same job —
+          # bans the flag across codemagic.yaml and every file in .github/workflows, which is
+          # strictly stronger than this step grepping a heredoc it wrote itself two lines earlier.
+          #
+          # `manageAppVersionAndBuildNumber` is false so that Xcode leaves the build number the
+          # stamp step chose. Left true, Xcode picks its own and the number in the log stops
+          # matching the number that reaches App Store Connect.
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>teamID</key>
+            <string>$TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+
+          echo "Export options:"
+          cat "$RUNNER_TEMP/ExportOptions.plist"
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/CoreCredit.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
+            | tee "$RUNNER_TEMP/xcodebuild-export.log"
+
+      # The evidence a release gate actually wants: what is inside the thing that would ship.
+      # Ported from `corecredit-release-archive` in codemagic.yaml, and every check here fails the
+      # job rather than printing a warning nobody reads.
+      - name: Inspect the signed archive
+        run: |
+          set -euo pipefail
+
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -n 1)
+          echo "Inspecting $IPA"
+          echo "IPA_PATH=$IPA" >> "$GITHUB_ENV"
+
+          WORK="$RUNNER_TEMP/ipa-inspect"
+          rm -rf "$WORK" && mkdir -p "$WORK"
+          unzip -q "$IPA" -d "$WORK"
+          APP=$(ls -d "$WORK"/Payload/*.app | head -n 1)
+
+          echo ""
+          echo "=============== APP BUNDLE ==============="
+          plutil -p "$APP/Info.plist" | grep -E \
+            'CFBundleIdentifier|CFBundleShortVersionString|CFBundleVersion|CFBundleDisplayName|MinimumOSVersion|ITSAppUsesNonExemptEncryption|NSCameraUsageDescription|UILaunchScreen' \
+            || true
+
+          echo ""
+          echo "--- The build number actually inside the bundle ---"
+          BUNDLE_VERSION=$(plutil -extract CFBundleVersion raw "$APP/Info.plist")
+          echo "  CFBundleVersion = $BUNDLE_VERSION"
+          if [ "$BUNDLE_VERSION" != "${{ steps.build_number.outputs.build_number }}" ]; then
+            echo "::error::The bundle says $BUNDLE_VERSION but this run stamped ${{ steps.build_number.outputs.build_number }}."
+            exit 1
+          fi
+          if [ "$BUNDLE_VERSION" -le 64 ]; then
+            echo "::error::CFBundleVersion $BUNDLE_VERSION is not above the rejected build 64."
+            exit 1
+          fi
+
+          echo ""
+          echo "--- Privacy manifest present? ---"
+          test -f "$APP/PrivacyInfo.xcprivacy" \
+            && echo "  yes: PrivacyInfo.xcprivacy" \
+            || { echo "::error::the privacy manifest did not make it into the bundle"; exit 1; }
+
+          echo ""
+          echo "--- App icon present in the asset catalog? ---"
+          if [ -f "$APP/Assets.car" ]; then
+            echo "  Assets.car present"
+            xcrun assetutil --info "$APP/Assets.car" 2>/dev/null \
+              | grep -iE '"Name".*AppIcon|AppIcon' | head -n 5 || echo "  (assetutil listed no AppIcon rows)"
+          else
+            echo "::error::no Assets.car in the bundle"; exit 1
+          fi
+
+          echo ""
+          echo "--- Embedded extensions ---"
+          ls "$APP/PlugIns" 2>/dev/null || echo "  none"
+          WIDGET="$APP/PlugIns/CoreCreditQuickScanWidget.appex"
+          test -d "$WIDGET" \
+            && plutil -p "$WIDGET/Info.plist" \
+                 | grep -E 'CFBundleIdentifier|CFBundleVersion|CFBundleShortVersionString|NSExtensionPointIdentifier' \
+            || { echo "::error::the widget .appex was not embedded"; exit 1; }
+
+          echo ""
+          echo "--- A .storekit configuration must NOT be in the bundle ---"
+          if find "$APP" -name '*.storekit' | grep -q .; then
+            echo "::error::a .storekit file is inside the shipping bundle:"
+            find "$APP" -name '*.storekit'
+            exit 1
+          fi
+          echo "  none — correct"
+
+          echo ""
+          echo "--- Code signature and entitlements ---"
+          codesign -dv --verbose=4 "$APP" 2>&1 | sed 's/^/  /'
+          echo ""
+          codesign -d --entitlements :- "$APP" 2>/dev/null | sed 's/^/  /' || true
+          echo ""
+          codesign -dv --verbose=2 "$WIDGET" 2>&1 | sed 's/^/  /'
+          echo "=========================================="
+
+      - name: Upload to App Store Connect
+        run: |
+          set -euo pipefail
+
+          echo "Validating $IPA_PATH before upload…"
+          xcrun altool --validate-app \
+            -f "$IPA_PATH" \
+            -t ios \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+          echo ""
+          echo "Uploading…"
+          xcrun altool --upload-app \
+            -f "$IPA_PATH" \
+            -t ios \
+            --apiKey "${{ secrets.APP_STORE_CONNECT_KEY_ID }}" \
+            --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+
+          echo ""
+          echo "======================================================================"
+          echo "Uploaded build ${{ steps.build_number.outputs.build_number }} of version 1.0."
+          echo ""
+          echo "The upload command exiting 0 does NOT mean the build is usable. App Store"
+          echo "Connect still has to process it. Open TestFlight, wait for the build to"
+          echo "leave 'Processing', and confirm it has no 'Missing Compliance' banner"
+          echo "before attaching it to the App Store version."
+          echo "======================================================================"
+
+      - name: Collect the archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-build-${{ steps.build_number.outputs.build_number }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/export/*.ipa
+            ${{ runner.temp }}/xcodebuild-archive.log
+            ${{ runner.temp }}/xcodebuild-export.log
+            ${{ runner.temp }}/ExportOptions.plist
+            ${{ runner.temp }}/CoreCredit.xcarchive/dSYMs
+
+      # Runs even when an earlier step failed. The runner is ephemeral, but leaving a keychain
+      # holding a distribution private key unlocked for the rest of the job is not a habit worth
+      # having.
+      - name: Remove the temporary keychain
+        if: always()
+        run: |
+          security delete-keychain "$BUILD_KEYCHAIN" 2>/dev/null || true
+          rm -f "$HOME/.appstoreconnect/private_keys/"*.p8 2>/dev/null || true
+          echo "Temporary keychain and API key removed."
