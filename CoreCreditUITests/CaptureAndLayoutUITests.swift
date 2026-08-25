@@ -61,7 +61,7 @@ final class CaptureAndLayoutUITests: XCTestCase {
                           "the Document half, which Live must not present at the same time")
 
             tapWhenHittable(control(app, A11yID.Scan.cancel), "the capture sheet's Cancel", in: app)
-            requireAbsent(element(app, A11yID.Scan.root), "the dismissed capture sheet")
+            requireDismissed(element(app, A11yID.Scan.root), "the dismissed capture sheet")
         }
 
         XCTContext.runActivity(named: "Door 2 — the intake form's own Scan core action") { _ in

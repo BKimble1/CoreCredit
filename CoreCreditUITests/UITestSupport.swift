@@ -293,7 +293,10 @@ enum UITestTimeout {
     static let launch: TimeInterval = 30
     /// A screen, sheet, or record change.
     static let standard: TimeInterval = 10
-    /// A control that is expected to be on screen already, or an absence check.
+    /// A control that is expected to be on screen already, or a "this never appeared" check.
+    ///
+    /// NOT for waiting on something to *go away*. A dismissal is a transition and belongs to
+    /// `standard` above — see `requireDismissed(_:_:)`.
     static let short: TimeInterval = 3
 }
 
@@ -504,6 +507,30 @@ extension XCTestCase {
                     file: file,
                     line: line)
         }
+    }
+
+    /// Waits for something that *was* on screen to go away, with the patience a transition needs.
+    ///
+    /// `requireAbsent` defaults to `UITestTimeout.short` (3s), which is right for "this never
+    /// appeared" — the editor did not open behind the sheet, the paywall never showed for a Pro
+    /// user. It is the wrong budget for a dismissal: tapping Close starts a sheet transition, and
+    /// the sheet stays in the accessibility hierarchy until it completes. Three seconds is enough
+    /// on an idle machine and not always enough on a CI runner executing 32 UI tests, which is how
+    /// `testDismissingThePaywallLeavesTheExistingFiveViewableAndEditable` failed with
+    /// "the dismissed paywall was still present after 3.0s" on a run where nothing was wrong.
+    ///
+    /// `UITestTimeout.standard` is documented as the budget for "a screen, sheet, or record
+    /// change", which is exactly what this is. The assertion is identical to `requireAbsent`; only
+    /// the patience matches what is being waited for.
+    func requireDismissed(_ element: XCUIElement,
+                          _ description: String,
+                          file: StaticString = #filePath,
+                          line: UInt = #line) {
+        requireAbsent(element,
+                      description,
+                      timeout: UITestTimeout.standard,
+                      file: file,
+                      line: line)
     }
 
     /// Waits for an element's accessibility label to become exactly `expected`.

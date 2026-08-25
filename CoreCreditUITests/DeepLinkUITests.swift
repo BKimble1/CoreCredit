@@ -93,7 +93,7 @@ final class DeepLinkUITests: XCTestCase {
             tapWhenHittable(control(app, A11yID.Scan.cancel),
                             "the scanner's Cancel button",
                             in: app)
-            requireAbsent(element(app, A11yID.Scan.root), "the dismissed scan sheet")
+            requireDismissed(element(app, A11yID.Scan.root), "the dismissed scan sheet")
 
             // `CoreEditorView` carries no root identifier of its own, so the form is asserted
             // through the controls it always builds: the first field and the save action.
@@ -107,7 +107,7 @@ final class DeepLinkUITests: XCTestCase {
             tapWhenHittable(control(app, A11yID.Editor.cancel),
                             "the editor's Cancel button",
                             in: app)
-            requireAbsent(textField(app, A11yID.Editor.partName), "the dismissed editor")
+            requireDismissed(textField(app, A11yID.Editor.partName), "the dismissed editor")
 
             // The link selected the Cores tab, so the ledger is what the dismissed sheet reveals.
             requireExists(element(app, labelled: "No cores yet"),

@@ -53,7 +53,7 @@ final class PaywallUITests: XCTestCase {
 
             requireExists(element(app, A11yID.Paywall.root), "the paywall")
             tapWhenHittable(control(app, A11yID.Paywall.close), "the paywall's close button", in: app)
-            requireAbsent(element(app, A11yID.Paywall.root), "the dismissed paywall")
+            requireDismissed(element(app, A11yID.Paywall.root), "the dismissed paywall")
         }
 
         XCTContext.runActivity(named: "The ledger is still there and still opens") { _ in
@@ -135,7 +135,7 @@ final class PaywallUITests: XCTestCase {
 
         XCTContext.runActivity(named: "The rest of the app stays reachable") { _ in
             tapWhenHittable(control(app, A11yID.Paywall.close), "the paywall's close button", in: app)
-            requireAbsent(element(app, A11yID.Paywall.root), "the dismissed paywall")
+            requireDismissed(element(app, A11yID.Paywall.root), "the dismissed paywall")
 
             requireExists(element(app, A11yID.Cores.list), "the cores list")
 
