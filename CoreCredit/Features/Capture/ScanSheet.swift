@@ -293,14 +293,28 @@ struct ScanSheet: View {
                 title: "Camera access",
                 message: ScannerAvailability.cameraNotDetermined.explanation
             ) {
+                // "Continue" — never "Allow camera access", and never any other word that imitates
+                // the affirmative choice inside the system alert.
+                //
+                // This is the screen App Review rejected build 64 on, under guideline 5.1.1(iv)
+                // (Legal — Privacy — Data Collection and Storage), reviewed 25 August 2026 on an
+                // iPad Air 11-inch (M3). A custom screen shown *before* an Apple permission alert
+                // may explain why access is useful, but its action must stay neutral: the user's
+                // answer belongs to the system alert, not to us.
+                //
+                // The label is neutral and the hint carries the consequence, which is where an
+                // accurate description of what the button does belongs. Both spellings are pinned
+                // by `scripts/verify_repository.py`, so the rejected wording cannot come back.
                 Button {
                     Task { await requestAccess() }
                 } label: {
-                    PrimaryButtonLabel("Allow camera access", systemImage: "camera")
+                    PrimaryButtonLabel("Continue", systemImage: "camera")
                 }
                 .buttonStyle(.plain)
                 .disabled(isRequestingAccess)
-                .accessibilityHint(Text("Asks iOS for permission to use the camera."))
+                .accessibilityLabel(Text("Continue"))
+                .accessibilityHint(Text("Opens the iOS camera permission alert. You can type the "
+                                        + "number in below instead."))
             }
         case .cameraDenied:
             explanationSection(

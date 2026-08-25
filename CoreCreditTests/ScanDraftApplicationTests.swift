@@ -274,12 +274,45 @@ struct ScanDraftApplicationTests {
         #expect(ScannerAvailability.unsupportedDevice.actionTitle == "Enter manually")
         #expect(ScannerAvailability.cameraRestricted.actionTitle == "Enter manually")
         #expect(ScannerAvailability.cameraDenied.actionTitle == "Open Settings")
-        #expect(ScannerAvailability.cameraNotDetermined.actionTitle == "Allow Camera")
         #expect(ScannerAvailability.available.actionTitle == nil)
+
+        // `.cameraNotDetermined` is the only state whose action sits on a custom screen shown
+        // *before* an Apple permission alert, so its title is neutral by requirement rather than
+        // by taste: App Review rejected build 64 under guideline 5.1.1(iv) for labelling that
+        // action "Allow camera access". A pre-permission screen may explain why access is useful,
+        // but it may not imitate the affirmative choice inside the system dialog.
+        #expect(ScannerAvailability.cameraNotDetermined.actionTitle == "Continue")
 
         // Manual entry is the alternative in every blocked state, so the sentence has to say so.
         #expect(ScannerAvailability.cameraDenied.explanation.contains("type the number in"))
         #expect(ScannerAvailability.unsupportedDevice.explanation.contains("Type the number in"))
         #expect(ScannerAvailability.simulator.explanation.contains("Type the number in"))
+    }
+
+    /// The copy on the one screen App Review actually rejected.
+    ///
+    /// Guideline 5.1.1(iv), version 1.0, build 64, reviewed on an iPad Air 11-inch (M3) on
+    /// 25 August 2026. Apple's instruction was to use neutral wording such as Continue or Next.
+    /// This pins the wording from the model side; `scripts/verify_repository.py` pins the button
+    /// that renders it, and neither can see the other.
+    @Test("The camera primer's copy is neutral and keeps manual entry in view")
+    func cameraPrimerCopyIsNeutral() {
+        let primer = ScannerAvailability.cameraNotDetermined
+
+        // Neutral: nothing that imitates or pressures the affirmative choice in Apple's alert.
+        for pressuring in ["Allow", "allow", "Enable", "Grant", "Yes"] {
+            #expect(primer.actionTitle?.contains(pressuring) == false)
+            #expect(primer.explanation.contains(pressuring) == false)
+        }
+
+        // Factual: it says what the camera is for, and what pressing the action will do.
+        #expect(primer.explanation.contains("scan barcodes"))
+        #expect(primer.explanation.contains("Continue to the iOS permission request"))
+
+        // And the alternative that needs no camera at all is never dropped from the sentence.
+        #expect(primer.explanation.contains("type the number below"))
+
+        // Scanning still cannot start from this state — the primer is an offer, not a grant.
+        #expect(primer.allowsScanning == false)
     }
 }

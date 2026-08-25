@@ -410,8 +410,19 @@ workflows:
       - name: Apply App Store signing
         script: |
           set -e
-          xcode-project use-profiles \
-            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+          # No `--custom-export-options`, and for *this* workflow that is the whole point.
+          #
+          # This one exists to rehearse the publishing export without publishing, so its export
+          # options have to be the publishing workflow's export options. While it passed
+          # `{"testFlightInternalTestingOnly": true}` and `corecredit-testflight` did not, the
+          # rehearsal was proving a different artefact than the one that ships — which is exactly
+          # the failure this workflow is supposed to catch, in the one place nobody would look.
+          #
+          # `testFlightInternalTestingOnly` stamps an export as internal-testing-only. Such a build
+          # uploads and reaches internal testers normally, and then cannot be picked in App Store
+          # Connect when the version is submitted: the build simply is not in the list. Nothing
+          # about it looks wrong until that moment. Do not reintroduce it in either workflow.
+          xcode-project use-profiles
 
           echo ""
           echo "=========== INSTALLED PROVISIONING PROFILES ==========="
