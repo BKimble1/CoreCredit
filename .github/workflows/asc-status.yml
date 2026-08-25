@@ -81,7 +81,7 @@ jobs:
           query = ("/v1/builds?filter[app]=" + app_id +
                    "&limit=20&sort=-uploadedDate"
                    "&include=preReleaseVersion"
-                   "&fields[builds]=version,processingState,uploadedDate,expired")
+                   "&fields[builds]=version,processingState,uploadedDate,expired,preReleaseVersion")
 
           # Processing is not instant and the build can take a minute to even appear, so this
           # polls rather than asking once and reporting "not there".
