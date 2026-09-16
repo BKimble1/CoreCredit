@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://corecredit.idlery.com/sitemap.xml

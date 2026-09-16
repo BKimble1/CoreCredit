@@ -1,0 +1,14 @@
+# Netlify redirect rules for corecredit.idlery.com
+#
+# The app, the App Store listing and the bundled legal documents all point at the
+# extensionless forms of these three addresses. App Review opens the support and privacy
+# URLs, and a 404 on either is a rejection, so they are stated here explicitly rather than
+# left to Netlify's automatic pretty-URL handling.
+#
+# 200 is a rewrite, not a redirect: the address in the browser stays /support.
+
+/support    /support.html    200
+/privacy    /privacy.html    200
+/terms      /terms.html      200
+
+# Unmatched paths fall through to 404.html, which Netlify serves automatically.

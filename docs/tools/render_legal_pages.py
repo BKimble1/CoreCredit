@@ -15,6 +15,10 @@ the published copy says exactly the same thing.
 The support page has no in-app JSON counterpart — `LegalSupportView` builds it natively from
 `AppConfiguration` — so its content lives in this file, next to the constants it shares.
 
+The three pages here are the whole of what this script publishes. The site's home page is a
+marketing page that carries images, and it lives in `web/src/index.html`; `web/tools/build_site.py`
+is what puts these three and that one into the deployable bundle.
+
 Output is plain static HTML: no external stylesheet, no web font, no image, no script, no cookie,
 no analytics, no tracker. That is a promise the Privacy Policy makes, and it has to be true of the
 page making it.
@@ -273,23 +277,6 @@ SUPPORT_SECTIONS = [
     ]),
 ]
 
-INDEX_SECTIONS = [
-    ("Documents", [
-        '<ul>'
-        '<li><a href="%s">Support</a> - how to get help, and what to try first.</li>'
-        '<li><a href="%s">Privacy Policy</a> - what the app stores, and what it does not.</li>'
-        '<li><a href="%s">Terms of Use</a> - the agreement covering the app.</li>'
-        '</ul>' % (SUPPORT_URL, PRIVACY_URL, TERMS_URL),
-    ]),
-    ("About this site", [
-        "This site publishes the support and legal pages for %s, the iOS app published by %s. It "
-        "hosts nothing else." % (APP_NAME, COMPANY),
-        "The Privacy Policy and Terms of Use here are generated from the same text the app shows "
-        "on device, so the two cannot say different things.",
-    ]),
-]
-
-
 def render_static(filename, title, heading, summary, sections, description):
     parts = []
     for heading_text, paragraphs in sections:
@@ -326,15 +313,6 @@ def main():
             "on your device." % (EMAIL, APP_NAME),
             SUPPORT_SECTIONS,
             "How to get help with CoreCredit, and what to try first.",
-        ),
-        render_static(
-            "index.html",
-            "%s - Support and Legal" % APP_NAME,
-            "%s" % APP_NAME,
-            "Support and legal documents for %s, a local-first parts-core and vendor-credit "
-            "ledger for repair shops." % APP_NAME,
-            INDEX_SECTIONS,
-            "Support and legal documents for the CoreCredit iOS app.",
         ),
     ]
 

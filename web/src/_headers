@@ -1,0 +1,17 @@
+# Response headers for corecredit.idlery.com
+#
+# The Privacy Policy promises a site with no script, no web font, no external request and no
+# tracker of any kind. The Content-Security-Policy below is that promise written as a rule the
+# browser enforces: nothing may load except images from this origin and the inline stylesheet
+# each page carries.
+
+/*
+  Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

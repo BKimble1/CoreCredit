@@ -108,8 +108,12 @@ Everything below is centralised in **`CoreCredit/App/AppConfiguration.swift`** u
    Static HTML on the owner's own domain. The pages carry **no** script, stylesheet, web font,
    image, cookie, or tracker — checked in the invariant script. The generated copies in
    `docs/legal-public/` are the exact files that host is expected to serve; their navigation is
-   relative rather than root-absolute, so the same four files work from a domain root or a
+   relative rather than root-absolute, so the same files work from a domain root or a
    subdirectory.
+
+   Those three are no longer the whole site. `web/` holds the marketing home page that sits at
+   `/`, and `web/tools/build_site.py` packages it together with these three into
+   `web/corecredit-netlify.zip`, the bundle the owner drops on Netlify by hand. See `web/README.md`.
 
    **Unverified here.** These three addresses have not been fetched from this repository — the
    network policy of every session that has edited this file blocks the host. The previous

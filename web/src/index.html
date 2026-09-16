@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<!--
+  CoreCredit — the home page of corecredit.idlery.com, published by Idlery Services LLC.
+
+  Every image on this page is a real capture of the shipping app or the shipping app icon,
+  produced by web/tools/build_assets.py from the files committed at the repository root.
+
+  No script, no web font, no external request, no cookie, no analytics, no tracker. The Privacy
+  Policy this page links to promises exactly that, so it has to be true of the page making the
+  promise. Keep it that way.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="index, follow">
+    <title>CoreCredit — Core charge and vendor credit tracking for repair shops</title>
+    <meta name="description" content="CoreCredit is an iPhone and iPad ledger for parts core charges. Log the core charge, get the old part back to the vendor on time, and keep it counted until the credit actually lands. Now available on the App Store.">
+    <link rel="canonical" href="https://corecredit.idlery.com/">
+    <meta name="theme-color" content="#0053fd">
+    <meta name="color-scheme" content="light dark">
+    <meta name="author" content="Idlery Services LLC">
+
+    <link rel="icon" href="assets/icon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="assets/icon-512.png" sizes="512x512" type="image/png">
+    <link rel="apple-touch-icon" href="assets/icon-180.png">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CoreCredit">
+    <meta property="og:title" content="CoreCredit — Core charges, tracked to the credit">
+    <meta property="og:description" content="A local-first core charge and vendor credit ledger for independent repair shops. Now available on the App Store for iPhone and iPad.">
+    <meta property="og:url" content="https://corecredit.idlery.com/">
+    <meta property="og:image" content="https://corecredit.idlery.com/assets/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="The CoreCredit app icon beside the CoreCredit dashboard, showing $1,048.25 of money at risk.">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CoreCredit — Core charges, tracked to the credit">
+    <meta name="twitter:description" content="A local-first core charge and vendor credit ledger for independent repair shops. Now available on the App Store for iPhone and iPad.">
+    <meta name="twitter:image" content="https://corecredit.idlery.com/assets/og.png">
+
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #0b1220;
+        --ink-soft: #55617a;
+        --ground: #e7edfa;
+        --ground-deep: #dbe4f7;
+        --card: #ffffff;
+        --card-soft: #f3f6fd;
+        --rule: #d3dcec;
+        --accent: #0053fd;
+        --accent-ink: #ffffff;
+        --accent-soft: #e4ecff;
+        --bezel: linear-gradient(160deg, #26314a, #0d1524);
+        --shadow: 0 1.5rem 3rem -1.5rem rgba(11, 18, 32, 0.32);
+        --shadow-soft: 0 0.75rem 1.75rem -1rem rgba(11, 18, 32, 0.22);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #f4f7fc;
+          --ink-soft: #a9b4c6;
+          --ground: #080b12;
+          --ground-deep: #0d121d;
+          --card: #18202e;
+          --card-soft: #141b28;
+          --rule: #2e3747;
+          --accent: #5b93ff;
+          --accent-ink: #06122c;
+          --accent-soft: #17233c;
+          --bezel: linear-gradient(160deg, #303c56, #10182a);
+          --shadow: 0 1.5rem 3rem -1.5rem rgba(0, 0, 0, 0.72);
+          --shadow-soft: 0 0.75rem 1.75rem -1rem rgba(0, 0, 0, 0.6);
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 1.0625rem;
+        line-height: 1.65;
+        color: var(--ink);
+        background: var(--ground);
+        -webkit-text-size-adjust: 100%;
+        overflow-wrap: break-word;
+      }
+
+      a { color: var(--accent); }
+      a:focus-visible, .skip:focus, summary:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 0.25rem;
+      }
+      /* `height: auto` is load-bearing. Every image below carries width/height attributes so the
+         layout is reserved before it loads, and those attributes are presentational hints: without
+         this, a screenshot sized by CSS width alone keeps its 1348px attribute height and stretches
+         to three times its proper proportions. */
+      img { max-width: 100%; height: auto; display: block; }
+
+      .skip {
+        position: absolute; left: -9999px; top: 0;
+        background: var(--card); color: var(--ink);
+        padding: 0.75rem 1rem; border-radius: 0.5rem;
+      }
+      .skip:focus { left: 0.5rem; top: 0.5rem; z-index: 20; }
+
+      .wrap { width: 100%; max-width: 70rem; margin: 0 auto; padding: 0 1rem; }
+
+      /* ---------------------------------------------------------------- header */
+
+      .topbar {
+        position: sticky; top: 0; z-index: 10;
+        background: color-mix(in srgb, var(--ground) 88%, transparent);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+        backdrop-filter: saturate(180%) blur(12px);
+        border-bottom: 1px solid var(--rule);
+      }
+      @supports not (background: color-mix(in srgb, red 50%, blue)) {
+        .topbar { background: var(--ground); }
+      }
+      .topbar .wrap {
+        display: flex; align-items: center; gap: 1rem;
+        min-height: 4rem; padding-top: 0.5rem; padding-bottom: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .brand {
+        display: inline-flex; align-items: center; gap: 0.625rem;
+        font-weight: 600; font-size: 1.0625rem; letter-spacing: -0.01em;
+        color: var(--ink); text-decoration: none;
+      }
+      .brand img { width: 2rem; height: 2rem; border-radius: 0.5rem; }
+      .topnav { margin-left: auto; display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+      .topnav a {
+        color: var(--ink-soft); text-decoration: none;
+        font-size: 0.9375rem; font-weight: 500;
+      }
+      .topnav a:hover { color: var(--ink); }
+      .topnav .badge-link { display: inline-flex; }
+      @media (max-width: 47.9375rem) {
+        .topnav .hide-sm { display: none; }
+      }
+
+      /* ---------------------------------------------------------------- badge */
+
+      .badge-link { display: inline-block; line-height: 0; }
+      .badge-link img {
+        width: 11.25rem;
+        aspect-ratio: 119.66407 / 40;
+        height: auto;
+      }
+      .badge-link.compact img { width: 8.75rem; }
+      .badge-link:hover { opacity: 0.88; }
+
+      /* ---------------------------------------------------------------- type */
+
+      h1, h2, h3 { line-height: 1.15; letter-spacing: -0.022em; margin: 0; }
+      h1 { font-size: clamp(2.125rem, 5.2vw, 3.5rem); }
+      h2 { font-size: clamp(1.625rem, 3.6vw, 2.375rem); }
+      h3 { font-size: 1.1875rem; letter-spacing: -0.01em; }
+      p { margin: 0; }
+
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        justify-self: start; width: fit-content;
+        font-size: 0.8125rem; font-weight: 600;
+        letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-soft);
+        border-radius: 999px;
+        padding: 0.375rem 0.8125rem;
+      }
+      .lede { font-size: clamp(1.0625rem, 1.9vw, 1.25rem); color: var(--ink-soft); }
+      .section-intro { max-width: 40rem; display: grid; gap: 0.875rem; }
+
+      section { padding: clamp(3rem, 7vw, 5.5rem) 0; }
+      /* The header is sticky, so an anchor jump would otherwise land its heading underneath it. */
+      section[id] { scroll-margin-top: 5rem; }
+      section + section { padding-top: 0; }
+      .band { background: var(--ground-deep); }
+      .band + section { padding-top: clamp(3rem, 7vw, 5.5rem); }
+
+      /* ---------------------------------------------------------------- hero */
+
+      .hero { padding-top: clamp(2.5rem, 6vw, 4.5rem); }
+      .hero-grid {
+        display: grid; gap: clamp(2.5rem, 5vw, 4rem);
+        align-items: center;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 60rem) {
+        .hero-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); }
+      }
+      .hero-copy { display: grid; gap: 1.5rem; justify-items: start; }
+      .hero-copy h1 { max-width: 15ch; }
+      .hero-copy .lede { max-width: 42ch; }
+      .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.25rem; }
+      .text-cta {
+        display: inline-flex; align-items: center; gap: 0.375rem;
+        font-weight: 600; font-size: 0.9375rem; text-decoration: none;
+      }
+      .text-cta:hover { text-decoration: underline; }
+      .hero-facts {
+        display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem;
+        font-size: 0.875rem; color: var(--ink-soft);
+        list-style: none; margin: 0; padding: 0;
+      }
+      .hero-facts li { display: flex; align-items: center; gap: 0.5rem; }
+      .hero-facts li::before {
+        content: ""; width: 0.375rem; height: 0.375rem; border-radius: 999px;
+        background: var(--accent); flex: none;
+      }
+
+      /* ---------------------------------------------------------------- devices */
+
+      .device {
+        background: var(--bezel);
+        padding: 0.625rem;
+        border-radius: 2.5rem;
+        box-shadow: var(--shadow);
+        width: min(100%, 18rem);
+      }
+      .device img { border-radius: 1.9rem; width: 100%; }
+      .hero-device { justify-self: center; position: relative; }
+      .device-pair {
+        display: grid; justify-items: center;
+        grid-template-columns: 1fr;
+      }
+      .device-pair .device:last-child { display: none; }
+      @media (min-width: 60rem) {
+        .device-pair {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0;
+          justify-items: start;
+        }
+        .device-pair .device { width: 14.5rem; }
+        .device-pair .device:first-child { transform: translateY(-1rem); z-index: 2; }
+        .device-pair .device:last-child {
+          display: block;
+          margin-left: -5rem; transform: translateY(1.5rem) scale(0.94);
+          opacity: 0.97;
+        }
+      }
+
+      .frame {
+        border-radius: 1.25rem;
+        border: 1px solid var(--rule);
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+        background: var(--card);
+      }
+
+      /* ---------------------------------------------------------------- strip */
+
+      .strip {
+        display: grid; gap: 1px;
+        grid-template-columns: 1fr;
+        background: var(--rule);
+        border: 1px solid var(--rule);
+        border-radius: 1rem; overflow: hidden;
+      }
+      @media (min-width: 40rem) { .strip { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 60rem) { .strip { grid-template-columns: repeat(4, 1fr); } }
+      .strip div { background: var(--card); padding: 1.25rem 1.25rem 1.375rem; }
+      .strip dt { font-weight: 600; font-size: 0.9375rem; margin: 0 0 0.25rem; }
+      .strip dd { margin: 0; font-size: 0.875rem; color: var(--ink-soft); line-height: 1.5; }
+
+      /* ---------------------------------------------------------------- steps */
+
+      .steps {
+        display: grid; gap: 1rem; padding: 0; margin: 2.5rem 0 0;
+        grid-template-columns: 1fr; counter-reset: step;
+      }
+      @media (min-width: 46rem) { .steps { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 64rem) { .steps { grid-template-columns: repeat(4, 1fr); } }
+      .steps li {
+        list-style: none; background: var(--card);
+        border: 1px solid var(--rule); border-radius: 1rem;
+        padding: 1.375rem 1.25rem 1.5rem;
+        display: grid; gap: 0.5rem; align-content: start;
+      }
+      .steps li::before {
+        counter-increment: step; content: counter(step);
+        display: grid; place-items: center;
+        width: 2rem; height: 2rem; border-radius: 999px;
+        background: var(--accent); color: var(--accent-ink);
+        font-weight: 600; font-size: 0.9375rem;
+      }
+      .steps p { font-size: 0.9375rem; color: var(--ink-soft); line-height: 1.55; }
+
+      /* ---------------------------------------------------------------- showcase */
+
+      .showcase { display: grid; gap: clamp(3rem, 6vw, 4.5rem); margin-top: 3rem; }
+      .show {
+        display: grid; gap: clamp(1.75rem, 4vw, 3.5rem);
+        align-items: center; grid-template-columns: 1fr;
+      }
+      @media (min-width: 58rem) {
+        .show { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+        .show.flip .show-art { order: -1; }
+        /* Side by side, a full-length phone screenshot towers over the paragraph next to it.
+           Stacked on a phone it is the only thing in the column, so it can afford to be bigger. */
+        .show-art .device { width: 16rem; }
+      }
+      .show-art { justify-self: center; }
+      .show-copy { display: grid; gap: 1rem; align-content: start; }
+      .show-copy h3 { font-size: clamp(1.375rem, 2.6vw, 1.75rem); }
+      .show-copy p { color: var(--ink-soft); }
+      .show-copy ul { margin: 0.25rem 0 0; padding-left: 1.125rem; color: var(--ink-soft); }
+      .show-copy li { margin-bottom: 0.4375rem; }
+      .show-copy li strong { color: var(--ink); font-weight: 600; }
+
+      /* ---------------------------------------------------------------- cards */
+
+      .cards {
+        display: grid; gap: 1.25rem; margin-top: 2.5rem;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 46rem) { .cards { grid-template-columns: repeat(2, 1fr); } }
+      @media (min-width: 68rem) { .cards { grid-template-columns: repeat(3, 1fr); } }
+      .card {
+        background: var(--card); border: 1px solid var(--rule);
+        border-radius: 1.25rem; padding: 1.5rem;
+        display: grid; gap: 0.625rem; align-content: start;
+      }
+      .card p { font-size: 0.9375rem; color: var(--ink-soft); line-height: 1.55; }
+      .card.with-shot { padding-bottom: 0; overflow: hidden; }
+      .card.with-shot img {
+        width: min(100%, 11.5rem); justify-self: center;
+        margin-top: 0.75rem; border-radius: 1rem 1rem 0 0;
+        border: 1px solid var(--rule); border-bottom: 0;
+      }
+
+      /* ---------------------------------------------------------------- ipad */
+
+      .ipad-grid {
+        display: grid; gap: clamp(2rem, 4vw, 3rem);
+        align-items: center; grid-template-columns: 1fr;
+      }
+      @media (min-width: 58rem) { .ipad-grid { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); } }
+      .ipad-frame {
+        background: var(--bezel); padding: 0.75rem;
+        border-radius: 1.75rem; box-shadow: var(--shadow);
+      }
+      .ipad-frame img { border-radius: 1.1rem; }
+
+      /* ---------------------------------------------------------------- plans */
+
+      .plans {
+        display: grid; gap: 1.25rem; margin-top: 2.5rem;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 46rem) { .plans { grid-template-columns: repeat(2, 1fr); } }
+      .plan {
+        background: var(--card); border: 1px solid var(--rule);
+        border-radius: 1.25rem; padding: 1.75rem;
+        display: grid; gap: 0.75rem; align-content: start;
+      }
+      .plan.featured { border-color: var(--accent); box-shadow: var(--shadow-soft); }
+      .plan h3 { font-size: 1.25rem; }
+      .plan ul { margin: 0.25rem 0 0; padding-left: 1.125rem; color: var(--ink-soft); font-size: 0.9375rem; }
+      .plan li { margin-bottom: 0.4375rem; }
+      .plan .note { font-size: 0.875rem; color: var(--ink-soft); }
+
+      /* ---------------------------------------------------------------- faq */
+
+      .faq { margin-top: 2.5rem; border-top: 1px solid var(--rule); }
+      .faq details { border-bottom: 1px solid var(--rule); }
+      .faq summary {
+        cursor: pointer; list-style: none;
+        padding: 1.125rem 2.5rem 1.125rem 0;
+        font-weight: 600; font-size: 1.0625rem;
+        position: relative;
+      }
+      .faq summary::-webkit-details-marker { display: none; }
+      .faq summary::after {
+        content: "+"; position: absolute; right: 0.25rem; top: 50%;
+        transform: translateY(-50%);
+        font-weight: 400; font-size: 1.5rem; line-height: 1; color: var(--accent);
+      }
+      .faq details[open] summary::after { content: "\2212"; }
+      .faq .answer { padding: 0 0 1.25rem; color: var(--ink-soft); display: grid; gap: 0.75rem; max-width: 58ch; }
+
+      /* ---------------------------------------------------------------- closing */
+
+      .closing {
+        background: var(--card); border: 1px solid var(--rule);
+        border-radius: 1.5rem; padding: clamp(2rem, 5vw, 3.5rem);
+        display: grid; gap: 1.5rem; justify-items: center; text-align: center;
+      }
+      .closing p { max-width: 46ch; color: var(--ink-soft); }
+
+      /* ---------------------------------------------------------------- footer */
+
+      footer {
+        border-top: 1px solid var(--rule);
+        padding: 3rem 0 3.5rem;
+        font-size: 0.9375rem; color: var(--ink-soft);
+      }
+      .foot-grid {
+        display: grid; gap: 2rem;
+        grid-template-columns: 1fr;
+      }
+      @media (min-width: 46rem) { .foot-grid { grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)); } }
+      .foot-grid h2 { font-size: 0.8125rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 0.75rem; }
+      .foot-grid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+      .foot-grid a { color: var(--ink); text-decoration: none; }
+      .foot-grid a:hover { text-decoration: underline; }
+      .foot-about { display: grid; gap: 0.75rem; align-content: start; max-width: 32ch; }
+      .legal { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); display: grid; gap: 0.5rem; font-size: 0.875rem; }
+    </style>
+  </head>
+
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+
+    <header class="topbar">
+      <div class="wrap">
+        <a class="brand" href="./">
+          <img src="assets/icon-180.png" alt="" width="180" height="180">
+          <span>CoreCredit</span>
+        </a>
+        <nav class="topnav" aria-label="Primary">
+          <a class="hide-sm" href="#how">How it works</a>
+          <a class="hide-sm" href="#features">Features</a>
+          <a class="hide-sm" href="#faq">FAQ</a>
+          <a href="support">Support</a>
+          <a class="badge-link compact"
+             href="https://apps.apple.com/us/app/corecredit-core-return-ledger/id6802336957">
+            <img src="assets/app-store-badge.svg" alt="Download CoreCredit on the App Store">
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="content">
+
+      <!-- ------------------------------------------------------------- hero -->
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Now available on the App Store</p>
+            <h1>Know what your cores are still worth.</h1>
+            <p class="lede">
+              CoreCredit is a core charge ledger for independent repair shops. Log the charge when
+              the part comes in, get the old unit back to the right vendor before the window closes,
+              and keep the money counted until the credit actually lands.
+            </p>
+            <div class="cta-row">
+              <a class="badge-link"
+                 href="https://apps.apple.com/us/app/corecredit-core-return-ledger/id6802336957">
+                <img src="assets/app-store-badge.svg" alt="Download CoreCredit on the App Store">
+              </a>
+              <a class="text-cta" href="#how">See how it works &rarr;</a>
+            </div>
+            <ul class="hero-facts">
+              <li>iPhone and iPad</li>
+              <li>Works with no signal</li>
+              <li>No account to create</li>
+              <li>Free for your first five open cores</li>
+            </ul>
+          </div>
+
+          <div class="hero-device device-pair">
+            <div class="device">
+              <img src="assets/shot-dashboard.webp" width="660" height="1348"
+                   alt="The CoreCredit dashboard: $1,048.25 of money at risk across 9 open cores, $500.00 of it overdue, and a Needs attention list showing a Rack &amp; Pinion 20 days overdue."
+                   fetchpriority="high" decoding="async">
+            </div>
+            <div class="device">
+              <img src="assets/shot-cores.webp" width="660" height="1348"
+                   alt="The Cores list: eleven cores with their vendor, part number and status badges — Ready, Written off, Credited, Returned and Disputed."
+                   loading="lazy" decoding="async">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- strip -->
+      <section>
+        <div class="wrap">
+          <dl class="strip">
+            <div>
+              <dt>Built for small shops</dt>
+              <dd>One to five bays. Auto, diesel, collision and equipment repair.</dd>
+            </div>
+            <div>
+              <dt>Everything stays on the device</dt>
+              <dd>No account, no sign-in, no server of ours holding your records.</dd>
+            </div>
+            <div>
+              <dt>No trackers, ever</dt>
+              <dd>No analytics, no advertising SDK, nothing phoning home.</dd>
+            </div>
+            <div>
+              <dt>Yours to take with you</dt>
+              <dd>CSV and JSON export, and a backup file you can restore.</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- problem -->
+      <section class="band" id="why">
+        <div class="wrap">
+          <div class="section-intro">
+            <p class="eyebrow">The problem</p>
+            <h2>Returned is not the same as credited.</h2>
+            <p class="lede">
+              A core charge is refundable money your shop has already paid. It comes back only if
+              the old unit reaches the right vendor before the window closes — and only once that
+              vendor actually issues the credit. The gap between those two events is where the
+              money quietly goes missing.
+            </p>
+            <p>
+              CoreCredit keeps a core counted as <strong>money at risk</strong> from the day the
+              charge is logged until a real credit is recorded against it. Handing the part to the
+              driver does not settle it. That single rule is the whole product.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- how -->
+      <section id="how">
+        <div class="wrap">
+          <div class="section-intro">
+            <p class="eyebrow">How it works</p>
+            <h2>Four steps, from the invoice to the credit memo.</h2>
+          </div>
+          <ol class="steps">
+            <li>
+              <h3>Log the core charge</h3>
+              <p>
+                Part, vendor, and the refundable amount printed on the invoice. Scan the barcode or
+                type it in. The vendor's return window sets the due date for you.
+              </p>
+            </li>
+            <li>
+              <h3>Mark it ready</h3>
+              <p>
+                The old unit is boxed, tagged and in its bin. Add a photo of the label or the
+                receipt if you want the evidence attached to the record.
+              </p>
+            </li>
+            <li>
+              <h3>Send it back in a batch</h3>
+              <p>
+                Cores group by vendor, so one driver pickup is one return batch with one reference
+                number. The core moves to <em>returned — awaiting credit</em>, still counted.
+              </p>
+            </li>
+            <li>
+              <h3>Record the credit</h3>
+              <p>
+                Enter what the vendor actually credited. Matches in full, it closes. Comes back
+                short, CoreCredit flags the shortfall and opens a dispute you can export.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- showcase -->
+      <section class="band" id="features">
+        <div class="wrap">
+          <div class="section-intro">
+            <p class="eyebrow">Features</p>
+            <h2>A ledger that argues your case for you.</h2>
+          </div>
+
+          <div class="showcase">
+
+            <article class="show">
+              <div class="show-copy">
+                <h3>One number that tells you where you stand</h3>
+                <p>
+                  The dashboard opens on total money at risk, how much of it is already past the
+                  return window, and the specific cores that need a hand today — newest problem
+                  first, with the days overdue spelled out.
+                </p>
+                <ul>
+                  <li><strong>Money at risk</strong> — every unresolved core, added up.</li>
+                  <li><strong>Overdue</strong> — what has already blown its return window.</li>
+                  <li><strong>Needs attention</strong> — the queue to work through.</li>
+                </ul>
+              </div>
+              <div class="show-art">
+                <div class="device">
+                  <img src="assets/shot-dashboard.webp" width="660" height="1348"
+                       alt="Dashboard showing Money at risk of $1,048.25 across 9 open cores, $500.00 overdue on 4 cores, and Add core and Scan core buttons."
+                       loading="lazy" decoding="async">
+                </div>
+              </div>
+            </article>
+
+            <article class="show flip">
+              <div class="show-copy">
+                <h3>Short credits stop being somebody else's problem</h3>
+                <p>
+                  Record what the vendor actually paid. If it is less than the core charge,
+                  CoreCredit does the subtraction, marks the core disputed, and keeps the balance in
+                  your exposure — with the credit memo number, the credit date and the original
+                  invoice sitting right there when you call the counter.
+                </p>
+                <ul>
+                  <li>Expected against received, with the shortfall on its own line.</li>
+                  <li>Part number, vendor, bin, invoice and repair order on one screen.</li>
+                  <li>Export a dispute packet as a PDF through the standard share sheet.</li>
+                </ul>
+              </div>
+              <div class="show-art">
+                <div class="device">
+                  <img src="assets/shot-detail.webp" width="660" height="1348"
+                       alt="A Reman Transmission core marked Disputed and 5 days overdue: core charge $650.00, credit received $500.00, short by $150.00, with credit memo CM-22018 and the core details below."
+                       loading="lazy" decoding="async">
+                </div>
+              </div>
+            </article>
+
+            <article class="show">
+              <div class="show-copy">
+                <h3>Returns batched the way the driver actually picks them up</h3>
+                <p>
+                  Cores that are ready group themselves by vendor. Build the batch, keep the return
+                  reference, and the open returns list shows what each vendor is still holding and
+                  what the total owed adds up to.
+                </p>
+                <ul>
+                  <li>One batch per vendor pickup, with its own reference.</li>
+                  <li>Driver pickup, counter drop-off or your own note on how it went back.</li>
+                  <li>A running total of everything still waiting on a credit.</li>
+                </ul>
+              </div>
+              <div class="show-art">
+                <div class="device">
+                  <img src="assets/shot-returns.webp" width="660" height="1250"
+                       alt="The Returns screen: a Tri-state Parts group with one core ready and a Create return batch button, then open returns for five vendors and a total still owed of $1,080.00."
+                       loading="lazy" decoding="async">
+                </div>
+              </div>
+            </article>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- cards -->
+      <section>
+        <div class="wrap">
+          <div class="section-intro">
+            <h2>The rest of it</h2>
+            <p class="lede">
+              Everything below runs on the device, and every field can be typed by hand if you would
+              rather not point a camera at anything.
+            </p>
+          </div>
+          <div class="cards">
+
+            <article class="card with-shot">
+              <h3>Scan the box, not the paperwork</h3>
+              <p>
+                Live mode reads barcodes and highlights printed text for you to tap. Document mode
+                flattens a whole invoice. Both run on device, and neither writes a record on its
+                own — everything lands as a suggestion you confirm.
+              </p>
+              <img src="assets/shot-scan.webp" width="660" height="1348"
+                   alt="The Scan core screen with Live and Document modes, showing a camera view of a core return label with a barcode, and a manual entry field below it."
+                   loading="lazy" decoding="async">
+            </article>
+
+            <article class="card with-shot">
+              <h3>Intake that takes seconds</h3>
+              <p>
+                Part, vendor, expected credit. References, bin, evidence photos and notes stay
+                folded away until you want them. The vendor's return window fills in the deadline.
+              </p>
+              <img src="assets/shot-add.webp" width="660" height="1373"
+                   alt="The Add core form: part name Diesel Fuel Injector, part number FLD-31872, vendor Fleet line Diesel with a 30-day return window, and an expected core credit of $225."
+                   loading="lazy" decoding="async">
+            </article>
+
+            <article class="card with-shot">
+              <h3>A timeline you can hand to anyone</h3>
+              <p>
+                Every core keeps an append-only history: created, edited, photographed, status
+                changed, batched, returned, credited — each with its amount, its reference and its
+                timestamp. Nothing is rewritten after the fact.
+              </p>
+              <img src="assets/shot-timeline.webp" width="660" height="1327"
+                   alt="The history of an Alternator core: created, photo added, edited, status changed to ready to return, added to a return batch, returned to Northstar Reman, and credit recorded."
+                   loading="lazy" decoding="async">
+            </article>
+
+            <article class="card">
+              <h3>Deadline reminders</h3>
+              <p>
+                Turn on notifications and CoreCredit tells you before a return window closes rather
+                than after. Off by default, and never required to use anything else.
+              </p>
+            </article>
+
+            <article class="card">
+              <h3>Search and filter that keeps up</h3>
+              <p>
+                Find a core by part, part number, invoice, repair order, vendor or bin. Filter by
+                status when you want to see only what is overdue, only what is ready, or only what
+                is still in dispute.
+              </p>
+            </article>
+
+            <article class="card">
+              <h3>Export, back up, move on</h3>
+              <p>
+                A spreadsheet for the office, a JSON backup for a new phone, a dispute packet for
+                the vendor. Restore reads a backup this app wrote and tells you exactly what it is
+                about to replace before it does it.
+              </p>
+            </article>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- ipad -->
+      <section class="band">
+        <div class="wrap ipad-grid">
+          <div class="section-intro">
+            <p class="eyebrow">On the counter too</p>
+            <h2>Runs on the iPad at the front desk.</h2>
+            <p>
+              The same records, laid out for a bigger screen: a sidebar for Dashboard, Cores,
+              Returns and Settings, and the full list beside it. Nothing to sync and nothing to sign
+              into — each device keeps its own ledger.
+            </p>
+            <p class="lede">Requires iOS or iPadOS 18 or later.</p>
+          </div>
+          <div class="ipad-frame">
+            <img src="assets/shot-ipad.webp" width="1200" height="834"
+                 alt="CoreCredit on iPad in landscape: a sidebar listing Dashboard, Cores, Returns and Settings beside the full Cores list with status badges and amounts."
+                 loading="lazy" decoding="async">
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- plans -->
+      <section id="plans">
+        <div class="wrap">
+          <div class="section-intro">
+            <h2>Start free. Upgrade when the board fills up.</h2>
+            <p class="lede">
+              Nothing you have already logged is ever locked away, on either plan.
+            </p>
+          </div>
+          <div class="plans">
+            <article class="plan">
+              <h3>Free</h3>
+              <p>Up to five unresolved cores at a time.</p>
+              <ul>
+                <li>Credited and written-off cores stop counting, so settling one frees a slot.</li>
+                <li>Full dashboard, returns, scanning, photos and history.</li>
+                <li>Everything you have logged stays viewable, editable and exportable.</li>
+              </ul>
+            </article>
+            <article class="plan featured">
+              <h3>CoreCredit&nbsp;Pro</h3>
+              <p>An auto-renewable subscription that removes the five-core limit.</p>
+              <ul>
+                <li>Unlimited open cores.</li>
+                <li>Monthly or annual, sold through Apple.</li>
+                <li>Cancel any time in your Apple Account settings.</li>
+              </ul>
+              <p class="note">
+                Current pricing is shown in the App Store and inside the app, exactly as Apple
+                reports it for your storefront.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- faq -->
+      <section class="band" id="faq">
+        <div class="wrap">
+          <div class="section-intro">
+            <p class="eyebrow">Questions</p>
+            <h2>Before you download.</h2>
+          </div>
+          <div class="faq">
+
+            <details>
+              <summary>Who is CoreCredit for?</summary>
+              <div class="answer">
+                <p>
+                  Owner-operated one-to-five-bay shops — auto, diesel, collision and equipment
+                  repair — that do not have usable core tracking in an expensive shop-management
+                  suite. If your core log is a clipboard, a whiteboard or a shoebox of invoices,
+                  this is built for you.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Does it need an account or an internet connection?</summary>
+              <div class="answer">
+                <p>
+                  Neither. There is no sign-in and no server. Put the phone in Airplane Mode and
+                  every feature still works except buying a subscription, which goes through Apple.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Where does my data live?</summary>
+              <div class="answer">
+                <p>
+                  On your device, and nowhere else. We do not receive it, and there is no analytics
+                  or advertising code in the app to send it anywhere. Export a CSV or a JSON backup
+                  whenever you want a copy, and see the
+                  <a href="privacy">Privacy Policy</a> for the details.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Do I have to scan anything?</summary>
+              <div class="answer">
+                <p>
+                  No. Scanning is a shortcut, never a requirement — the manual entry field is on the
+                  scan screen in every state, including when the camera is unavailable or you have
+                  declined access. The camera is only ever asked for after you open Scan core
+                  yourself.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>What happens when I hit the free limit?</summary>
+              <div class="answer">
+                <p>
+                  Creating a sixth <em>unresolved</em> core asks you to upgrade. That is the only
+                  thing the limit blocks. Everything already in the app stays fully available to
+                  view, edit, photograph, credit and export, and closing a core out — credited or
+                  written off — frees the slot again.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Does it replace my shop management system?</summary>
+              <div class="answer">
+                <p>
+                  No, and it is not trying to. CoreCredit is not a repair-order system, an
+                  accounting product or an inventory manager. It does one narrow financial job:
+                  tracking refundable core money until it comes back.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>Where is it available?</summary>
+              <div class="answer">
+                <p>
+                  Version 1 is offered on the United States App Store, for iPhone and iPad running
+                  iOS or iPadOS 18 or later.
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>How do I get help?</summary>
+              <div class="answer">
+                <p>
+                  Email <a href="mailto:support@idlery.com">support@idlery.com</a>. That address
+                  reaches the people who make CoreCredit. The
+                  <a href="support">support page</a> also lists the things worth trying before you
+                  wait on a reply.
+                </p>
+              </div>
+            </details>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------------------- closing -->
+      <section>
+        <div class="wrap">
+          <div class="closing">
+            <h2>Stop guessing what the vendors still owe you.</h2>
+            <p>
+              Log one core tonight and the dashboard will tell you the number tomorrow morning.
+            </p>
+            <a class="badge-link"
+               href="https://apps.apple.com/us/app/corecredit-core-return-ledger/id6802336957">
+              <img src="assets/app-store-badge.svg" alt="Download CoreCredit on the App Store">
+            </a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <div class="foot-grid">
+          <div class="foot-about">
+            <a class="brand" href="./">
+              <img src="assets/icon-180.png" alt="" width="180" height="180">
+              <span>CoreCredit</span>
+            </a>
+            <p>
+              A local-first parts core and vendor credit ledger for repair shops, published by
+              Idlery Services LLC.
+            </p>
+          </div>
+          <nav aria-labelledby="foot-app">
+            <h2 id="foot-app">App</h2>
+            <ul>
+              <li><a href="https://apps.apple.com/us/app/corecredit-core-return-ledger/id6802336957">Download on the App Store</a></li>
+              <li><a href="#how">How it works</a></li>
+              <li><a href="#features">Features</a></li>
+              <li><a href="#plans">Free and Pro</a></li>
+            </ul>
+          </nav>
+          <nav aria-labelledby="foot-help">
+            <h2 id="foot-help">Help and legal</h2>
+            <ul>
+              <li><a href="support">Support</a></li>
+              <li><a href="privacy">Privacy Policy</a></li>
+              <li><a href="terms">Terms of Use</a></li>
+              <li><a href="mailto:support@idlery.com">support@idlery.com</a></li>
+            </ul>
+          </nav>
+        </div>
+        <div class="legal">
+          <p>CoreCredit is published by Idlery Services LLC.</p>
+          <p>Copyright 2026 Idlery Services LLC. Version 1 is offered on the App Store in the United States only.</p>
+          <p>Apple, the Apple logo, iPhone and iPad are trademarks of Apple Inc., registered in the U.S. and other countries. App Store is a service mark of Apple Inc.</p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
