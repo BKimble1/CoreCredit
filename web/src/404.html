@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!--
+  CoreCredit - the 404 page for corecredit.idlery.com, published by Idlery Services LLC.
+  No script, no web font, no external request, no cookie, no analytics, no tracker.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, follow">
+    <meta name="description" content="That page is not here. Links to CoreCredit support, privacy and terms.">
+    <meta name="theme-color" content="#0053fd">
+    <title>Page not found - CoreCredit</title>
+    <link rel="icon" href="assets/icon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="assets/icon-180.png">
+    <style>
+      :root {
+        color-scheme: light dark;
+        --ink: #0b1220;
+        --ink-soft: #55617a;
+        --ground: #e7edfa;
+        --card: #ffffff;
+        --rule: #d3dcec;
+        --accent: #0053fd;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #f4f7fc;
+          --ink-soft: #a9b4c6;
+          --ground: #080b12;
+          --card: #18202e;
+          --rule: #2e3747;
+          --accent: #5b93ff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1rem 4rem;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 1.0625rem;
+        line-height: 1.65;
+        color: var(--ink);
+        background: var(--ground);
+        -webkit-text-size-adjust: 100%;
+      }
+      .card {
+        width: 100%;
+        max-width: 32rem;
+        background: var(--card);
+        border: 1px solid var(--rule);
+        border-radius: 1.25rem;
+        padding: 2rem;
+        display: grid;
+        gap: 1rem;
+        justify-items: start;
+      }
+      img { width: 3rem; height: 3rem; border-radius: 0.75rem; display: block; }
+      h1 { font-size: 1.75rem; line-height: 1.2; margin: 0; letter-spacing: -0.02em; }
+      p { margin: 0; color: var(--ink-soft); }
+      nav { margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; font-size: 0.9375rem; }
+      a { color: var(--accent); }
+      a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 0.25rem; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img src="assets/icon-180.png" alt="" width="180" height="180">
+      <h1>That page is not here.</h1>
+      <p>
+        The address may have changed, or the link that brought you here may be out of date.
+        Everything this site publishes is one of the four pages below.
+      </p>
+      <nav aria-label="Site">
+        <a href="./">Home</a>
+        <a href="support">Support</a>
+        <a href="privacy">Privacy</a>
+        <a href="terms">Terms</a>
+      </nav>
+      <p>
+        Still stuck? Email <a href="mailto:support@idlery.com">support@idlery.com</a>.
+      </p>
+    </div>
+  </body>
+</html>

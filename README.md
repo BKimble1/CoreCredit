@@ -60,6 +60,7 @@ CoreCreditTests/     Swift Testing unit suites
 CoreCreditUITests/   XCTest UI smoke suites
 StoreKit/            CoreCredit.storekit (local StoreKit configuration)
 docs/                CONTRACTS.md · HANDOFF.md · RELEASE.md · APP_STORE_REVIEW_NOTES.md · PRIVACY.md
+web/                 corecredit.idlery.com — site source, build tools, and the deployable ZIP
 ```
 
 `docs/CONTRACTS.md` is the authoritative API contract for the codebase and is worth reading

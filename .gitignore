@@ -27,3 +27,11 @@ xcuserdata/
 # Exports produced at runtime
 Exports/
 *.mobileprovision
+
+# Website build output. web/corecredit-netlify.zip is the committed artifact; the unpacked
+# copy it is built from is not.
+web/dist/
+
+# Python
+__pycache__/
+*.pyc

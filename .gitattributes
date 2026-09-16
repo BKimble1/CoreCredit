@@ -11,3 +11,6 @@
 *.png        binary
 *.jpg        binary
 *.pdf        binary
+
+*.zip        binary
+*.webp       binary
